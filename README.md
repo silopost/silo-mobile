@@ -8,7 +8,8 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 1 – project skeleton, API client and bearer sign-in (login, session list, sign-out).
+Status: slice 2 – the Gmail shell: routes per account, navigation drawer, search bar, account
+switcher, compose FAB and the Gmail theme (slice 1: API client and bearer sign-in).
 
 ## Stack
 
@@ -17,9 +18,46 @@ Status: slice 1 – project skeleton, API client and bearer sign-in (login, sess
 - [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with types generated from silo-server's
   OpenAPI contract by [openapi-typescript](https://openapi-ts.dev/) (`src/api/schema.d.ts`)
 - [TanStack Query](https://tanstack.com/query) for server state, [zustand](https://zustand.docs.pmnd.rs)
-  for the auth state
+  for the auth state and the device preferences (persisted to AsyncStorage)
+- expo-router's `Drawer` (its bundled react-navigation drawer on `react-native-drawer-layout`,
+  `react-native-gesture-handler`, `react-native-reanimated`)
 - [react-native-paper](https://callstack.github.io/react-native-paper/) 5 (Material 3)
 - Tests: `jest-expo`, `@testing-library/react-native`, [msw](https://mswjs.io)
+
+## Mapowanie Gmail → ekrany
+
+Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
+
+| Gmail app             | silo-mobile                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first |
+| label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`  |
+| thread                | `/u/<n>/<label>/<threadId>` (placeholder, slice 6)                 |
+| search                | `/u/<n>/search` (placeholder)                                      |
+| compose (full screen) | `/compose` (placeholder, slice 7)                                  |
+| settings              | `/settings` (theme), `/settings/sessions`                          |
+
+- **Drawer** (`src/features/nav`): opened by a swipe from the left edge or the menu button.
+  Logotype, system views in Gmail's order (`src/lib/labels.ts`, a port of silo-web's
+  `SYSTEM_VIEWS`) with counters from `GET /labels` (unread: Inbox, Spam; total: Scheduled,
+  Drafts; `99+` above 99), "Etykiety" with the user's labels (colour dot, unread counter),
+  server folders, "Utwórz nową" (slice 4), "Ustawienia", "Pomoc i opinie" (disabled). The active
+  entry sits on an MD3 pill (`secondaryContainer`, rounded right end) and is announced as
+  selected.
+- **Search bar** (`src/features/topbar`): floating rounded field (`surfaceContainerHigh`) with the
+  menu button, "Szukaj w poczcie" (opens search) and the account avatar (initial on a colour
+  hashed from the address). Outside the Inbox a section title names the label above the list.
+- **Accounts** (`src/features/accounts`): the avatar opens the account dialog – current account,
+  "Zarządzaj kontami" (settings), the other accounts by position with unread Inbox counters (one
+  `GET /labels` each, fetched only while the dialog is open), "Dodaj konto" (slice 8), sign-out.
+  Choosing an account opens `/u/<position>/inbox`.
+- **FAB** (`src/features/shell`): extended "Utwórz" with a pencil, bottom right, opens
+  `/compose`; its `extended` prop folds it to the icon (driven by the list's scrolling in
+  slice 3).
+- **Theme** (`src/lib/theme.ts`): MD3 light and dark palettes tuned to the Gmail app (Google blue
+  primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
+  logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
+  actions, density) live in `src/state/ui.ts` (zustand + AsyncStorage).
 
 ## Running
 
@@ -87,13 +125,28 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
 - `jest.config.js` lets Babel transform msw and its ES-module-only dependencies (`.mjs` files and a
   few packages) like the React Native packages.
 
-`expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`.
+`expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`, as are
+AsyncStorage, gesture-handler, worklets and the safe-area insets (the libraries' jest mocks).
+
+Route tests render the real `app/` tree with expo-router's `renderRouter`
+(`src/test/router.tsx`). Two more adjustments make that work:
+
+- `renderRouter` turns on fake timers, under which msw never answers; `jest.config.js` sets
+  `fakeTimers.doNotFake` so fake timers only freeze the clock.
+- `react-native-reanimated/mock` loads the real library, whose native initializer throws under
+  jest-expo's Android preset (reanimated 4.7: JSReanimated has no `setCSSEventHandler`). The
+  path is mapped to a minimal stand-in, `src/test/reanimated-mock.js`, covering what the drawer
+  uses.
+
+Known: a single test file run in band (`npx jest <file>`) passes, but jest does not exit
+afterwards (an open handle that already existed in slice 1); `npm test` runs the files in
+workers and finishes. Add `--forceExit` when running one file.
 
 ## Out of scope (so far)
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Mail views, compose, the Gmail theme: later slices.
+- Thread list, thread, search, compose, label management, account setup: later slices.
 
 ## License
 

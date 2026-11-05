@@ -60,6 +60,19 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   edits a draft without TipTap (plain text editor on mobile): it needs a rule such as "a save with
   `bodyJson: null` makes `bodyHtml` authoritative and the web editor rebuilds its document from
   the HTML".
+- **No unread summary across accounts.** The account switcher shows the unread Inbox count of
+  every other account, as Gmail does; the only source is `GET /labels?accountId=` per account,
+  so N accounts cost N requests each time the switcher opens (fetched lazily, cached 30 s).
+  Proposal: `Account.inboxUnread` in `GET /session`/`GET /accounts`, or a
+  `GET /labels/summary` with the INBOX counters of all accounts; the `label.counts` events of
+  plan 5.4 could then keep it fresh for every account, not just the open one.
+- **`settings.activeAccountId` is not written by the clients.** The start route opens it, but
+  neither silo-web nor silo-mobile updates it when the user switches accounts, so "the account
+  shown by default" never follows the last choice. Either the clients `PATCH /settings` on a
+  switch, or the field should be documented as set only from settings.
+- **System view order is client-side.** `Label.position` orders user labels, but the Gmail
+  order of the system views (Inbox, Starred, Snoozed, Important, Sent, Scheduled, Drafts, All
+  mail, Spam, Trash) is hard-coded in both clients (`SYSTEM_VIEWS`); plan 5.5 could state it.
 - `SessionInfo` already carries `lastSeenAt`, `kind` and `clientName`; nothing missing for the
   session list.
 
@@ -84,8 +97,19 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   its bodies hang on jest-expo's web-streams polyfill.
 - **State:** TanStack Query for server state, zustand for the auth state (status, server address,
   token cached in memory), as in silo-web.
-- No `@react-native-async-storage/async-storage`: the three persisted values (token, server
-  address, installation id) all live in `expo-secure-store`.
+- Credentials (token, server address, installation id) live in `expo-secure-store`; device
+  preferences (theme, swipe actions, density: not secret, not server settings) in
+  `@react-native-async-storage/async-storage` through zustand's `persist` (slice 2).
+- **Navigation drawer:** expo-router's `Drawer` (its bundled fork of react-navigation's drawer
+  on `react-native-drawer-layout`, gesture-handler and reanimated 4), not a hand-made `Modal`:
+  edge swipe, back handling and drawer state come with the router. Cost in jest: reanimated's
+  own mock does not load under jest-expo's Android preset, so a small stand-in is mapped in
+  `jest.config.js`, and `renderRouter`'s fake timers are limited to the clock so msw works.
+- **Compose FAB:** Paper's `AnimatedFAB`, folded through its `extended` prop; the thread list
+  (slice 3) will set it from the scroll direction, as Gmail does.
+- **Theme:** primary stays Google blue as in the Gmail app (buttons, links, focus); Gmail red
+  (`#C5221F`, `#F28B82` dark) is the `brand` colour of the logotype and important accents
+  rather than `primary`, so Paper's controls do not turn red.
 
 ## Compose editor (recommendation for a later slice)
 
