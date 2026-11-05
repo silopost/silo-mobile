@@ -1,8 +1,16 @@
-/** Query keys (plan 6.4); later slices add the keys of the mail views. */
+/** Filter of a thread list: `labelId` undefined is all mail ("Wszystkie"), `q` a search. */
+export type ListFilter = { labelId?: string; q?: string };
+
+/** Query keys (plan 6.4), the same shapes as silo-web's. */
 export const keys = {
   session: ["session"] as const,
   /** Per instance: the sign-in screen asks the address being typed. */
   meta: (serverUrl: string) => ["meta", serverUrl] as const,
   sessions: ["sessions"] as const,
   labels: (accountId: string) => ["labels", accountId] as const,
+  /** Prefix of every thread list of an account (invalidated after a resync). */
+  threadsAll: (accountId: string) => ["threads", accountId] as const,
+  threads: (accountId: string, filter: ListFilter) => ["threads", accountId, filter] as const,
+  thread: (id: string) => ["thread", id] as const,
+  syncStatus: (accountId: string) => ["syncStatus", accountId] as const,
 };
