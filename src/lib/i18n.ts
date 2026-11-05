@@ -10,6 +10,14 @@ export function formatDateTime(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : dateTime.format(date);
 }
 
+/** Polish plural form: 1 "one", 2–4 (not 12–14) "few", otherwise "many". */
+export function plural(n: number, one: string, few: string, many: string): string {
+  if (n === 1) return one;
+  const d = n % 10;
+  const dd = n % 100;
+  return d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? few : many;
+}
+
 /** UI strings (Polish, as in the plan). A plain map, as in silo-web; no i18n library yet. */
 export const t = {
   appName: "Silo",
@@ -35,9 +43,7 @@ export const t = {
     seconds ? `Za dużo prób, spróbuj za ${seconds} s` : "Za dużo prób, spróbuj później",
   mailServerUnavailable: "Serwer poczty niedostępny",
 
-  // home (temporary, replaced by the mail views)
-  signedInAs: (email: string) => `Zalogowano jako ${email}`,
-  accounts: "Konta",
+  // accounts
   accountStates: {
     connecting: "Łączenie",
     discovering: "Wykrywanie folderów",
@@ -47,7 +53,6 @@ export const t = {
     auth_failed: "Błąd logowania do skrzynki",
     disabled: "Wyłączone",
   } satisfies Record<AccountState, string>,
-  manageSessions: "Zalogowane urządzenia",
 
   // sessions
   sessionsTitle: "Zalogowane urządzenia",
@@ -63,4 +68,33 @@ export const t = {
   noSessions: "Brak innych sesji.",
   signOut: "Wyloguj się",
   signingOut: "Wylogowywanie…",
+
+  // mail shell: drawer, search bar, account switcher, compose
+  mainMenu: "Menu główne",
+  openMenu: "Otwórz menu nawigacji",
+  searchMail: "Szukaj w poczcie",
+  labels: "Etykiety",
+  folders: "Foldery",
+  createLabel: "Utwórz nową",
+  settings: "Ustawienia",
+  helpFeedback: "Pomoc i opinie",
+  comingSoon: "Dostępne wkrótce",
+  compose: "Utwórz",
+  unreadCount: (n: number) =>
+    `${n} ${plural(n, "nieprzeczytany", "nieprzeczytane", "nieprzeczytanych")}`,
+  totalCount: (n: number) => `${n} ${plural(n, "wątek", "wątki", "wątków")}`,
+  accountMenu: (email: string) => `Konto ${email}, przełącz konto lub wyloguj się`,
+  switchTo: (email: string) => `Przełącz na ${email}`,
+  addAccount: "Dodaj konto",
+  manageAccounts: "Zarządzaj kontami",
+  close: "Zamknij",
+  noAccounts: "Brak kont pocztowych. Dodaj konto w wersji przeglądarkowej Silo.",
+  unknownLabel: "Nie ma takiej etykiety",
+  threadListSoon: "Lista wątków pojawi się w kolejnej wersji.",
+  thread: "Wątek",
+  threadSoon: "Widok wątku pojawi się w kolejnej wersji.",
+  searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
+  composeSoon: "Edytor wiadomości pojawi się w kolejnej wersji.",
+  themeTitle: "Motyw",
+  themes: { system: "Systemowy", light: "Jasny", dark: "Ciemny" },
 };

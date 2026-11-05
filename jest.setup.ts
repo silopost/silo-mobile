@@ -31,8 +31,15 @@ jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"),
 );
 
-// Gestures and animations of the drawer: the libraries' own jest mocks.
+// Gestures and animations of the drawer: jest mocks (react-native-reanimated/mock is mapped to
+// src/test/reanimated-mock.js in jest.config.js).
 jest.mock("react-native-worklets", () =>
   jest.requireActual("react-native-worklets/lib/module/mock"),
 );
 jest.mock("react-native-reanimated", () => jest.requireActual("react-native-reanimated/mock"));
+
+// Safe-area insets without a native view to measure them (fixed metrics of the library's mock).
+jest.mock(
+  "react-native-safe-area-context",
+  () => jest.requireActual("react-native-safe-area-context/jest/mock").default,
+);
