@@ -68,3 +68,31 @@ export const labels: Schemas["Label"][] = [
   label({ id: "l_2", name: "Rachunki", type: "user", position: 1 }),
   label({ id: "l_3", name: "Ukryta", type: "user", showInList: "hide", position: 2 }),
 ];
+
+/** A thread of acc_1 in the Inbox, read, from Jan Kowalski unless overridden. */
+export function thread(over: Partial<Schemas["Thread"]>): Schemas["Thread"] {
+  return {
+    accountId: "acc_1",
+    draftId: null,
+    hasAttachments: false,
+    id: "t_1",
+    labelIds: ["INBOX"],
+    lastMessageAt: "2025-11-04T08:00:00Z",
+    messageCount: 1,
+    participants: [{ email: "jan@example.com", name: "Jan Kowalski", unread: false }],
+    pendingSync: false,
+    snippet: "Przesyłam ofertę",
+    snoozedUntil: null,
+    subject: "Oferta na Q4",
+    unreadCount: 0,
+    ...over,
+  };
+}
+
+/** GET /threads page with the given threads. */
+export function threadPage(
+  threads: Schemas["Thread"][],
+  nextCursor: string | null = null,
+): Schemas["ThreadList"] {
+  return { threads, nextCursor, resultSizeEstimate: threads.length };
+}

@@ -100,5 +100,15 @@ export const t = {
   // thread list
   me: "ja",
   noSubject: "(bez tematu)",
+  unread: "Nieprzeczytane",
+  hasAttachment: "załącznik",
+  scheduledLabel: "zaplanowane",
+  starredLabel: "oznaczone gwiazdką",
+  pendingSync: "Oczekuje na zapis na serwerze poczty",
+  star: "Oznacz gwiazdką",
+  unstar: "Usuń gwiazdkę",
+  selectThread: "Zaznacz wątek",
+  deselectThread: "Odznacz wątek",
+  messageCount: (n: number) => `${n} ${plural(n, "wiadomość", "wiadomości", "wiadomości")}`,
   themes: { system: "Systemowy", light: "Jasny", dark: "Ciemny" },
 };
