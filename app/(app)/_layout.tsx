@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 import { View } from "react-native";
 import { ActivityIndicator } from "react-native-paper";
 import { t } from "../../src/lib/i18n";
+import { useEvents } from "../../src/features/sync/useEvents";
 import { useAppTheme } from "../../src/lib/theme";
 import { useAuth } from "../../src/state/auth";
 
@@ -9,6 +10,8 @@ import { useAuth } from "../../src/state/auth";
 export default function AppLayout() {
   const status = useAuth((s) => s.status);
   const theme = useAppTheme();
+  // Server events while signed in and in the foreground (one stream for every screen).
+  useEvents();
 
   if (status === "loading") {
     return (

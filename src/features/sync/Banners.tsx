@@ -4,6 +4,7 @@ import { Button, Icon, ProgressBar, Text } from "react-native-paper";
 import { formatNumber } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
+import { useConnection } from "../../state/connection";
 import { useActiveAccount } from "../account";
 import { isInitialSync, progressPercent, useResync, useSyncStatus } from "./useSync";
 
@@ -78,6 +79,25 @@ function AccountErrorBanner() {
   );
 }
 
+/**
+ * Silo itself does not answer (the event stream and /meta fail), as silo-web's OfflineBanner. The
+ * cached mail stays readable; the stream keeps reconnecting. Nothing is shown while polling.
+ */
+function OfflineBanner() {
+  const theme = useAppTheme();
+  const offline = useConnection((s) => s.state === "offline");
+  if (!offline) return null;
+  return (
+    <Banner
+      testID="banner-offline"
+      icon="server-network-off"
+      text={t.siloOffline}
+      background={theme.colors.surfaceContainerHigh}
+      color={theme.colors.onSurface}
+    />
+  );
+}
+
 /** Progress of the first synchronisation of the account. */
 function InitialSyncBanner() {
   const theme = useAppTheme();
@@ -108,6 +128,7 @@ function InitialSyncBanner() {
 export function Banners() {
   return (
     <View accessibilityLiveRegion="polite">
+      <OfflineBanner />
       <AccountErrorBanner />
       <InitialSyncBanner />
     </View>

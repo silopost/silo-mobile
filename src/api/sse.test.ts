@@ -3,6 +3,9 @@ import { http, HttpResponse } from "msw";
 import { API, server, setupMsw } from "../test/server";
 import { fetchEventSource, SseParser, type SseMessage } from "./sse";
 
+// jest.setup.ts replaces the stream with an inert one for screen tests.
+jest.unmock("./sse");
+
 setupMsw();
 
 describe("SseParser", () => {

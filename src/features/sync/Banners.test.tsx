@@ -1,4 +1,5 @@
-import { fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { act, fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { setConnection } from "../../state/connection";
 import { http, HttpResponse } from "msw";
 import { labels, sessionBody, syncStatus, threadPage } from "../../test/fixtures";
 import { renderApp, signIn } from "../../test/router";
@@ -36,6 +37,18 @@ describe("sync banners", () => {
     await screen.findByText("Brak wiadomości w Odebranych");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByTestId("banner-initial-sync")).toBeNull();
+  });
+
+  it("tells when Silo itself is unreachable, and nothing while polling", async () => {
+    serveStatus(syncStatus({}));
+    await renderApp("/u/0/inbox");
+    await screen.findByText("Brak wiadomości w Odebranych");
+
+    await act(async () => setConnection("offline"));
+    expect(screen.getByText("Brak połączenia z Silo. Ponawiam…")).toBeOnTheScreen();
+
+    await act(async () => setConnection("polling"));
+    expect(screen.queryByTestId("banner-offline")).toBeNull();
   });
 
   it("asks for a new password when the mailbox rejects it", async () => {

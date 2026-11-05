@@ -133,7 +133,6 @@ export const t = {
     `${n} ${plural(n, "zmiana oczekuje", "zmiany oczekują", "zmian oczekuje")}.`,
   retryNow: "Ponów teraz",
   siloOffline: "Brak połączenia z Silo. Ponawiam…",
-  eventsPolling: "Aktualizacje co 15 s",
   sendFailedOpen: "Nie udało się wysłać",
   open: "Otwórz",
   initialSync: (done: string, total: string) => `Synchronizacja: ${done} z ${total} wiadomości`,

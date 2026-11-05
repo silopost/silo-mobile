@@ -5,24 +5,27 @@ import { keys } from "../../api/keys";
 import { syncStatusQuery } from "../../api/queries/syncStatus";
 import type { SyncStatus } from "../../api/types";
 import { t } from "../../lib/i18n";
+import { useConnection } from "../../state/connection";
 import { toast } from "../../state/toasts";
 import { useActiveAccount } from "../account";
 
 /**
  * How often the status is polled while the account is not live (initial sync, backoff, failed
- * password). Server events replace the polling in slice 5; a live account is not polled.
+ * password) and the event stream is not either: account.status and account.sync_progress events
+ * update it while SSE is up, so it is only polled while polling /events/poll or offline.
  */
 export const SYNC_POLL_MS = 15_000;
 
 /** Sync status of the route's account (GET /accounts/{id}/sync-status). */
 export function useSyncStatus(): SyncStatus | undefined {
   const account = useActiveAccount();
+  const streamed = useConnection((s) => s.state === "live" || s.state === "connecting");
   return useQuery({
     ...syncStatusQuery(account?.id ?? ""),
     enabled: !!account,
     refetchInterval: (q) => {
       const state = q.state.data?.state;
-      return state && state !== "live" ? SYNC_POLL_MS : false;
+      return !streamed && state && state !== "live" ? SYNC_POLL_MS : false;
     },
   }).data;
 }

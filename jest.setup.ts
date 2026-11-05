@@ -46,3 +46,16 @@ jest.mock(
   "react-native-safe-area-context",
   () => jest.requireActual("react-native-safe-area-context/jest/mock").default,
 );
+
+// Network state for TanStack Query's onlineManager and the event stream: always online.
+jest.mock("@react-native-community/netinfo", () =>
+  jest.requireActual("@react-native-community/netinfo/jest/netinfo-mock"),
+);
+
+// The event stream of the signed-in screens: a source that never opens, so screens render without
+// SSE requests to msw (connection stays "connecting", no offline banner). src/api/sse.test.ts
+// tests the real one; connectEvents tests inject their own through eventsConfig.
+jest.mock("./src/api/sse", () => ({
+  ...jest.requireActual("./src/api/sse"),
+  fetchEventSource: () => ({ close: () => undefined }),
+}));
