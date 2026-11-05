@@ -1,23 +1,6 @@
-import type { Label } from "../api/queries/labels";
+import { label } from "../test/fixtures";
 import { formatCount, initial } from "./format";
 import { isListed, resolveLabelSlug, systemCount, SYSTEM_VIEWS, viewName } from "./labels";
-
-const label = (over: Partial<Label>): Label => ({
-  accountId: "acc_1",
-  colorBg: null,
-  colorText: null,
-  folderId: null,
-  id: "INBOX",
-  keywordState: null,
-  name: "INBOX",
-  parentId: null,
-  position: 0,
-  showInList: "show",
-  threadsTotal: 0,
-  threadsUnread: 0,
-  type: "system",
-  ...over,
-});
 
 describe("labels", () => {
   it("resolves system slugs and label ids", () => {
