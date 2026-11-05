@@ -42,6 +42,19 @@ export function formatListDate(iso: string, now = new Date()): string {
   return format(d, "dd.MM.yyyy");
 }
 
+/** Full date of a message, e.g. "4 lis 2026, 09:12" (the details of a message card). */
+export function formatFullDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : format(d, "d MMM yyyy, HH:mm", { locale: pl });
+}
+
+/** Size of an attachment: "512 B", "18 KB", "2,4 MB" (as silo-web). */
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
+
 /** Name of an address; the server writes the user's own address as "me" ("ja"). */
 export function displayName(a: { email: string; name?: string | null }): string {
   if (a.email === ME) return t.me;

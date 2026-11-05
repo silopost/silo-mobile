@@ -3,6 +3,7 @@ import type { components } from "./schema";
 type Schemas = components["schemas"];
 
 /** Aliases of the generated contract types (as in silo-web); no hand-written DTOs (plan 2.6). */
+export type Address = Schemas["Address"];
 export type Account = Schemas["Account"];
 export type Label = Schemas["Label"];
 export type Participant = Schemas["Participant"];
@@ -12,4 +13,8 @@ export type SyncStatus = Schemas["SyncStatus"];
 export type Thread = Schemas["Thread"];
 export type ThreadDetail = Schemas["ThreadDetail"];
 export type ThreadPage = Schemas["ThreadList"];
+export type Message = Schemas["Message"];
+export type MessageAttachment = Schemas["MessageAttachment"];
+export type CreateDraftBody = Schemas["CreateDraftBody"];
+export type Draft = Schemas["Draft"];
 export type OperationResult = Schemas["OperationResult"];

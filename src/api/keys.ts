@@ -12,5 +12,9 @@ export const keys = {
   threadsAll: (accountId: string) => ["threads", accountId] as const,
   threads: (accountId: string, filter: ListFilter) => ["threads", accountId, filter] as const,
   thread: (id: string) => ["thread", id] as const,
+  /** Sanitised HTML of a message (immutable). */
+  messageHtml: (id: string) => ["messageHtml", id] as const,
+  /** The inline (cid:) images of a message as data URIs. */
+  messageInline: (id: string) => ["messageInline", id] as const,
   syncStatus: (accountId: string) => ["syncStatus", accountId] as const,
 };
