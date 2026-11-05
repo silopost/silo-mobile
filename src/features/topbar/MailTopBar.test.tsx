@@ -58,6 +58,14 @@ describe("search bar", () => {
   });
 });
 
+describe("compose FAB", () => {
+  it("opens the full-screen compose", async () => {
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByRole("button", { name: "Utwórz" }));
+    await waitFor(() => expect(app.getPathname()).toBe("/compose"));
+  });
+});
+
 describe("account switcher", () => {
   it("lists the other accounts by position with their unread Inbox counters", async () => {
     await renderApp("/u/0/inbox");
