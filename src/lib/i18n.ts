@@ -96,5 +96,9 @@ export const t = {
   searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
   composeSoon: "Edytor wiadomości pojawi się w kolejnej wersji.",
   themeTitle: "Motyw",
+
+  // thread list
+  me: "ja",
+  noSubject: "(bez tematu)",
   themes: { system: "Systemowy", light: "Jasny", dark: "Ciemny" },
 };
