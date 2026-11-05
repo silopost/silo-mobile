@@ -15,6 +15,12 @@ export type SseHandlers = {
 export type SseSource = { close: () => void };
 
 /**
+ * Silence after which an open stream counts as dead: the server sends ": ping" every 25 s, and
+ * mobile networks drop idle TCP connections without telling either side.
+ */
+export const SSE_IDLE_TIMEOUT_MS = 60_000;
+
+/**
  * Incremental parser of the text/event-stream format (WHATWG HTML, "Server-sent events"): feed it
  * decoded chunks as they arrive, it returns the events completed so far.
  */
@@ -75,18 +81,27 @@ export function fetchEventSource(
   url: string,
   headers: Record<string, string>,
   handlers: SseHandlers,
+  idleTimeoutMs = SSE_IDLE_TIMEOUT_MS,
 ): SseSource {
   const abort = new AbortController();
   let done = false;
+  let idle: ReturnType<typeof setTimeout> | undefined;
   const fail = (error: { status?: number }) => {
+    clearTimeout(idle);
     if (done) return;
     done = true;
     abort.abort();
     handlers.onError(error);
   };
+  const alive = () => {
+    clearTimeout(idle);
+    idle = setTimeout(() => fail({}), idleTimeoutMs);
+  };
 
   void (async () => {
     try {
+      // A connection that hangs before the answer is given up too.
+      alive();
       // Resolved per call so tests (msw) can answer it.
       const res = await globalThis.fetch(url, {
         headers: { Accept: "text/event-stream", "Cache-Control": "no-cache", ...headers },
@@ -95,6 +110,7 @@ export function fetchEventSource(
       if (!res.ok || !res.body) return fail({ status: res.ok ? undefined : res.status });
       if (done) return;
       handlers.onOpen();
+      alive();
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       const parser = new SseParser();
@@ -102,6 +118,7 @@ export function fetchEventSource(
         const { done: end, value } = await reader.read();
         if (done) return;
         if (end) break;
+        alive();
         for (const event of parser.push(decoder.decode(value, { stream: true }))) {
           if (done) return;
           handlers.onEvent(event);
@@ -115,6 +132,7 @@ export function fetchEventSource(
 
   return {
     close: () => {
+      clearTimeout(idle);
       done = true;
       abort.abort();
     },

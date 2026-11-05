@@ -71,6 +71,16 @@ describe("fetchEventSource", () => {
     expect(onError).toHaveBeenCalledTimes(1);
   });
 
+  it("gives up a connection that stays silent", async () => {
+    server.use(
+      http.get(`${API}/events`, () => new HttpResponse(new ReadableStream({ start() {} }))),
+    );
+    const onError = jest.fn();
+    const onOpen = jest.fn();
+    fetchEventSource(`${API}/events`, {}, { onOpen, onEvent: jest.fn(), onError }, 30);
+    await waitFor(() => expect(onError).toHaveBeenCalledWith({}));
+  });
+
   it("reports the end of the stream", async () => {
     server.use(http.get(`${API}/events`, () => new HttpResponse("data: 1\n\n", { status: 200 })));
     const onError = jest.fn();
