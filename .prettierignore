@@ -1,0 +1,8 @@
+dist
+coverage
+android
+ios
+.expo
+package-lock.json
+src/api/schema.d.ts
+expo-env.d.ts
