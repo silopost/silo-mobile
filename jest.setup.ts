@@ -59,3 +59,12 @@ jest.mock("./src/api/sse", () => ({
   ...jest.requireActual("./src/api/sse"),
   fetchEventSource: () => ({ close: () => undefined }),
 }));
+
+// The WebView of message bodies: a plain View that keeps its props, so tests read the document
+// (`source.html`) and call the handlers (`onMessage`, `onShouldStartLoadWithRequest`).
+jest.mock("react-native-webview", () => {
+  const { View } = jest.requireActual("react-native");
+  const { createElement } = jest.requireActual("react");
+  const WebView = (props: Record<string, unknown>) => createElement(View, props);
+  return { __esModule: true, WebView, default: WebView };
+});

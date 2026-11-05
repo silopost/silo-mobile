@@ -124,3 +124,57 @@ export function syncStatus(over: Partial<Schemas["SyncStatus"]>): Schemas["SyncS
     ...over,
   };
 }
+
+/** A message of thread t_1, read, from Jan Kowalski to the user unless overridden. */
+export function message(over: Partial<Schemas["Message"]>): Schemas["Message"] {
+  return {
+    attachments: [],
+    bcc: null,
+    bodyState: "full",
+    bodyText: "Przesyłam ofertę",
+    cc: null,
+    date: "2025-11-04T08:00:00Z",
+    draftId: null,
+    folder: { id: "f_1", name: "INBOX", role: "inbox" },
+    from: { email: "jan@example.com", name: "Jan Kowalski" },
+    hasHtml: true,
+    id: "m_1",
+    labelIds: ["INBOX"],
+    listUnsubscribe: null,
+    pendingSync: false,
+    snippet: "Przesyłam ofertę",
+    subject: "Oferta na Q4",
+    to: [{ email: "ala@example.com", name: "Ala" }],
+    ...over,
+  };
+}
+
+/** GET /threads/{id}: thread t_1 with the given messages. */
+export function threadDetail(
+  messages: Schemas["Message"][],
+  over: Partial<Schemas["ThreadDetail"]> = {},
+): Schemas["ThreadDetail"] {
+  return {
+    accountId: "acc_1",
+    id: "t_1",
+    labelIds: ["INBOX"],
+    subject: "Oferta na Q4",
+    messages,
+    ...over,
+  };
+}
+
+/** An attachment of a message (a PDF, not inline, downloaded) unless overridden. */
+export function attachment(
+  over: Partial<Schemas["MessageAttachment"]>,
+): Schemas["MessageAttachment"] {
+  return {
+    contentType: "application/pdf",
+    downloaded: true,
+    filename: "oferta.pdf",
+    id: "a_1",
+    inline: false,
+    size: 18 * 1024,
+    ...over,
+  };
+}
