@@ -4,7 +4,7 @@ import type { Label, Thread, ThreadDetail, ThreadPage } from "../types";
 
 export type ThreadLists = InfiniteData<ThreadPage, string | undefined>;
 export type LabelsData = { labels: Label[] | null };
-export type Snapshot = Array<[QueryKey, unknown]>;
+export type Snapshot = [QueryKey, unknown][];
 
 /** Copies the cached lists, labels and threads an operation may touch (plan 6.5 step 1). */
 export function takeSnapshot(qc: QueryClient, accountId: string, ids: string[]): Snapshot {

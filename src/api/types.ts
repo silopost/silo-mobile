@@ -12,3 +12,4 @@ export type SyncStatus = Schemas["SyncStatus"];
 export type Thread = Schemas["Thread"];
 export type ThreadDetail = Schemas["ThreadDetail"];
 export type ThreadPage = Schemas["ThreadList"];
+export type OperationResult = Schemas["OperationResult"];

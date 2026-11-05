@@ -2,26 +2,18 @@ import { createContext, useContext } from "react";
 import { t } from "../../lib/i18n";
 import type { SwipeAction } from "../../state/ui";
 import { toast } from "../../state/toasts";
+import type { ThreadAction } from "../../api/mutations/threads";
 
-/** Actions on threads, named as silo-web's (the endpoints come with slice 4). */
-export type ThreadAction =
-  | "archive"
-  | "inbox"
-  | "trash"
-  | "untrash"
-  | "spam"
-  | "notSpam"
-  | "read"
-  | "unread"
-  | "star"
-  | "unstar"
-  | "labels"
-  | "moveTo"
-  | "deleteForever";
+export type { ThreadAction };
 
 export type RunOptions = {
   /** Label of the view the action was taken in (archive removes it, as in Gmail). */
   labelId?: string;
+  /** For "labels": user labels to add / remove (the Etykiety sheet). */
+  add?: string[];
+  remove?: string[];
+  /** For "moveTo": the place chosen in the Przenieś do sheet. */
+  target?: string;
 };
 
 export type ThreadActions = {

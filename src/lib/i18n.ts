@@ -18,6 +18,10 @@ export function plural(n: number, one: string, few: string, many: string): strin
   return d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? few : many;
 }
 
+/** "n" with its plural noun, e.g. "3 wątki". */
+const n3 = (n: number, one: string, few: string, many: string) =>
+  `${n} ${plural(n, one, few, many)}`;
+
 /** UI strings (Polish, as in the plan). A plain map, as in silo-web; no i18n library yet. */
 export const t = {
   appName: "Silo",
@@ -139,4 +143,83 @@ export const t = {
   emptyView: "Nic tu nie ma",
   messageCount: (n: number) => `${n} ${plural(n, "wiadomość", "wiadomości", "wiadomości")}`,
   themes: { system: "Systemowy", light: "Jasny", dark: "Ciemny" },
+
+  // thread actions: snackbars, undo, sheets (texts of silo-web); n = number of threads
+  undo: "Cofnij",
+  ok: "OK",
+  create: "Utwórz",
+  newLabel: "Nowa etykieta",
+  labelName: "Nazwa etykiety",
+  deleteForeverTitle: "Usunąć na zawsze?",
+  deleteForeverBody: (n: number) =>
+    `Usunąć na zawsze ${n3(n, "wątek", "wątki", "wątków")}? Tej operacji nie można cofnąć.`,
+  /** Names of the fixed places of "Przenieś do", as in Gmail. */
+  locations: {
+    INBOX: "Odebrane",
+    SPAM: "Spam",
+    TRASH: "Kosz",
+    ARCHIVE: "Archiwum",
+  } as Record<string, string>,
+  currentLocation: "bieżąca lokalizacja",
+  done: {
+    archive: (n: number) =>
+      n === 1
+        ? "Wątek zarchiwizowany"
+        : n3(n, "wątek zarchiwizowany", "wątki zarchiwizowane", "wątków zarchiwizowanych"),
+    trash: (n: number) =>
+      n === 1
+        ? "Wątek przeniesiony do kosza"
+        : `${n3(n, "wątek przeniesiony", "wątki przeniesione", "wątków przeniesionych")} do kosza`,
+    untrash: (n: number) =>
+      n === 1
+        ? "Wątek przywrócony z kosza"
+        : `${n3(n, "wątek przywrócony", "wątki przywrócone", "wątków przywróconych")} z kosza`,
+    spam: (n: number) =>
+      n === 1
+        ? "Wątek oznaczony jako spam"
+        : `${n3(n, "wątek oznaczony", "wątki oznaczone", "wątków oznaczonych")} jako spam`,
+    inbox: (n: number) =>
+      n === 1
+        ? "Wątek przeniesiony do Odebranych"
+        : `${n3(n, "wątek przeniesiony", "wątki przeniesione", "wątków przeniesionych")} do Odebranych`,
+    read: (n: number) =>
+      n === 1
+        ? "Wątek oznaczony jako przeczytany"
+        : `${n3(n, "wątek oznaczony", "wątki oznaczone", "wątków oznaczonych")} jako przeczytane`,
+    unread: (n: number) =>
+      n === 1
+        ? "Wątek oznaczony jako nieprzeczytany"
+        : `${n3(n, "wątek oznaczony", "wątki oznaczone", "wątków oznaczonych")} jako nieprzeczytane`,
+    labels: (n: number) =>
+      n === 1
+        ? "Zmieniono etykiety wątku"
+        : `Zmieniono etykiety: ${n3(n, "wątek", "wątki", "wątków")}`,
+    moved: (n: number, to: string) =>
+      n === 1
+        ? `Wątek przeniesiony do: ${to}`
+        : `${n3(n, "wątek przeniesiony", "wątki przeniesione", "wątków przeniesionych")} do: ${to}`,
+    deleted: (n: number) =>
+      n === 1
+        ? "Wątek usunięty trwale"
+        : `${n3(n, "wątek usunięty", "wątki usunięte", "wątków usuniętych")} trwale`,
+  },
+  undoExpired: "Tej operacji nie można już cofnąć.",
+  /** operation.failed by kind (plan 5.4): what the server could not do. */
+  operationFailed: (kind: string | undefined, n: number): string => {
+    const what = n3(n, "wątku", "wątków", "wątków");
+    const action: Record<string, string> = {
+      move: `przenieść ${what}`,
+      flags: `zmienić oznaczeń ${what}`,
+      labels: `zmienić etykiet ${what}`,
+      expunge: `usunąć ${what}`,
+      append: "zapisać wersji roboczej w folderze Wersje robocze",
+      delete_draft: "usunąć wersji roboczej z folderu Wersje robocze",
+      create_folder: "utworzyć folderu",
+      delete_folder: "usunąć folderu",
+    };
+    const a = kind ? action[kind] : undefined;
+    return a
+      ? `Nie udało się ${a} na serwerze poczty – przywrócono stan z serwera`
+      : `Nie udało się zmienić ${what} na serwerze poczty – przywrócono stan z serwera`;
+  },
 };
