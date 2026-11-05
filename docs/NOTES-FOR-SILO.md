@@ -101,11 +101,47 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   Gmail selects only the loaded rows too) have no server-side "select all in view" operation
   (`POST /threads/*` take explicit ids). Not needed now, worth a note for large mailboxes.
 
-## Deviations from the Gmail app (slice 3)
+- **No "all threads of a view" operation.** "Zaznacz wszystko" can only select the loaded rows:
+  `POST /threads/modify|trash|untrash|delete` take explicit ids (and `IDsBody.ids` is nullable
+  without saying what null means). Gmail offers "select all N conversations in this view"; a
+  `{accountId, labelId, q}` selector in these bodies (server-side, one operation, one undo)
+  would cover it.
+- **Archive in a folder or user label view is not specified.** Plan 4.4 says `-<folder>`
+  archives; the clients decide which label to drop from the view the user is in. silo-mobile
+  sends `-INBOX` in system views, `-<folder>` in a folder view and `-INBOX -<label>` in a user
+  label view (the Gmail app takes the label off there); silo-web always sends `-INBOX`. Worth
+  one rule in the plan, or an archive operation that takes the view.
+- **Moves leave the old location implicitly.** On `+<folder>`/`+INBOX`/`+SPAM` the server leaves
+  the previous location (plan 4.4); the OpenAPI description of `ModifyBody` does not say so, and
+  the clients mirror it optimistically by dropping every location label (Inbox, Spam, Trash,
+  folders) themselves.
+- **No label colour palette in the contract.** `CreateLabelBody` has `colorBg`/`colorText`, but
+  the allowed colours are not in the contract (silo-web hard-codes Gmail's); the mobile dialog
+  and sheet create labels without a colour until the palette is shared (e.g. in `Meta`).
+- **Undo of flag-only changes.** `OperationResult.undoUntil` is null for flag-only changes, yet
+  they carry an `operationId` and `POST /operations/{id}/undo` accepts them (plan 5.2). Both
+  clients show "Cofnij" whenever there is an `operationId` (for the default 4 s when
+  `undoUntil` is null); the contract could state how long such an undo is meaningful.
+- **`operation_not_undoable` vs `undo_expired`.** Both are 409 on undo; the clients show the
+  same "Tej operacji nie można już cofnąć." for any 409. The difference is only in plan 5.3.
+- **No event for created labels.** `POST /labels` answers the label and the client refetches
+  `GET /labels`; other devices learn of it only from `label.counts` refetches. A
+  `label.created` event (plan 5.4) would refresh their drawers.
+
+## Deviations from the Gmail app (slices 3–4)
 
 - **No swipes in Trash and Spam.** Gmail's swipe there restores or deletes; the device
   preferences only know archive/delete, so the rows of these views do not swipe and the
-  selection bar offers restore, "To nie spam" and delete forever instead.
+  selection bar offers delete forever, "To nie spam" and (menu) restore instead.
+- **Sheets do not drag.** "Etykiety" and "Przenieś do" are Paper `Modal` sheets (scrim, back
+  button and the sheet's buttons close them) rather than draggable ones: `@gorhom/bottom-sheet`
+  would add a native-gesture dependency that jest-expo cannot run (see the reanimated stand-in)
+  for a gesture rarely used there.
+- **A label created in the sheet is checked, not applied at once.** silo-web applies a label
+  created in its popover immediately; the mobile sheet checks it and sends it with the other
+  changes on "OK", so one request carries the whole choice, as Gmail's sheet does.
+- **No colours, rename or delete of labels** in the sheet or the drawer dialog yet.
+- **Read/unread show a snackbar with "Cofnij"**, as in silo-web; the Gmail app marks silently.
 - **Select all selects the loaded rows**, not every thread of the label (see the bulk note
   above).
 - **Swipe colours are fixed** (Gmail green archive, red delete) rather than theme roles, to read

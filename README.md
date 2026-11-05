@@ -8,10 +8,10 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 3 – the Gmail thread list: rows, swipe actions, multi-select, pull-to-refresh and
-sync banners (slice 2: the Gmail shell – routes, drawer, search bar, account switcher, compose
-FAB, theme; slice 1: API client and bearer sign-in). Thread actions are wired to a stand-in that
-says "Dostępne wkrótce"; slice 4 adds the mutations.
+Status: slice 4 – thread actions with optimistic update and "Cofnij" (swipes, star, selection
+bar, "Etykiety" and "Przenieś do" sheets, creating labels). Slice 3: the Gmail thread list (rows,
+swipe, multi-select, pull-to-refresh, sync banners); slice 2: the Gmail shell (routes, drawer,
+search bar, account switcher, compose FAB, theme); slice 1: API client and bearer sign-in.
 
 ## Stack
 
@@ -46,7 +46,7 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
   Logotype, system views in Gmail's order (`src/lib/labels.ts`, a port of silo-web's
   `SYSTEM_VIEWS`) with counters from `GET /labels` (unread: Inbox, Spam; total: Scheduled,
   Drafts; `99+` above 99), "Etykiety" with the user's labels (colour dot, unread counter),
-  server folders, "Utwórz nową" (slice 4), "Ustawienia", "Pomoc i opinie" (disabled). The active
+  server folders, "Utwórz nową" (a name-only dialog, `POST /labels`), "Ustawienia", "Pomoc i opinie" (disabled). The active
   entry sits on an MD3 pill (`secondaryContainer`, rounded right end) and is announced as
   selected.
 - **Search bar** (`src/features/topbar`): floating rounded field (`surfaceContainerHigh`) with the
@@ -89,8 +89,52 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
   with the pending changes and "Ponów teraz" (`POST /accounts/{id}/resync`), and the progress
   of the initial sync.
 - **Actions** (`src/features/threadlist/actions.ts`): rows, swipes and the selection bar call
-  `useThreadActions().run(action, ids)`; this slice's implementation only shows the snackbar
-  (`src/state/toasts.ts`, `src/features/toasts/Snackbar.tsx`, above the FAB).
+  `useThreadActions().run(action, ids, opts)`, implemented by `ThreadActionsRoot` around the
+  account's drawer with `runThreadAction` (`src/api/mutations/threads.ts`, see below). Without a
+  choice, `run('labels')` opens the "Etykiety" sheet, `run('moveTo')` the "Przenieś do" sheet and
+  `run('deleteForever')` a confirmation ("Tej operacji nie można cofnąć"), so the thread screen
+  of a later slice gets the same flows.
+- **Selection bar**: archive, delete, read/unread (unread once every selected thread is read);
+  in Trash delete forever (restore in the menu), in Spam "To nie spam" and delete forever.
+  Menu ⋮: "Przenieś do", "Etykiety", star/unstar (unstar once all are starred), "Zgłoś spam"
+  (not in Spam/Trash), "Przywróć z kosza" (Trash), "Zaznacz wszystko" (loaded rows).
+- **Sheets** (`src/features/labels`): MD3 modal bottom sheets on Paper's `Modal`
+  (`src/components/BottomSheet.tsx`, no drag-to-dismiss). "Etykiety": user labels as checkboxes
+  (all / some / none of the threads), "Nowa etykieta" (`POST /labels`, checked at once), changes
+  sent as one modify after "OK". "Przenieś do": Odebrane, Spam, Kosz, Archiwum, server folders,
+  user labels; the current place greyed out.
+- **Snackbar** (`src/state/toasts.ts`, `src/features/toasts/Snackbar.tsx`): one at a time above
+  the FAB, a newer one replaces the shown one; an undoable action shows "Cofnij" until the
+  server's `undoUntil`.
+
+### Actions → endpoints (plan 4.4, 5.2, 6.5)
+
+| Action                              | Request                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| archive                             | `POST /threads/modify` `-INBOX` (folder view: `-<folder>`; user label view: `-INBOX -<label>`) |
+| delete; "Kosz" in "Przenieś do"     | `POST /threads/trash`                                                                          |
+| restore from Trash                  | `POST /threads/untrash`                                                                        |
+| delete forever (after confirmation) | `POST /threads/delete` (no undo)                                                               |
+| report spam / not spam              | modify `+SPAM` / `-SPAM`                                                                       |
+| read / unread                       | modify `-UNREAD` / `+UNREAD`                                                                   |
+| star / unstar (no snackbar)         | modify `+STARRED` / `-STARRED`                                                                 |
+| labels (sheet, after OK)            | modify with the added and removed user labels, one request                                     |
+| move to Inbox / Spam / folder       | modify `+<target>` (the server leaves the old location)                                        |
+| move to a user label                | modify `+<label> -INBOX` (as Gmail)                                                            |
+| move to Archiwum                    | as archive                                                                                     |
+| Cofnij                              | `POST /operations/{id}/undo`                                                                   |
+
+Each action snapshots the cached lists, labels and open threads, applies the change locally (the
+row leaves a list it no longer belongs to, label counters follow, as in silo-web), sends the
+request and writes the returned threads over the cache. The snackbar names the result with
+"Cofnij" until `undoUntil`; pressing it restores the snapshot at once and calls the undo
+endpoint, whose answer is merged (409 `undo_expired` → "Tej operacji nie można już cofnąć.").
+No local timer decides about undo and no inverse modify is sent (plan 2.6). On an error the
+snapshot comes back with "Nie udało się. Spróbuj ponownie."; once no thread operation is in
+flight the lists and labels are refetched. Operations on the same threads are serialised (the
+mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentOps`, message by
+`kind`) and `isThreadOpRunning` wait for the SSE handling of slice 5.
+
 - **Theme** (`src/lib/theme.ts`): MD3 light and dark palettes tuned to the Gmail app (Google blue
   primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
@@ -190,8 +234,8 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Thread actions (mutations, optimistic updates, undo), thread, search, compose, label
-  management, account setup, server events (SSE): later slices.
+- Thread, search, compose, label management (colours, rename, delete), account setup, server
+  events (SSE, which will call `handleOperationFailed`): later slices.
 
 ## License
 
