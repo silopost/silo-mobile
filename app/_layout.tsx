@@ -1,5 +1,4 @@
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Providers } from "../src/Providers";
 import { restoreAuth } from "../src/state/auth";
@@ -12,7 +11,6 @@ export default function RootLayout() {
 
   return (
     <Providers>
-      <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }} />
     </Providers>
   );

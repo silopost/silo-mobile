@@ -1,3 +1,5 @@
+import "react-native-gesture-handler/jestSetup";
+
 // Native modules the app uses, replaced by in-memory fakes for tests.
 
 jest.mock("expo-secure-store", () => {
@@ -23,3 +25,14 @@ jest.mock("expo-device", () => ({
 afterEach(() => {
   (jest.requireMock("expo-secure-store") as { __store: Map<string, string> }).__store.clear();
 });
+
+// AsyncStorage (UI preferences) as the package's in-memory mock.
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+
+// Gestures and animations of the drawer: the libraries' own jest mocks.
+jest.mock("react-native-worklets", () =>
+  jest.requireActual("react-native-worklets/lib/module/mock"),
+);
+jest.mock("react-native-reanimated", () => jest.requireActual("react-native-reanimated/mock"));

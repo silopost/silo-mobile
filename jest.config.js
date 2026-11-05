@@ -13,6 +13,8 @@ const transformed = [
   "@expo(nent)?/.*",
   "react-navigation",
   "@react-navigation/.*",
+  "standard-navigation",
+  "react-native-drawer-layout",
   "react-native-paper",
   "react-native-vector-icons",
   "msw",
