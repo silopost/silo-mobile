@@ -16,6 +16,7 @@ const transformed = [
   "standard-navigation",
   "react-native-drawer-layout",
   "react-native-paper",
+  "@shopify/flash-list",
   "react-native-vector-icons",
   "msw",
   "@msw/.*",

@@ -1,0 +1,149 @@
+import { act, fireEvent, screen, waitFor, within } from "expo-router/testing-library";
+import { http, HttpResponse } from "msw";
+import { labels, sessionBody, thread, threadPage } from "../../test/fixtures";
+import { renderApp, signIn } from "../../test/router";
+import { API, server, setupMsw } from "../../test/server";
+import { resetAuth } from "../../test/utils";
+import { useSelection } from "../../state/selection";
+
+setupMsw();
+
+type Req = { labelId: string | null; cursor: string | null; limit: string | null };
+let requests: Req[];
+let labelRequests: number;
+
+const page1 = threadPage(
+  [
+    thread({ id: "t_1", subject: "Oferta na Q4", unreadCount: 1 }),
+    thread({
+      id: "t_2",
+      subject: "Faktura",
+      participants: [{ email: "ewa@x.pl", name: "Ewa Nowak", unread: false }],
+    }),
+  ],
+  "c_2",
+);
+const page2 = threadPage([thread({ id: "t_3", subject: "Spotkanie" })]);
+
+function serve(pages: Record<string, ReturnType<typeof threadPage>>) {
+  server.use(
+    http.get(`${API}/threads`, ({ request }) => {
+      const q = new URL(request.url).searchParams;
+      requests.push({ labelId: q.get("labelId"), cursor: q.get("cursor"), limit: q.get("limit") });
+      return HttpResponse.json(pages[q.get("cursor") ?? ""] ?? threadPage([]));
+    }),
+  );
+}
+
+beforeEach(() => {
+  resetAuth();
+  signIn();
+  requests = [];
+  labelRequests = 0;
+  useSelection.getState().clear();
+  server.use(
+    http.get(`${API}/session`, () => HttpResponse.json(sessionBody)),
+    http.get(`${API}/labels`, () => {
+      labelRequests++;
+      return HttpResponse.json({ labels });
+    }),
+    http.get(`${API}/accounts/:id/sync-status`, () => HttpResponse.json({}, { status: 404 })),
+  );
+});
+
+describe("thread list", () => {
+  it("renders the rows of GET /threads and loads the next page at the end", async () => {
+    serve({ "": page1, c_2: page2 });
+    await renderApp("/u/0/inbox");
+
+    expect(await screen.findByText("Oferta na Q4")).toBeOnTheScreen();
+    expect(screen.getByText("Faktura")).toBeOnTheScreen();
+    expect(requests[0]).toEqual({ labelId: "INBOX", cursor: null, limit: "50" });
+
+    await act(async () => {
+      screen.getByTestId("thread-list").props.onEndReached?.();
+    });
+    expect(await screen.findByText("Spotkanie")).toBeOnTheScreen();
+    expect(requests.map((r) => r.cursor)).toEqual([null, "c_2"]);
+  });
+
+  it("pull-to-refresh refetches the list and the labels", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await screen.findByText("Oferta na Q4");
+    const before = { threads: requests.length, labels: labelRequests };
+
+    await act(async () => {
+      // FlashList hands the RefreshControl to its scroll view as a prop.
+      screen.getByTestId("thread-list").props.refreshControl.props.onRefresh();
+    });
+    await waitFor(() => expect(requests.length).toBeGreaterThan(before.threads));
+    expect(labelRequests).toBeGreaterThan(before.labels);
+  });
+
+  it("shows the empty state of the Inbox", async () => {
+    serve({});
+    await renderApp("/u/0/inbox");
+    expect(await screen.findByText("Brak wiadomości w Odebranych")).toBeOnTheScreen();
+  });
+
+  it("shows Gmail's generic empty text in other labels", async () => {
+    serve({});
+    await renderApp("/u/0/starred");
+    expect(await screen.findByText("Nic tu nie ma")).toBeOnTheScreen();
+  });
+
+  it("offers a retry after an error", async () => {
+    let fail = true;
+    server.use(
+      http.get(`${API}/threads`, () =>
+        fail
+          ? HttpResponse.json({ title: "Internal", status: 500 }, { status: 500 })
+          : HttpResponse.json(page1),
+      ),
+    );
+    await renderApp("/u/0/inbox");
+    const retry = await screen.findByText("Spróbuj ponownie", {}, { timeout: 5000 });
+    fail = false;
+    await fireEvent.press(retry);
+    expect(await screen.findByText("Oferta na Q4")).toBeOnTheScreen();
+  });
+
+  it("bolds unread rows only", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await screen.findByText("Oferta na Q4");
+    expect(screen.getByTestId("thread-names-t_1")).toHaveStyle({ fontWeight: "700" });
+    expect(screen.getByTestId("thread-names-t_2")).toHaveStyle({ fontWeight: "400" });
+  });
+
+  it("opens a thread on tap", async () => {
+    serve({ "": page1 });
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByTestId("thread-t_2"));
+    await waitFor(() => expect(app.getPathname()).toBe("/u/0/inbox/t_2"));
+  });
+
+  it("opens a draft in compose from the Drafts view", async () => {
+    serve({
+      "": threadPage([
+        thread({ id: "t_9", subject: "Szkic", labelIds: ["DRAFT"], draftId: "d_4" }),
+      ]),
+    });
+    const app = await renderApp("/u/0/drafts");
+    await fireEvent.press(await screen.findByTestId("thread-t_9"));
+    await waitFor(() => expect(app.getPathname()).toBe("/compose"));
+    expect(app.getSearchParams().draftId).toBe("d_4");
+  });
+
+  it("long press starts selection; taps toggle rows", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
+    expect(screen.getByTestId("thread-t_1")).toBeSelected();
+
+    await fireEvent.press(screen.getByTestId("thread-t_2"));
+    expect([...useSelection.getState().ids].sort()).toEqual(["t_1", "t_2"]);
+    expect(within(screen.getByTestId("thread-t_2")).getByRole("checkbox")).toBeChecked();
+  });
+});

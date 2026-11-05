@@ -90,11 +90,11 @@ export const t = {
   close: "Zamknij",
   noAccounts: "Brak kont pocztowych. Dodaj konto w wersji przeglądarkowej Silo.",
   unknownLabel: "Nie ma takiej etykiety",
-  threadListSoon: "Lista wątków pojawi się w kolejnej wersji.",
   thread: "Wątek",
   threadSoon: "Widok wątku pojawi się w kolejnej wersji.",
   searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
   composeSoon: "Edytor wiadomości pojawi się w kolejnej wersji.",
+  draftSoon: (id: string) => `Wersja robocza ${id} otworzy się tu w kolejnej wersji.`,
   themeTitle: "Motyw",
 
   // thread list
@@ -109,6 +109,13 @@ export const t = {
   unstar: "Usuń gwiazdkę",
   selectThread: "Zaznacz wątek",
   deselectThread: "Odznacz wątek",
+  listError: "Nie udało się wczytać wiadomości",
+  tryAgain: "Spróbuj ponownie",
+  loadingMore: "Wczytywanie kolejnych wiadomości",
+  emptyInbox: "Brak wiadomości w Odebranych",
+  emptySpam: "Brak spamu",
+  emptyTrash: "Kosz jest pusty",
+  emptyView: "Nic tu nie ma",
   messageCount: (n: number) => `${n} ${plural(n, "wiadomość", "wiadomości", "wiadomości")}`,
   themes: { system: "Systemowy", light: "Jasny", dark: "Ciemny" },
 };

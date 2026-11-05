@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Appbar, Text } from "react-native-paper";
 import { useAccountIndex } from "../features/account";
@@ -40,9 +40,10 @@ export function SearchScreen() {
   );
 }
 
-/** Full-screen compose (slice 7). */
+/** Full-screen compose (slice 7); opened with ?draftId=d_… from the Drafts view. */
 export function ComposeScreen() {
-  return <Placeholder text={t.composeSoon} />;
+  const { draftId } = useLocalSearchParams<{ draftId?: string }>();
+  return <Placeholder text={draftId ? t.draftSoon(draftId) : t.composeSoon} />;
 }
 
 const styles = StyleSheet.create({

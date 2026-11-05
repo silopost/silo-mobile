@@ -1,4 +1,7 @@
 import "react-native-gesture-handler/jestSetup";
+// FlashList measures its parent and items natively; the library's setup fixes the sizes (a 400 x
+// 900 viewport), so the list renders its first rows in jest.
+import "@shopify/flash-list/jestSetup";
 
 // Native modules the app uses, replaced by in-memory fakes for tests.
 
