@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      # Bundles the JavaScript for Android as a release build would; no Android SDK needed.
+      - run: npm run export:android
+        env:
+          CI: "1"
+
+  api-contract:
+    # Fails until silopost/silo-server is public and has the ref declared in
+    # package.json ("silo.serverRef"); see README, "API contract".
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Read declared server ref
+        id: ref
+        run: echo "ref=$(node -p "require('./package.json').silo.serverRef")" >> "$GITHUB_OUTPUT"
+      - name: Check out silo-server
+        uses: actions/checkout@v4
+        with:
+          repository: silopost/silo-server
+          ref: ${{ steps.ref.outputs.ref }}
+          path: server
+      - run: npm run gen:api -- --local server/api/openapi.yaml
+      - name: Verify committed schema matches the server contract
+        run: git diff --exit-code -- src/api/schema.d.ts
