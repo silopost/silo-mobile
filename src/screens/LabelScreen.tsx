@@ -5,6 +5,7 @@ import { Text } from "react-native-paper";
 import { useLabels } from "../api/queries/labels";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { MailShell } from "../features/shell/MailShell";
+import { Banners } from "../features/sync/Banners";
 import { SelectionBar } from "../features/threadlist/SelectionBar";
 import { ThreadList } from "../features/threadlist/ThreadList";
 import { t } from "../lib/i18n";
@@ -64,16 +65,19 @@ export function LabelScreen() {
       }
     >
       {known && account ? (
-        <ThreadList
-          // A new list (label or account) starts at the top with the FAB extended.
-          key={`${account.id}/${label}`}
-          accountId={account.id}
-          filter={filter}
-          me={{ email: account.email, name: account.displayName }}
-          threadHref={threadHref}
-          empty={emptyState(resolved)}
-          onFabExtendedChange={setFabExtended}
-        />
+        <>
+          <Banners />
+          <ThreadList
+            // A new list (label or account) starts at the top with the FAB extended.
+            key={`${account.id}/${label}`}
+            accountId={account.id}
+            filter={filter}
+            me={{ email: account.email, name: account.displayName }}
+            threadHref={threadHref}
+            empty={emptyState(resolved)}
+            onFabExtendedChange={setFabExtended}
+          />
+        </>
       ) : (
         <View style={styles.center}>
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>

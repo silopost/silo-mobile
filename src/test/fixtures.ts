@@ -96,3 +96,31 @@ export function threadPage(
 ): Schemas["ThreadList"] {
   return { threads, nextCursor, resultSizeEstimate: threads.length };
 }
+
+/** GET /accounts/acc_1/sync-status: live, nothing pending, unless overridden. */
+export function syncStatus(over: Partial<Schemas["SyncStatus"]>): Schemas["SyncStatus"] {
+  return {
+    id: "acc_1",
+    email: "ala@example.com",
+    state: "live",
+    error: null,
+    capabilities: [],
+    deadOps: 0,
+    pendingOps: 0,
+    folders: [],
+    missingRoles: [],
+    keywordsSupported: true,
+    lastSyncAt: null,
+    initialSyncDoneAt: "2026-11-01T10:00:00Z",
+    initialSync: {
+      phase: "done",
+      messagesDone: 0,
+      messagesTotal: 0,
+      foldersDone: 0,
+      foldersTotal: 0,
+      bytesDone: 0,
+      bytesTotal: 0,
+    },
+    ...over,
+  };
+}
