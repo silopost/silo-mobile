@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { fireEvent, screen, waitFor, within } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import { labels, sessionBody } from "../../test/fixtures";
 import { renderApp, signIn } from "../../test/router";
@@ -32,6 +32,25 @@ describe("account drawer", () => {
     expect(screen.getByRole("button", { name: "Praca, 3 nieprzeczytane" })).toBeOnTheScreen();
     expect(screen.getByTestId("nav-inbox")).toBeSelected();
     expect(labelRequests).toContain("acc_1");
+  });
+
+  it("'Utwórz nową' creates a label with POST /labels and refetches the labels", async () => {
+    const created: unknown[] = [];
+    server.use(
+      http.post(`${API}/labels`, async ({ request }) => {
+        created.push(await request.json());
+        return HttpResponse.json(labels[5], { status: 201 });
+      }),
+    );
+    await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByRole("button", { name: "Utwórz nową" }));
+    await fireEvent.changeText(await screen.findByLabelText("Nazwa etykiety"), "Nowa");
+    const before = labelRequests.length;
+    await fireEvent.press(within(screen.getByTestId("create-label-dialog")).getByText("Utwórz"));
+
+    await waitFor(() => expect(screen.queryByTestId("create-label-dialog")).toBeNull());
+    expect(created).toEqual([{ accountId: "acc_1", name: "Nowa", type: "user" }]);
+    await waitFor(() => expect(labelRequests.length).toBeGreaterThan(before));
   });
 
   it("opens the chosen label", async () => {

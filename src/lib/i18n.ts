@@ -150,6 +150,7 @@ export const t = {
   create: "Utwórz",
   newLabel: "Nowa etykieta",
   labelName: "Nazwa etykiety",
+  labelOnSome: (name: string) => `${name}, na części zaznaczonych wątków`,
   deleteForeverTitle: "Usunąć na zawsze?",
   deleteForeverBody: (n: number) =>
     `Usunąć na zawsze ${n3(n, "wątek", "wątki", "wątków")}? Tej operacji nie można cofnąć.`,

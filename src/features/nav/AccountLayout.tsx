@@ -1,10 +1,10 @@
 import { Redirect, useGlobalSearchParams, useRouter } from "expo-router";
 import { Drawer, type DrawerContentComponentProps } from "expo-router/drawer";
-import { Alert } from "react-native";
+import { useState } from "react";
 import { useLabels } from "../../api/queries/labels";
-import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { useAccountIndex, useActiveAccount, useSession } from "../account";
+import { CreateLabelDialog } from "../labels/CreateLabelDialog";
 import { ThreadActionsRoot } from "../threadlist/ThreadActionsRoot";
 import { MailDrawer } from "./MailDrawer";
 
@@ -18,25 +18,34 @@ function AccountDrawerContent({ navigation }: DrawerContentComponentProps) {
   const account = useActiveAccount();
   const labels = useLabels(account?.id);
   const { label } = useGlobalSearchParams<{ label?: string }>();
+  const [creating, setCreating] = useState(false);
 
   return (
-    <MailDrawer
-      labels={labels}
-      activeSlug={label}
-      onSelect={(slug) => {
-        navigation.closeDrawer();
-        router.navigate(`/u/${index}/${slug}`);
-      }}
-      onCreateLabel={() => {
-        // Creating labels (POST /labels) comes with slice 4.
-        navigation.closeDrawer();
-        Alert.alert(t.createLabel, t.comingSoon);
-      }}
-      onSettings={() => {
-        navigation.closeDrawer();
-        router.push("/settings");
-      }}
-    />
+    <>
+      <MailDrawer
+        labels={labels}
+        activeSlug={label}
+        onSelect={(slug) => {
+          navigation.closeDrawer();
+          router.navigate(`/u/${index}/${slug}`);
+        }}
+        onCreateLabel={() => {
+          navigation.closeDrawer();
+          setCreating(true);
+        }}
+        onSettings={() => {
+          navigation.closeDrawer();
+          router.push("/settings");
+        }}
+      />
+      {account && (
+        <CreateLabelDialog
+          visible={creating}
+          onDismiss={() => setCreating(false)}
+          accountId={account.id}
+        />
+      )}
+    </>
   );
 }
 
