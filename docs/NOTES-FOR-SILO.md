@@ -75,6 +75,41 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   mail, Spam, Trash) is hard-coded in both clients (`SYSTEM_VIEWS`); plan 5.5 could state it.
 - `SessionInfo` already carries `lastSeenAt`, `kind` and `clientName`; nothing missing for the
   session list.
+- **No sender pictures.** The Gmail app shows a contact photo (or a brand logo) in each row; the
+  contract has no avatar URL for a participant nor an endpoint for one (Gravatar/BIMI lookups,
+  contact photos), so both clients draw an initial on a colour hashed from the address. A
+  `Participant.avatarUrl` (served by Silo, cached, privacy-preserving) or
+  `GET /avatars/{email}` would close it. Likewise no attachment thumbnails for the row chips.
+- **Order and role of `Thread.participants` are not specified.** The row avatar is "the last
+  sender who is not the user"; mobile assumes `participants` is in message order and that its
+  last non-`me` entry sent the newest message. A recipient-only participant (the user wrote the
+  last message to Jan) cannot be told from a sender. Proposal: document the order and add
+  `Thread.lastSender` (or `Participant.role: from|to`).
+- **The user is `"me"` in `Participant.email`.** The convention (silo-web and mobile show "ja") is
+  only visible from data; the schema should say so (e.g. `examples`, a description).
+- **No aggregate of pending operations.** `Thread.pendingSync` is per thread and
+  `SyncStatus.pendingOps` per account, fetched per account; there is no count across accounts
+  (or in `GET /session`) for a "N zmian oczekuje" summary, and no way to list which threads are
+  pending without paging through every view. Proposal: `pendingOps` on `Account` in
+  `GET /session` and a `pending=true` filter on `GET /threads`.
+- **Sync status has no mail server host.** The backoff banner names the server
+  ("imap.example.com"); `SyncStatus` has only `email`, so the clients take `Account.imapHost`
+  from the session. Fine while both are loaded together; a `host` field would make the banner
+  self-contained.
+- **Bulk read/unread needs thread states.** The selection bar offers "mark read" when any
+  selected thread is unread; selections spanning pages not yet loaded ("Zaznacz wszystko" in
+  Gmail selects only the loaded rows too) have no server-side "select all in view" operation
+  (`POST /threads/*` take explicit ids). Not needed now, worth a note for large mailboxes.
+
+## Deviations from the Gmail app (slice 3)
+
+- **No swipes in Trash and Spam.** Gmail's swipe there restores or deletes; the device
+  preferences only know archive/delete, so the rows of these views do not swipe and the
+  selection bar offers restore, "To nie spam" and delete forever instead.
+- **Select all selects the loaded rows**, not every thread of the label (see the bulk note
+  above).
+- **Swipe colours are fixed** (Gmail green archive, red delete) rather than theme roles, to read
+  the same in light and dark mode, as in the Gmail app.
 
 ## Stack decisions
 
@@ -105,8 +140,22 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   edge swipe, back handling and drawer state come with the router. Cost in jest: reanimated's
   own mock does not load under jest-expo's Android preset, so a small stand-in is mapped in
   `jest.config.js`, and `renderRouter`'s fake timers are limited to the clock so msw works.
-- **Compose FAB:** Paper's `AnimatedFAB`, folded through its `extended` prop; the thread list
-  (slice 3) will set it from the scroll direction, as Gmail does.
+- **Compose FAB:** Paper's `AnimatedFAB`, folded through its `extended` prop, which the
+  thread list sets from the scroll direction (8 dp slop), as Gmail does.
+- **Thread list:** `@shopify/flash-list` 2.3.2 (the Expo SDK 58 pin; v2 measures items itself,
+  no `estimatedItemSize`). In jest it runs for real with the library's `jestSetup` (fixed
+  measurements) rather than a `FlatList` stand-in.
+- **Swipe:** a custom pan (gesture-handler 3 `usePanGesture` + reanimated 4) instead of
+  `ReanimatedSwipeable`: Gmail's swipe slides the whole row out and acts on release past a
+  threshold, while the library's Swipeable opens to reveal action buttons. The pan activates
+  after 16 dp horizontally, fails after 12 dp vertically (the list scrolls) and has a negative
+  left hit slop of the drawer's 32 dp edge (`swipeEdgeWidth`), so the edge swipe still opens the
+  drawer. Not exercised in jest; to be checked on a device.
+- **Paper `Menu` quirk:** a `Menu` mounted with `visible={false}` runs its hide animation and,
+  when it ends, unmounts the portal of a menu opened in the meantime; the selection bar mounts
+  the `Menu` only while it is open.
+- **React Compiler** (on in Expo SDK 58) rejects manual `useMemo` it cannot preserve; screens
+  rely on the compiler, `useCallback` stays only where it is preserved (row callbacks).
 - **Theme:** primary stays Google blue as in the Gmail app (buttons, links, focus); Gmail red
   (`#C5221F`, `#F28B82` dark) is the `brand` colour of the logotype and important accents
   rather than `primary`, so Paper's controls do not turn red.

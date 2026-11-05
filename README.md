@@ -8,8 +8,10 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 2 – the Gmail shell: routes per account, navigation drawer, search bar, account
-switcher, compose FAB and the Gmail theme (slice 1: API client and bearer sign-in).
+Status: slice 3 – the Gmail thread list: rows, swipe actions, multi-select, pull-to-refresh and
+sync banners (slice 2: the Gmail shell – routes, drawer, search bar, account switcher, compose
+FAB, theme; slice 1: API client and bearer sign-in). Thread actions are wired to a stand-in that
+says "Dostępne wkrótce"; slice 4 adds the mutations.
 
 ## Stack
 
@@ -17,6 +19,8 @@ switcher, compose FAB and the Gmail theme (slice 1: API client and bearer sign-i
 - [expo-router](https://docs.expo.dev/router/introduction/) (file-based routes in `app/`)
 - [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with types generated from silo-server's
   OpenAPI contract by [openapi-typescript](https://openapi-ts.dev/) (`src/api/schema.d.ts`)
+- [FlashList](https://shopify.github.io/flash-list/) 2 for the thread list, `date-fns` (`pl`
+  locale) for list dates, `expo-haptics` for the swipe threshold tick
 - [TanStack Query](https://tanstack.com/query) for server state, [zustand](https://zustand.docs.pmnd.rs)
   for the auth state and the device preferences (persisted to AsyncStorage)
 - expo-router's `Drawer` (its bundled react-navigation drawer on `react-native-drawer-layout`,
@@ -32,6 +36,7 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
 | --------------------- | ------------------------------------------------------------------ |
 | start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first |
 | label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`  |
+| draft (Drafts view)   | `/compose?draftId=d_…` (placeholder, slice 7)                      |
 | thread                | `/u/<n>/<label>/<threadId>` (placeholder, slice 6)                 |
 | search                | `/u/<n>/search` (placeholder)                                      |
 | compose (full screen) | `/compose` (placeholder, slice 7)                                  |
@@ -52,8 +57,40 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
   `GET /labels` each, fetched only while the dialog is open), "Dodaj konto" (slice 8), sign-out.
   Choosing an account opens `/u/<position>/inbox`.
 - **FAB** (`src/features/shell`): extended "Utwórz" with a pencil, bottom right, opens
-  `/compose`; its `extended` prop folds it to the icon (driven by the list's scrolling in
-  slice 3).
+  `/compose`; folded to the pencil while the list scrolls down, extended again on scrolling up
+  or at the top, as in Gmail.
+- **Thread list** (`src/features/threadlist/ThreadList.tsx`): `GET /threads` of the label as an
+  infinite query (keyset cursor, 50 per page, `src/api/queries/threads.ts`) on FlashList; the
+  next page loads near the end with a spinner below the last row. Pull-to-refresh refetches the
+  list and the label counters. Empty views as in Gmail ("Brak wiadomości w Odebranych", "Brak
+  spamu", "Kosz jest pusty", otherwise "Nic tu nie ma") with a large icon; an error view with
+  "Spróbuj ponownie"; a spinner on the first load.
+- **Row** (`ThreadRow.tsx`): avatar of the last participant who is not the user (the account's
+  for a thread of one's own messages), senders (one full name, else up to three short names,
+  "ja" for the user) with the message count, date ("09:12" today, "4 lis" this year,
+  "04.11.2025" before), subject (or "(bez tematu)"), snippet (hidden in the compact density),
+  user label chips in their colours (not the chip of the open label), star toggle, paperclip,
+  clock for Scheduled, and the pending clock after 3 s of `pendingSync`. Unread rows are bold
+  on the plain surface, read rows on the tinted one. TalkBack reads one label per row
+  ("Nieprzeczytane, Jan Kowalski, Oferta na Q4, 09:12, załącznik").
+- **Swipe** (`SwipeableRow.tsx`): a row follows the finger over a green archive or red delete
+  background; released past 40 % of its width it slides out and runs the action of that side
+  (device preferences `swipeLeftAction`/`swipeRightAction`, `src/state/ui.ts`), with a haptic
+  tick at the threshold. No swipes in Trash and Spam, nor while selecting. A pan starting in
+  the 32 dp left edge opens the drawer instead.
+- **Multi-select** (`SelectionBar.tsx`, `src/state/selection.ts`): a long press or a tap on the
+  avatar selects (the avatar turns into a check mark), further taps toggle rows; the search
+  bar gives way to the selection bar – close and count, archive, delete, mark read/unread
+  (restore and delete forever in Trash and Spam), and ⋮ with "Przenieś do", "Etykiety",
+  "Oznacz gwiazdką", "Zgłoś spam", "Zaznacz wszystko". Back ends the selection.
+- **Banners** (`src/features/sync/Banners.tsx`): above the list, from
+  `GET /accounts/{id}/sync-status` (polled every 15 s while the account is not live): a
+  rejected mailbox password ("Zaktualizuj hasło" opens settings), an unreachable mail server
+  with the pending changes and "Ponów teraz" (`POST /accounts/{id}/resync`), and the progress
+  of the initial sync.
+- **Actions** (`src/features/threadlist/actions.ts`): rows, swipes and the selection bar call
+  `useThreadActions().run(action, ids)`; this slice's implementation only shows the snackbar
+  (`src/state/toasts.ts`, `src/features/toasts/Snackbar.tsx`, above the FAB).
 - **Theme** (`src/lib/theme.ts`): MD3 light and dark palettes tuned to the Gmail app (Google blue
   primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
@@ -138,6 +175,13 @@ Route tests render the real `app/` tree with expo-router's `renderRouter`
   path is mapped to a minimal stand-in, `src/test/reanimated-mock.js`, covering what the drawer
   uses.
 
+The thread list renders on the real FlashList with the library's jest setup
+(`@shopify/flash-list/jestSetup` in `jest.setup.ts`: a fixed 400 x 900 viewport). Tests reach
+`onEndReached` and the `RefreshControl` through the props of FlashList's scroll view. The swipe
+pan is not driven in jest (gesture-handler's jest setup runs no native pans); the mapping of
+preferences to actions (`swipeActionFor`) is unit-tested, the gesture and the FAB folding are
+checked on a device.
+
 Known: a single test file run in band (`npx jest <file>`) passes, but jest does not exit
 afterwards (an open handle that already existed in slice 1); `npm test` runs the files in
 workers and finishes. Add `--forceExit` when running one file.
@@ -146,7 +190,8 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Thread list, thread, search, compose, label management, account setup: later slices.
+- Thread actions (mutations, optimistic updates, undo), thread, search, compose, label
+  management, account setup, server events (SSE): later slices.
 
 ## License
 
