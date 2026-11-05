@@ -6,6 +6,7 @@ import { renderApp, signIn } from "../../test/router";
 import { API, server, setupMsw } from "../../test/server";
 import { resetAuth } from "../../test/utils";
 import { useSelection } from "../../state/selection";
+import { hideToast } from "../../state/toasts";
 
 setupMsw();
 
@@ -36,12 +37,29 @@ function serve(pages: Record<string, ReturnType<typeof threadPage>>) {
   );
 }
 
+/** Answers POST /threads/modify with an undoable operation; returns the recorded bodies. */
+function recordModify(): unknown[] {
+  const bodies: unknown[] = [];
+  server.use(
+    http.post(`${API}/threads/modify`, async ({ request }) => {
+      bodies.push(await request.json());
+      return HttpResponse.json({
+        threads: [],
+        operationId: "op_1",
+        undoUntil: new Date(Date.now() + 10_000).toISOString(),
+      });
+    }),
+  );
+  return bodies;
+}
+
 beforeEach(() => {
   resetAuth();
   signIn();
   requests = [];
   labelRequests = 0;
   useSelection.getState().clear();
+  hideToast();
   server.use(
     http.get(`${API}/session`, () => HttpResponse.json(sessionBody)),
     http.get(`${API}/labels`, () => {
@@ -186,10 +204,27 @@ describe("selection bar", () => {
     await renderApp("/u/0/inbox");
     await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
 
+    const bodies = recordModify();
     await fireEvent.press(screen.getByLabelText("Archiwizuj"));
-    // Slice 3 only announces the actions; slice 4 wires the mutations.
-    expect(await screen.findByText("Dostępne wkrótce")).toBeOnTheScreen();
     expect(screen.queryByTestId("selection-bar")).toBeNull();
+    // The row leaves the Inbox at once; the snackbar offers Cofnij once the server answered.
+    expect(screen.queryByText("Faktura")).toBeNull();
+    expect(await screen.findByText("Wątek zarchiwizowany")).toBeOnTheScreen();
+    expect(screen.getByText("Cofnij")).toBeOnTheScreen();
+    expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: [], removeLabelIds: ["INBOX"] }]);
+  });
+
+  it("the star of a row stars the thread without a snackbar", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    const bodies = recordModify();
+    const row = await screen.findByTestId("thread-t_2");
+    await fireEvent.press(within(row).getByLabelText("Oznacz gwiazdką"));
+    expect(within(row).getByLabelText("Usuń gwiazdkę")).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["STARRED"], removeLabelIds: [] }]),
+    );
+    expect(screen.queryByText("Cofnij")).toBeNull();
   });
 
   it("'Zaznacz wszystko' selects every loaded row", async () => {

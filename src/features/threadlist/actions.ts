@@ -22,8 +22,8 @@ export type ThreadActions = {
 };
 
 /**
- * Stand-in until slice 4 wires the mutations (optimistic update, undo with the server's
- * undoUntil): every action only says it is coming.
+ * Default outside an account's views (ThreadActionsRoot supplies the real one): every action only
+ * says it is coming.
  */
 export const comingSoonActions: ThreadActions = {
   run: async () => toast(t.comingSoon),
@@ -31,7 +31,7 @@ export const comingSoonActions: ThreadActions = {
 
 const ThreadActionsContext = createContext<ThreadActions>(comingSoonActions);
 
-/** Supplies the implementation of the thread actions (tests and slice 4 replace the default). */
+/** Supplies the implementation of the thread actions (ThreadActionsRoot, tests). */
 export const ThreadActionsProvider = ThreadActionsContext.Provider;
 
 export function useThreadActions(): ThreadActions {

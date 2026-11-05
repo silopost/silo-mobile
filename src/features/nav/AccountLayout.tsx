@@ -5,6 +5,7 @@ import { useLabels } from "../../api/queries/labels";
 import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { useAccountIndex, useActiveAccount, useSession } from "../account";
+import { ThreadActionsRoot } from "../threadlist/ThreadActionsRoot";
 import { MailDrawer } from "./MailDrawer";
 
 /** Width of the navigation drawer (Material 3: 360 dp at most; Gmail is about 300 dp). */
@@ -54,17 +55,20 @@ export function AccountLayout() {
   }
 
   return (
-    <Drawer
-      drawerContent={(props) => <AccountDrawerContent {...props} />}
-      screenOptions={{
-        headerShown: false,
-        drawerType: "front",
-        swipeEdgeWidth: 32,
-        drawerStyle: { backgroundColor: theme.colors.surfaceContainerLow, width: DRAWER_WIDTH },
-      }}
-    >
-      <Drawer.Screen name="[label]" />
-      <Drawer.Screen name="search" options={{ swipeEnabled: false }} />
-    </Drawer>
+    // The thread actions of every view of the account: lists, search, the thread screen.
+    <ThreadActionsRoot>
+      <Drawer
+        drawerContent={(props) => <AccountDrawerContent {...props} />}
+        screenOptions={{
+          headerShown: false,
+          drawerType: "front",
+          swipeEdgeWidth: 32,
+          drawerStyle: { backgroundColor: theme.colors.surfaceContainerLow, width: DRAWER_WIDTH },
+        }}
+      >
+        <Drawer.Screen name="[label]" />
+        <Drawer.Screen name="search" options={{ swipeEnabled: false }} />
+      </Drawer>
+    </ThreadActionsRoot>
   );
 }
