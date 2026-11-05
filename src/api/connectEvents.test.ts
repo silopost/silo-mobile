@@ -150,8 +150,10 @@ describe("connectEvents", () => {
     expect(last().headers["Last-Event-ID"]).toBe("1");
     last().h.onOpen();
     expect(useConnection.getState().state).toBe("live");
+    // A poll already in flight may still land; no new one is scheduled after it.
+    await new Promise((r) => setTimeout(r, 100));
     const polled = afters.length;
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 150));
     expect(afters.length).toBe(polled);
   });
 
