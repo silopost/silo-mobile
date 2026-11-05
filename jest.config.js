@@ -27,6 +27,7 @@ const transformed = [
 module.exports = {
   // Android is the target platform of silo-mobile, so components render with Platform.OS android.
   preset: "jest-expo/android",
+  testEnvironment: "./jest.environment.js",
   transform: { "\\.mjs$": jsTransform },
   setupFiles: ["./jest.polyfills.js"],
   setupFilesAfterEnv: ["./jest.setup.ts"],

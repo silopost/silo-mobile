@@ -78,10 +78,12 @@ fails when it differs from the committed one.
 Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/node`, see
 `src/test/server.ts`). Two adjustments make msw work under `jest-expo`:
 
-- `jest.polyfills.js` puts back Node's WHATWG `fetch`, `Request`, `Response`, `Headers` and
-  `FormData` (from `undici`). `jest-expo` installs Expo's native-backed "winter" fetch, whose
-  `Response` cannot carry a body built in JavaScript, so msw's mocked responses would arrive empty.
-  The API client resolves `globalThis.fetch` per call, so it uses the restored one.
+- `jest.environment.js` (jest-expo's Android environment) saves Node's WHATWG `fetch`, `Request`,
+  `Response`, `Headers` and `FormData`, and `jest.polyfills.js` puts them back after jest-expo's
+  setup. That setup installs Expo's native-backed "winter" fetch, whose `Response` cannot carry a
+  body built in JavaScript, so msw's mocked responses would arrive empty. The API client resolves
+  `globalThis.fetch` per call, so it uses the restored one. (The `undici` npm package does not work
+  as a replacement here: its bodies hang on jest-expo's web-streams polyfill.)
 - `jest.config.js` lets Babel transform msw and its ES-module-only dependencies (`.mjs` files and a
   few packages) like the React Native packages.
 
