@@ -14,7 +14,10 @@ export type Toast = {
   hideAt?: number;
 };
 
-type ToastState = { current: Toast | null };
+/** How long a toast without hideAt stays (Material's default for a short message). */
+export const DEFAULT_DURATION = 4000;
+
+type ToastState = { current: (Toast & { duration: number }) | null };
 
 /** The one snackbar of the app (a newer toast replaces the shown one, as in Gmail). */
 export const useToasts = create<ToastState>()(() => ({ current: null }));
@@ -22,7 +25,9 @@ export const useToasts = create<ToastState>()(() => ({ current: null }));
 let nextId = 1;
 
 export function show(toast: Omit<Toast, "id">): void {
-  useToasts.setState({ current: { ...toast, id: nextId++ } });
+  // Turned into a duration here: the snackbar renders without reading the clock.
+  const duration = toast.hideAt ? Math.max(1000, toast.hideAt - Date.now()) : DEFAULT_DURATION;
+  useToasts.setState({ current: { ...toast, id: nextId++, duration } });
 }
 
 /** Shorthand for a plain message. */
