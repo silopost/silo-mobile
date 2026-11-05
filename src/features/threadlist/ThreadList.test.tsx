@@ -227,6 +227,63 @@ describe("selection bar", () => {
     expect(screen.queryByText("Cofnij")).toBeNull();
   });
 
+  it("'Przenieś do' moves the selection to the chosen label", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    const bodies = recordModify();
+    await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    await fireEvent.press(await screen.findByText("Przenieś do"));
+    await fireEvent.press(within(await screen.findByTestId("move-to-sheet")).getByText("Praca"));
+
+    expect(screen.queryByText("Faktura")).toBeNull();
+    expect(await screen.findByText("Wątek przeniesiony do: Praca")).toBeOnTheScreen();
+    expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["l_1"], removeLabelIds: ["INBOX"] }]);
+  });
+
+  it("'Etykiety' applies the checked labels with one request after OK", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    const bodies = recordModify();
+    await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    await fireEvent.press(await screen.findByRole("menuitem", { name: "Etykiety" }));
+    const sheet = await screen.findByTestId("labels-sheet");
+    await fireEvent.press(within(sheet).getByRole("checkbox", { name: "Praca" }));
+    await fireEvent.press(within(sheet).getByRole("checkbox", { name: "Rachunki" }));
+    await fireEvent.press(within(sheet).getByText("OK"));
+
+    expect(await screen.findByText("Zmieniono etykiety wątku")).toBeOnTheScreen();
+    expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["l_1", "l_2"], removeLabelIds: [] }]);
+  });
+
+  it("delete forever in Trash asks first and has no Cofnij", async () => {
+    serve({ "": threadPage([thread({ id: "t_1", subject: "Stary", labelIds: ["TRASH"] })]) });
+    const deleted: unknown[] = [];
+    server.use(
+      http.post(`${API}/threads/delete`, async ({ request }) => {
+        deleted.push(await request.json());
+        serve({ "": threadPage([]) }); // the refetch after the operation
+        return HttpResponse.json({ threads: [], operationId: "op_9", undoUntil: null });
+      }),
+    );
+    await renderApp("/u/0/trash");
+    await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
+    await fireEvent.press(screen.getByLabelText("Usuń na zawsze"));
+
+    const dialog = await screen.findByTestId("delete-forever-dialog");
+    expect(
+      within(dialog).getByText("Usunąć na zawsze 1 wątek? Tej operacji nie można cofnąć."),
+    ).toBeOnTheScreen();
+    expect(deleted).toEqual([]);
+    await fireEvent.press(within(dialog).getByText("Usuń na zawsze"));
+
+    expect(await screen.findByText("Wątek usunięty trwale")).toBeOnTheScreen();
+    expect(screen.queryByText("Stary")).toBeNull();
+    expect(screen.queryByText("Cofnij")).toBeNull();
+    expect(deleted).toEqual([{ ids: ["t_1"] }]);
+  });
+
   it("'Zaznacz wszystko' selects every loaded row", async () => {
     serve({ "": page1 });
     await renderApp("/u/0/inbox");

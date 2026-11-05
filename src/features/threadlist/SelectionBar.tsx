@@ -17,13 +17,13 @@ type Props = {
 
 type BarAction = { action: ThreadAction; icon: string; label: string };
 
-/** The icons of the bar for a view: Trash and Spam restore and delete forever. */
+/**
+ * The icons of the bar for a view: Trash deletes forever (restoring is in the menu), Spam says
+ * "not spam" and deletes forever; elsewhere archive and move to Trash.
+ */
 function primaryActions(labelId: string | undefined): BarAction[] {
   if (labelId === "TRASH") {
-    return [
-      { action: "untrash", icon: "delete-restore", label: t.untrash },
-      { action: "deleteForever", icon: "delete-forever-outline", label: t.deleteForever },
-    ];
+    return [{ action: "deleteForever", icon: "delete-forever-outline", label: t.deleteForever }];
   }
   if (labelId === "SPAM") {
     return [
@@ -63,13 +63,17 @@ export function SelectionBar({ accountId, filter }: Props) {
     qc
       .getQueryData<InfiniteData<ThreadPage>>(keys.threads(accountId, filter))
       ?.pages.flatMap((p) => p.threads ?? []) ?? [];
-  const anyUnread = loaded().some((th) => ids.has(th.id) && isUnread(th));
+  const selected = loaded().filter((th) => ids.has(th.id));
+  const anyUnread = selected.some(isUnread);
+  // As in Gmail: "Usuń gwiazdkę" once every selected thread is starred.
+  const allStarred =
+    selected.length > 0 && selected.every((th) => th.labelIds?.includes("STARRED"));
 
   const apply = (action: ThreadAction) => {
     setMenu(false);
-    const selected = [...ids];
+    const targets = [...ids];
     useSelection.getState().clear();
-    void run(action, selected, { labelId });
+    void run(action, targets, { labelId });
   };
 
   const more = (
@@ -119,8 +123,15 @@ export function SelectionBar({ accountId, filter }: Props) {
         <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
           <Menu.Item title={t.moveTo} onPress={() => apply("moveTo")} />
           <Menu.Item title={t.labels} onPress={() => apply("labels")} />
-          <Menu.Item title={t.star} onPress={() => apply("star")} />
-          {labelId !== "SPAM" && <Menu.Item title={t.reportSpam} onPress={() => apply("spam")} />}
+          {allStarred ? (
+            <Menu.Item title={t.unstar} onPress={() => apply("unstar")} />
+          ) : (
+            <Menu.Item title={t.star} onPress={() => apply("star")} />
+          )}
+          {labelId === "TRASH" && <Menu.Item title={t.untrash} onPress={() => apply("untrash")} />}
+          {labelId !== "SPAM" && labelId !== "TRASH" && (
+            <Menu.Item title={t.reportSpam} onPress={() => apply("spam")} />
+          )}
           <Menu.Item
             title={t.selectAll}
             onPress={() => {
