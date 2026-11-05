@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../lib/theme";
+import { Snackbar } from "../toasts/Snackbar";
 import { MailTopBar } from "../topbar/MailTopBar";
 import { ComposeFab } from "./ComposeFab";
 
@@ -15,7 +16,7 @@ type Props = {
   children: ReactNode;
 };
 
-/** Frame of the mail views: search bar, optional section title, content, compose FAB. */
+/** Frame of the mail views: search bar, optional section title, content, compose FAB, snackbar. */
 export function MailShell({ title, fabExtended = true, children }: Props) {
   const theme = useAppTheme();
   const router = useRouter();
@@ -36,6 +37,7 @@ export function MailShell({ title, fabExtended = true, children }: Props) {
       )}
       <View style={styles.content}>{children}</View>
       <ComposeFab extended={fabExtended} onPress={() => router.push("/compose")} />
+      <Snackbar />
     </SafeAreaView>
   );
 }
