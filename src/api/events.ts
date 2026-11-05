@@ -1,11 +1,17 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { t } from "../lib/i18n";
+import { useAuth } from "../state/auth";
 import { useCompose } from "../state/compose";
+import { setConnection, useConnection } from "../state/connection";
 import { show } from "../state/toasts";
+import { forgetSession } from "./cache";
+import { api, apiBaseUrl, clientId } from "./client";
+import { call, isApiError } from "./errors";
 import { keys } from "./keys";
 import { updateLists, type LabelsData } from "./mutations/cache";
 import { handleOperationFailed, isThreadOpRunning } from "./mutations/threads";
+import { fetchEventSource, type SseHandlers, type SseSource } from "./sse";
 import type { SyncStatus, Thread, ThreadDetail } from "./types";
 
 /**
@@ -170,4 +176,185 @@ export function applyEvent(
       void qc.invalidateQueries();
       return;
   }
+}
+
+export const eventsConfig = {
+  /** Path of the stream under /api/v1. */
+  path: "/events",
+  /** Failed SSE attempts in a row before switching to polling (plan 3.14). */
+  maxSseFailures: 3,
+  /** Delay before the n-th reconnect: min · 2^(n-1), at most max. */
+  backoffMinMs: 1000,
+  backoffMaxMs: 30_000,
+  /** Polling interval of the fallback: plan 3.14's 15 s (silo-web polls every 5 s). */
+  pollIntervalMs: 15_000,
+  /** While polling, how often to try SSE again. */
+  sseRetryMs: 5 * 60_000,
+  /** Opens one SSE attempt; null when the platform has no way to stream (→ polling). */
+  createEventSource: (
+    url: string,
+    headers: Record<string, string>,
+    handlers: SseHandlers,
+  ): SseSource | null => fetchEventSource(url, headers, handlers),
+};
+
+/**
+ * Sequence number of the last event received, kept while the app goes to the background so the
+ * stream resumes from it (Last-Event-ID); forgotten on sign-out.
+ */
+let lastId: number | null = null;
+
+export const eventPosition = () => lastId;
+export function resetEventPosition(): void {
+  lastId = null;
+}
+
+/**
+ * Connects the app to the event stream of the signed-in user: SSE over fetch with
+ * Authorization: Bearer and Last-Event-ID headers, reconnecting with backoff; after
+ * maxSseFailures failures in a row GET /events/poll?after= every pollIntervalMs, trying SSE again
+ * every sseRetryMs (plan 3.14, 5.4). A 401 stops it and signs out. Returns the disconnect function.
+ */
+export function connectEvents(qc: QueryClient): () => void {
+  let stopped = false;
+  let attempt = 0;
+  let source: SseSource | null = null;
+  let failures = 0;
+  let polling = false;
+  let ownId: string | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let pollTimer: ReturnType<typeof setTimeout> | undefined;
+  let sseRetryTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const handle = (type: string, id: string | number | undefined, raw: unknown) => {
+    const n = Number(id);
+    if (id !== undefined && id !== "" && Number.isFinite(n)) lastId = n;
+    let data: EventData = {};
+    if (typeof raw === "string") {
+      try {
+        data = JSON.parse(raw) as EventData;
+      } catch {
+        return;
+      }
+    } else if (raw && typeof raw === "object") data = raw as EventData;
+    applyEvent(qc, type, data, ownId);
+  };
+
+  const stop = () => {
+    stopped = true;
+    attempt += 1;
+    source?.close();
+    source = null;
+    polling = false;
+    clearTimeout(reconnectTimer);
+    clearTimeout(pollTimer);
+    clearTimeout(sseRetryTimer);
+  };
+
+  const stopPolling = () => {
+    polling = false;
+    clearTimeout(pollTimer);
+    clearTimeout(sseRetryTimer);
+  };
+
+  // Tells "Silo unreachable" (offline banner) apart from "the stream alone failed".
+  const probe = async () => {
+    try {
+      await call(api().GET("/meta"));
+      // Reachable again: no banner while the stream reconnects.
+      if (!stopped && useConnection.getState().state === "offline") setConnection("connecting");
+    } catch {
+      if (!stopped) setConnection("offline");
+    }
+  };
+
+  const openSse = async () => {
+    const { serverUrl, token } = useAuth.getState();
+    if (stopped || !serverUrl || !token) return;
+    ownId ??= await clientId();
+    if (stopped) return;
+    const my = ++attempt;
+    const current = () => my === attempt && !stopped;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      "X-Silo-Client": ownId,
+    };
+    if (lastId !== null) headers["Last-Event-ID"] = String(lastId);
+    const es = eventsConfig.createEventSource(apiBaseUrl(serverUrl) + eventsConfig.path, headers, {
+      onOpen: () => {
+        if (!current()) return;
+        failures = 0;
+        stopPolling();
+        setConnection("live");
+      },
+      onEvent: (m) => {
+        if (current()) handle(m.type, m.id, m.data);
+      },
+      onError: ({ status }) => {
+        if (!current()) return;
+        source = null;
+        if (status === 401) {
+          // The session ended: no retry loop; sign out as the API client does on a 401 (unless
+          // the token changed meanwhile).
+          stop();
+          if (useAuth.getState().token === token) void forgetSession();
+          return;
+        }
+        failures += 1;
+        if (failures >= eventsConfig.maxSseFailures) return startPolling();
+        if (!polling) void probe();
+        const delay = Math.min(
+          eventsConfig.backoffMaxMs,
+          eventsConfig.backoffMinMs * 2 ** (failures - 1),
+        );
+        reconnectTimer = setTimeout(() => void openSse(), delay);
+      },
+    });
+    if (!es) return startPolling();
+    if (current()) source = es;
+    else es.close();
+  };
+
+  const poll = async () => {
+    if (stopped || !polling) return;
+    try {
+      const res = await call(
+        api().GET("/events/poll", { params: { query: { after: lastId ?? 0 } } }),
+      );
+      if (stopped) return;
+      if (lastId === null) {
+        // First poll without a position: skip the retained backlog, refetch the current state.
+        lastId = res.nextAfter;
+        void qc.invalidateQueries();
+      } else {
+        for (const ev of res.events ?? []) handle(ev.type, ev.id, ev.data);
+        lastId = res.nextAfter;
+      }
+      if (polling) setConnection("polling");
+    } catch (err) {
+      if (stopped) return;
+      // The API client signs out on a 401; the app layout then disconnects.
+      if (isApiError(err, 401)) return stop();
+      setConnection("offline");
+    }
+    if (!stopped && polling) pollTimer = setTimeout(() => void poll(), eventsConfig.pollIntervalMs);
+  };
+
+  const startPolling = () => {
+    if (stopped) return;
+    if (!polling) {
+      polling = true;
+      void poll();
+    }
+    clearTimeout(sseRetryTimer);
+    sseRetryTimer = setTimeout(() => {
+      // One more failure returns to polling (which keeps running meanwhile).
+      failures = eventsConfig.maxSseFailures - 1;
+      void openSse();
+    }, eventsConfig.sseRetryMs);
+  };
+
+  setConnection("connecting");
+  void openSse();
+  return stop;
 }
