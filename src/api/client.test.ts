@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { useAuth } from "../state/auth";
 import { API, SERVER_URL, server, setupMsw } from "../test/server";
+import { sessionBody as session } from "../test/fixtures";
 import { resetAuth, secureStore } from "../test/utils";
 import { api, apiBaseUrl, createApiClient } from "./client";
 import { call } from "./errors";
@@ -12,21 +13,6 @@ beforeEach(() => {
   resetAuth();
   resetInstallationIdForTests();
 });
-
-const session = {
-  user: { id: "u_1", email: "ala@example.com", displayName: "Ala", isAdmin: false },
-  csrfToken: "",
-  settings: {
-    density: "default",
-    undoSendSeconds: 5,
-    signature: "",
-    timezone: "Europe/Warsaw",
-    keyboardShortcutsEnabled: true,
-    conversationView: true,
-    activeAccountId: null,
-  },
-  accounts: [],
-} as const;
 
 describe("apiBaseUrl", () => {
   it("appends /api/v1 without doubling the slash", () => {
