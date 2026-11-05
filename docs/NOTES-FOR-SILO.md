@@ -128,6 +128,49 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
 
+## Server events on mobile (slice 5)
+
+**Decision: SSE over `fetch` streaming with a small parser, no `react-native-sse`.** React
+Native has no `EventSource`. Expo SDK 58 installs `expo/fetch` as the global `fetch` (unless
+`EXPO_PUBLIC_USE_RN_FETCH` is set); its `Response.body` is a `ReadableStream` fed by the native
+request as data arrives (OkHttp on Android, URLSession on iOS), so a `text/event-stream` can be
+read without a library. That keeps every header under the app's control (`Authorization:
+Bearer`, `X-Silo-Client`, `Last-Event-ID`), adds no native-module or new-architecture risk,
+and lets jest test the real reader against an msw stream. `react-native-sse` (XHR-based, also
+sets headers) would have been the fallback; with React Native's own fetch (no body stream) the
+attempt fails and the app falls back to polling. Reconnects are decided by the app, not the
+transport: backoff 1 s doubling up to 30 s, 3 failures → `GET /events/poll` every 15 s (plan
+3.14; silo-web: 5 s), SSE again every 5 min. Stream only in the foreground (`AppState`).
+
+Gaps found:
+
+- **Event payloads have no schema.** `/events` declares `text/event-stream` as a string and
+  `PolledEvent.data` as a free object; the fields of each type (`threadId`, `labelIds`,
+  `unreadCount`, `intoId`, `labels[]`, `operationId`, `kind`, `threadIds`, `draftId`,
+  `version`, `status`, `failedRecipients`, `state`, the `SyncProgress` fields, `origin`) are
+  only in plan 5.4 and the server. Both clients read them as `Record<string, unknown>` with
+  guards. Proposal: one schema per event type (e.g. `ThreadUpdatedEvent`) referenced from
+  `PolledEvent` as a `oneOf` discriminated by `type`, so `openapi-typescript` generates them.
+- **The list of types in `/events` is incomplete.** The description names message.new …
+  resync but not `draft.updated` and `outbound.status`, which plan 5.4 and both clients use.
+  An `enum` on `PolledEvent.type` would make the list checkable.
+- **No delta after a long offline.** Plan 3.14 says a native client resumes through
+  `GET /changes?cursor=` (phase 5) after more than the 24 h retention; until it exists the
+  server answers `resync` and the app invalidates every query (all lists, labels, threads are
+  refetched as the user opens them). Fine for now, costly for large caches once offline storage
+  (`expo-sqlite`) arrives.
+- **No event for created labels** (see above): other devices see a new label only after a
+  `label.changed`/refetch; `label.created` would refresh their drawers.
+- **No way to tell an expired token from a stream refusal before reading.** A 401 on `/events`
+  is `Problem`; the app treats it as the end of the session (as REST does). If the server ever
+  answers 401 for other reasons on the stream (e.g. a per-connection limit), a distinct code
+  (`429` with `Retry-After`) would keep clients from signing out.
+- **Retry hint.** The server could send `retry:` in the stream (ignored by the app, which owns
+  its backoff) or `Retry-After` on a 503 from `/events` under load; neither is in the contract.
+- **Heartbeat interval is in prose only** (`: ping` every 25 s). silo-mobile relies on it: a
+  stream silent for 60 s is treated as dead (mobile networks drop idle TCP connections without a
+  FIN) and reopened with `Last-Event-ID`. The interval should be part of the contract.
+
 ## Deviations from the Gmail app (slices 3–4)
 
 - **No swipes in Trash and Spam.** Gmail's swipe there restores or deletes; the device

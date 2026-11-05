@@ -8,8 +8,9 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 4 – thread actions with optimistic update and "Cofnij" (swipes, star, selection
-bar, "Etykiety" and "Przenieś do" sheets, creating labels). Slice 3: the Gmail thread list (rows,
+Status: slice 5 – server events (SSE over fetch with a polling fallback, AppState lifecycle,
+offline banner). Slice 4: thread actions with optimistic update and "Cofnij" (swipes, star,
+selection bar, "Etykiety" and "Przenieś do" sheets, creating labels). Slice 3: the Gmail thread list (rows,
 swipe, multi-select, pull-to-refresh, sync banners); slice 2: the Gmail shell (routes, drawer,
 search bar, account switcher, compose FAB, theme); slice 1: API client and bearer sign-in.
 
@@ -23,6 +24,8 @@ search bar, account switcher, compose FAB, theme); slice 1: API client and beare
   locale) for list dates, `expo-haptics` for the swipe threshold tick
 - [TanStack Query](https://tanstack.com/query) for server state, [zustand](https://zustand.docs.pmnd.rs)
   for the auth state and the device preferences (persisted to AsyncStorage)
+- `@react-native-community/netinfo` for TanStack Query's `onlineManager` and reconnecting the
+  event stream when the network comes back
 - expo-router's `Drawer` (its bundled react-navigation drawer on `react-native-drawer-layout`,
   `react-native-gesture-handler`, `react-native-reanimated`)
 - [react-native-paper](https://callstack.github.io/react-native-paper/) 5 (Material 3)
@@ -140,6 +143,46 @@ mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentO
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
   actions, density) live in `src/state/ui.ts` (zustand + AsyncStorage).
 
+## Zdarzenia: SSE, polling, AppState
+
+Server events (plan 3.14, 5.4) keep the cache current without refetching:
+
+- **Stream.** `src/api/sse.ts` opens `GET /api/v1/events` with `fetch` and parses
+  `text/event-stream` incrementally. React Native has no `EventSource`; Expo SDK 58's global
+  `fetch` is `expo/fetch`, whose `Response.body` is a `ReadableStream` filled as data arrives.
+  Every attempt sends `Authorization: Bearer <token>`, `X-Silo-Client` (the same `clientId()` as
+  REST, so the app recognises its own events by `origin`) and, on reconnect, `Last-Event-ID`
+  as a header. The token is never put in the URL (ADR 0007). A stream silent for 60 s (the
+  server pings every 25 s) is treated as dead and reopened.
+- **Reconnect and fallback** (`connectEvents` in `src/api/events.ts`, settings in
+  `eventsConfig`): a failed or dropped stream reconnects after 1 s, 2 s, ... (capped at 30 s);
+  after 3 failures in a row the app polls `GET /events/poll?after=<lastId>` every **15 s** (plan
+  3.14; silo-web polls every 5 s, a phone saves battery) and tries SSE again every 5 min. The
+  first poll without a position skips the retained backlog and refetches everything. A failing
+  stream is followed by a `GET /meta` probe: if Silo does not answer, the state is `offline`.
+  A 401 from the stream does not loop: it stops and signs out like the REST client.
+- **Mapping** (`applyEvent`, a port of silo-web's): `thread.updated` patches rows and the open
+  thread (lists refetch when the thread is new or moved), `label.counts` writes counters into
+  `/labels`, `operation.failed` rolls back through `handleOperationFailed`, `draft.updated`
+  stores the remote version in `src/state/compose.ts` for the compose screen,
+  `outbound.status: failed` shows "Nie udało się wysłać · Otwórz" (opens `/compose?draftId=`),
+  account events refetch the sync status and session, `resync` refetches everything. The app's
+  own `thread.updated` (`origin` = its `X-Silo-Client`) is ignored while a thread operation is
+  in flight. `message.new` only refetches lists (no local notification; push is phase 6).
+- **App lifecycle** (`src/features/sync/useEvents.ts`, mounted once in `app/(app)/_layout.tsx`):
+  the stream is open only while signed in and in the foreground. `background`/`inactive` close
+  the stream or polling; coming back reconnects with `Last-Event-ID` and invalidates the lists,
+  labels and sync status as a safety net (the web's `refetchOnWindowFocus`). Network back
+  (NetInfo) reconnects at once. Signing out disconnects and forgets the last event id. The root
+  layout feeds TanStack Query's `focusManager` from `AppState` and `onlineManager` from NetInfo.
+- **Connection state** (`src/state/connection.ts`: `connecting | live | polling | offline`): the
+  list shows "Brak połączenia z Silo. Ponawiam…" when `offline`, nothing while polling. The sync
+  status of a non-live account is polled every 15 s only while events are polled or offline.
+
+After more than 24 h without the stream (the retention of `events`), the server answers `resync`
+and the app refetches every query; the delta endpoint `GET /changes` of phase 5 would replace
+that.
+
 ## Running
 
 Requirements: Node 22+ (`.nvmrc`), a running silo-server (see the `silo` repository for the dev
@@ -207,7 +250,12 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
   few packages) like the React Native packages.
 
 `expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`, as are
-AsyncStorage, gesture-handler, worklets and the safe-area insets (the libraries' jest mocks).
+AsyncStorage, NetInfo, gesture-handler, worklets and the safe-area insets (the libraries' jest
+mocks). `jest.setup.ts` also replaces `fetchEventSource` with a source that never opens, so
+screen tests make no SSE requests; `src/api/sse.test.ts` tests the real one against an msw
+stream, and the `connectEvents`/`useEvents` tests inject a fake through
+`eventsConfig.createEventSource` (short intervals instead of fake timers, which
+`fakeTimers.doNotFake` leaves real).
 
 Route tests render the real `app/` tree with expo-router's `renderRouter`
 (`src/test/router.tsx`). Two more adjustments make that work:
@@ -234,8 +282,9 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Thread, search, compose, label management (colours, rename, delete), account setup, server
-  events (SSE, which will call `handleOperationFailed`): later slices.
+- Thread, search, compose, label management (colours, rename, delete), account setup: later
+  slices.
+- Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 
 ## License
 
