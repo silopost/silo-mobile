@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
+import { DeviceEventEmitter } from "react-native";
 import { labels, sessionBody, thread, threadPage } from "../../test/fixtures";
 import { renderApp, signIn } from "../../test/router";
 import { API, server, setupMsw } from "../../test/server";
@@ -145,5 +146,59 @@ describe("thread list", () => {
     await fireEvent.press(screen.getByTestId("thread-t_2"));
     expect([...useSelection.getState().ids].sort()).toEqual(["t_1", "t_2"]);
     expect(within(screen.getByTestId("thread-t_2")).getByRole("checkbox")).toBeChecked();
+  });
+});
+
+describe("selection bar", () => {
+  it("replaces the search bar with the count; X ends the selection", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
+
+    const bar = screen.getByTestId("selection-bar");
+    expect(within(bar).getByLabelText("Zaznaczono: 1")).toHaveTextContent("1");
+    expect(screen.queryByText("Szukaj w poczcie")).toBeNull();
+    // t_1 is unread: the bar offers to mark it read.
+    expect(within(bar).getByLabelText("Oznacz jako przeczytane")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId("thread-avatar-t_2"));
+    expect(within(bar).getByLabelText("Zaznaczono: 2")).toBeOnTheScreen();
+
+    await fireEvent.press(within(bar).getByLabelText("Zakończ zaznaczanie"));
+    expect(screen.queryByTestId("selection-bar")).toBeNull();
+    expect(screen.getByText("Szukaj w poczcie")).toBeOnTheScreen();
+    expect(useSelection.getState().ids.size).toBe(0);
+  });
+
+  it("the back button ends the selection and stays on the list", async () => {
+    serve({ "": page1 });
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
+    expect(screen.getByTestId("selection-bar")).toBeOnTheScreen();
+
+    await act(async () => DeviceEventEmitter.emit("hardwareBackPress"));
+    expect(screen.queryByTestId("selection-bar")).toBeNull();
+    expect(app.getPathname()).toBe("/u/0/inbox");
+  });
+
+  it("runs an action on the selected threads and ends the selection", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
+
+    await fireEvent.press(screen.getByLabelText("Archiwizuj"));
+    // Slice 3 only announces the actions; slice 4 wires the mutations.
+    expect(await screen.findByText("Dostępne wkrótce")).toBeOnTheScreen();
+    expect(screen.queryByTestId("selection-bar")).toBeNull();
+  });
+
+  it("'Zaznacz wszystko' selects every loaded row", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
+
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    await fireEvent.press(await screen.findByText("Zaznacz wszystko"));
+    expect([...useSelection.getState().ids].sort()).toEqual(["t_1", "t_2"]);
   });
 });

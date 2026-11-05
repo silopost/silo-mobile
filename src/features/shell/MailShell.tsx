@@ -13,11 +13,13 @@ type Props = {
   title?: string;
   /** Collapses the FAB to its icon (see ComposeFab). */
   fabExtended?: boolean;
+  /** Replaces the search bar, e.g. with the selection bar of the list. */
+  topBar?: ReactNode;
   children: ReactNode;
 };
 
 /** Frame of the mail views: search bar, optional section title, content, compose FAB, snackbar. */
-export function MailShell({ title, fabExtended = true, children }: Props) {
+export function MailShell({ title, fabExtended = true, topBar, children }: Props) {
   const theme = useAppTheme();
   const router = useRouter();
   return (
@@ -25,7 +27,7 @@ export function MailShell({ title, fabExtended = true, children }: Props) {
       edges={["top", "left", "right"]}
       style={[styles.screen, { backgroundColor: theme.colors.background }]}
     >
-      <MailTopBar />
+      {topBar ?? <MailTopBar />}
       {title !== undefined && (
         <Text
           variant="labelLarge"

@@ -5,6 +5,7 @@ import { Text } from "react-native-paper";
 import { useLabels } from "../api/queries/labels";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { MailShell } from "../features/shell/MailShell";
+import { SelectionBar } from "../features/threadlist/SelectionBar";
 import { ThreadList } from "../features/threadlist/ThreadList";
 import { t } from "../lib/i18n";
 import { INBOX_SLUG, resolveLabelSlug, viewName, type ResolvedLabel } from "../lib/labels";
@@ -42,6 +43,8 @@ export function LabelScreen() {
         ? resolved.labelId
         : undefined;
   const [fabExtended, setFabExtended] = useState(true);
+  const selecting = useSelection((s) => s.ids.size > 0);
+  const filter = { labelId };
   const threadHref = useCallback((id: string) => `/u/${index}/${label}/${id}`, [index, label]);
 
   // A selection belongs to one list: leaving the label or the account ends it.
@@ -56,13 +59,16 @@ export function LabelScreen() {
     <MailShell
       title={label === INBOX_SLUG ? undefined : known ? viewName(label, labels) : t.unknownLabel}
       fabExtended={fabExtended}
+      topBar={
+        selecting && account ? <SelectionBar accountId={account.id} filter={filter} /> : undefined
+      }
     >
       {known && account ? (
         <ThreadList
           // A new list (label or account) starts at the top with the FAB extended.
           key={`${account.id}/${label}`}
           accountId={account.id}
-          filter={{ labelId }}
+          filter={filter}
           me={{ email: account.email, name: account.displayName }}
           threadHref={threadHref}
           empty={emptyState(resolved)}
