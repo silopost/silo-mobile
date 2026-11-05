@@ -6,9 +6,9 @@ import { runThreadAction } from "../../api/mutations/threads";
 import { keys } from "../../api/keys";
 import type { ThreadDetail } from "../../api/types";
 import { t } from "../../lib/i18n";
-import { toast } from "../../state/toasts";
 import { useActiveAccount } from "../account";
 import { LabelsSheet } from "../labels/LabelsSheet";
+import { MoveToSheet } from "../labels/MoveToSheet";
 import {
   ThreadActionsProvider,
   type RunOptions,
@@ -18,7 +18,7 @@ import {
 
 /** An action waiting for the user: a confirmation or the choice in a sheet. */
 type Pending = {
-  kind: "deleteForever" | "labels";
+  kind: "deleteForever" | "labels" | "moveTo";
   ids: string[];
   opts: RunOptions;
   /** Resolves the run() that opened it. */
@@ -28,7 +28,7 @@ type Pending = {
 /**
  * The thread actions of the account in the route (swipe, star, selection bar, later the thread
  * screen): mutations with optimistic update and "Cofnij" (runThreadAction), the confirmation
- * dialog of delete forever and the sheets that ask what to apply ("Etykiety"). The sheets are
+ * dialog of delete forever and the sheets that ask what to apply ("Etykiety", "Przenieś do"). The sheets are
  * opened by run() without a choice, so every caller gets them.
  */
 export function ThreadActionsRoot({ children }: { children: ReactNode }) {
@@ -67,12 +67,17 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
     run: (action, ids, opts = {}) => {
       if (action === "deleteForever") return ask(action, ids, opts);
       if (action === "labels" && !opts.add && !opts.remove) return ask(action, ids, opts);
-      if (action === "moveTo" && !opts.target) {
-        toast(t.comingSoon);
-        return Promise.resolve();
-      }
+      if (action === "moveTo" && !opts.target) return ask(action, ids, opts);
       return execute(action, ids, opts);
     },
+  };
+
+  /** Runs the pending action with the user's choice. */
+  const finish = (choice: RunOptions = {}) => {
+    if (!pending) return;
+    const { kind, ids, opts, done } = pending;
+    setPending(null);
+    void execute(kind, ids, { ...opts, ...choice }).then(done);
   };
 
   const close = () => {
@@ -89,11 +94,16 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
           onDismiss={close}
           accountId={accountId}
           threads={threadLabels(pending.ids)}
-          onApply={(add, remove) => {
-            const { ids, opts, done } = pending;
-            setPending(null);
-            void execute("labels", ids, { ...opts, add, remove }).then(done);
-          }}
+          onApply={(add, remove) => finish({ add, remove })}
+        />
+      )}
+      {pending?.kind === "moveTo" && accountId && (
+        <MoveToSheet
+          visible
+          onDismiss={close}
+          accountId={accountId}
+          currentLabelId={pending.opts.labelId}
+          onSelect={(target) => finish({ target })}
         />
       )}
       {pending?.kind === "deleteForever" && (
@@ -105,15 +115,7 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
             </Dialog.Content>
             <Dialog.Actions>
               <Button onPress={close}>{t.cancel}</Button>
-              <Button
-                onPress={() => {
-                  const { ids, opts, done } = pending;
-                  setPending(null);
-                  void execute("deleteForever", ids, opts).then(done);
-                }}
-              >
-                {t.deleteForever}
-              </Button>
+              <Button onPress={() => finish()}>{t.deleteForever}</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
