@@ -1,12 +1,49 @@
 import { fireEvent, screen } from "@testing-library/react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { queryClient } from "../../api/cache";
+import { useAuth } from "../../state/auth";
 import { renderScreen } from "../../test/render";
+import { serveMeta, SERVER_URL, setupMsw } from "../../test/server";
 import { AttachSheet, AttachmentList } from "./AttachmentList";
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 jest.mock("expo-image-picker", () => ({ launchImageLibraryAsync: jest.fn() }));
 
+setupMsw();
+
+beforeEach(() => {
+  queryClient.clear();
+  useAuth.setState({ status: "signedIn", serverUrl: SERVER_URL, token: "tok_1" });
+});
+
 describe("AttachmentList", () => {
+  it("shows the server thumbnail of an uploaded picture (server 0.4.0)", async () => {
+    serveMeta("0.4.0");
+    await renderScreen(
+      <AttachmentList
+        attachments={[
+          {
+            id: "u_5",
+            filename: "foto.png",
+            contentType: "image/png",
+            size: 4096,
+            cid: null,
+            inline: false,
+            thumbnail: true,
+          },
+        ]}
+        uploads={[]}
+        onRemove={jest.fn()}
+        onRemoveUpload={jest.fn()}
+      />,
+    );
+    const img = await screen.findByTestId("thumbnail-u_5");
+    expect(img.props.source).toMatchObject({
+      uri: `${SERVER_URL}/api/v1/attachments/u_5/thumbnail?size=s`,
+      headers: { Authorization: "Bearer tok_1" },
+    });
+  });
+
   it("shows attachments and uploads with progress; x removes or cancels", async () => {
     const onRemove = jest.fn();
     const onRemoveUpload = jest.fn();

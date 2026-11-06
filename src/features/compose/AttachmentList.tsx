@@ -9,9 +9,12 @@ import { formatSize } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
 import { attachmentIcon } from "../thread/AttachmentChips";
+import { Thumbnail, useHasThumbnail } from "../thread/Thumbnail";
 import type { UploadItem } from "./session";
 
 type TileProps = {
+  /** The upload id when it has a server thumbnail (UploadInfo.thumbnail, server 0.4.0). */
+  thumbnailId?: string;
   name: string;
   size: number;
   contentType: string;
@@ -22,8 +25,18 @@ type TileProps = {
   error?: string;
 };
 
-function Tile({ name, size, contentType, removeLabel, onRemove, progress, error }: TileProps) {
+function Tile({
+  thumbnailId,
+  name,
+  size,
+  contentType,
+  removeLabel,
+  onRemove,
+  progress,
+  error,
+}: TileProps) {
   const theme = useAppTheme();
+  const icon = attachmentIcon(contentType, name);
   return (
     <View
       accessibilityLabel={`${name}, ${formatSize(size)}`}
@@ -35,7 +48,16 @@ function Tile({ name, size, contentType, removeLabel, onRemove, progress, error 
       ]}
     >
       <View style={styles.tileRow}>
-        <Icon source={attachmentIcon(contentType, name)} size={24} color={theme.colors.primary} />
+        {thumbnailId ? (
+          <Thumbnail
+            id={thumbnailId}
+            dimension={32}
+            fallbackIcon={icon}
+            fallbackColor={theme.colors.primary}
+          />
+        ) : (
+          <Icon source={icon} size={24} color={theme.colors.primary} />
+        )}
         <View style={styles.tileText}>
           <Text numberOfLines={1} variant="bodyMedium">
             {name}
@@ -82,14 +104,7 @@ export function AttachmentList({ attachments, uploads, onRemove, onRemoveUpload 
   return (
     <View accessibilityLabel={t.attachments} style={styles.list}>
       {attachments.map((a) => (
-        <Tile
-          key={a.id}
-          name={a.filename}
-          size={a.size}
-          contentType={a.contentType}
-          removeLabel={t.removeAttachment(a.filename)}
-          onRemove={() => onRemove(a.id)}
-        />
+        <AttachmentTile key={a.id} attachment={a} onRemove={onRemove} />
       ))}
       {uploads.map((u) => (
         <Tile
@@ -104,6 +119,27 @@ export function AttachmentList({ attachments, uploads, onRemove, onRemoveUpload 
         />
       ))}
     </View>
+  );
+}
+
+/** An attachment of the draft, with its server thumbnail when it is a picture (0.4.0). */
+function AttachmentTile({
+  attachment: a,
+  onRemove,
+}: {
+  attachment: UploadInfo;
+  onRemove: (id: string) => void;
+}) {
+  const thumb = useHasThumbnail(a);
+  return (
+    <Tile
+      thumbnailId={thumb ? a.id : undefined}
+      name={a.filename}
+      size={a.size}
+      contentType={a.contentType}
+      removeLabel={t.removeAttachment(a.filename)}
+      onRemove={() => onRemove(a.id)}
+    />
   );
 }
 

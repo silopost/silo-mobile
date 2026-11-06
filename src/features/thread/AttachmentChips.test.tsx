@@ -1,11 +1,12 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { queryClient } from "../../api/cache";
 import { useAuth } from "../../state/auth";
 import { useToasts } from "../../state/toasts";
 import { attachment } from "../../test/fixtures";
 import { renderScreen } from "../../test/render";
-import { SERVER_URL } from "../../test/server";
+import { serveMeta, SERVER_URL, setupMsw } from "../../test/server";
 import { AttachmentChips, attachmentIcon } from "./AttachmentChips";
 
 let mockStatus = 200;
@@ -34,10 +35,14 @@ jest.mock("expo-sharing", () => ({
 
 const download = FileSystem.createDownloadResumable as jest.Mock;
 
+setupMsw();
+
 beforeEach(() => {
   mockStatus = 200;
   jest.clearAllMocks();
   useToasts.setState({ current: null });
+  // GET /meta is cached for good: each test answers its own server version.
+  queryClient.clear();
   useAuth.setState({ status: "signedIn", serverUrl: SERVER_URL, token: "tok_1" });
 });
 
@@ -99,5 +104,61 @@ describe("AttachmentChips", () => {
     expect(attachmentIcon("application/octet-stream", "a.pdf")).toBe("file-pdf-box");
     expect(attachmentIcon("application/zip", "a.zip")).toBe("folder-zip-outline");
     expect(attachmentIcon("application/x-unknown", "a.bin")).toBe("file-outline");
+  });
+});
+
+describe("thumbnails (server 0.4.0)", () => {
+  const photo = attachment({
+    id: "a_7",
+    filename: "plaza.jpg",
+    contentType: "image/jpeg",
+    thumbnail: true,
+  });
+
+  it("shows the server thumbnail fetched with the bearer header", async () => {
+    serveMeta("0.4.0");
+    await renderScreen(<AttachmentChips attachments={[photo, attachment({})]} />);
+
+    const img = await screen.findByTestId("thumbnail-a_7");
+    expect(img.props.source).toEqual({
+      uri: `${SERVER_URL}/api/v1/attachments/a_7/thumbnail?size=s`,
+      headers: {
+        Authorization: "Bearer tok_1",
+        "X-Silo-Client": expect.stringMatching(/^silo-mobile./),
+      },
+    });
+    // A PDF keeps the icon of its type.
+    expect(screen.queryByTestId("thumbnail-a_1")).toBeNull();
+  });
+
+  it("falls back to the icon when the server has no thumbnail (415)", async () => {
+    serveMeta("0.4.0");
+    await renderScreen(<AttachmentChips attachments={[photo]} />);
+    const img = await screen.findByTestId("thumbnail-a_7");
+    await fireEvent(img, "error", { nativeEvent: { error: "415" } });
+    expect(screen.queryByTestId("thumbnail-a_7")).toBeNull();
+  });
+
+  it("opens a full-screen preview with the picture and shares it from there", async () => {
+    serveMeta("0.4.0");
+    await renderScreen(<AttachmentChips attachments={[photo]} />);
+    await screen.findByTestId("thumbnail-a_7");
+    await fireEvent.press(screen.getByRole("button", { name: "Załącznik plaza.jpg, 18 KB" }));
+
+    const full = await screen.findByTestId("image-full-a_7");
+    expect(full.props.source).toMatchObject({
+      uri: `${SERVER_URL}/api/v1/attachments/a_7?inline=1`,
+      headers: { Authorization: "Bearer tok_1" },
+    });
+    expect(download).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Udostępnij lub zapisz" }));
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalled());
+    expect(screen.queryByTestId("image-preview-a_7")).toBeNull();
+  });
+
+  it("asks for no thumbnail from a 0.3.0 server", async () => {
+    await renderScreen(<AttachmentChips attachments={[photo]} />);
+    expect(await screen.findByText("plaza.jpg")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.queryByTestId("thumbnail-a_7")).toBeNull());
   });
 });

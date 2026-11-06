@@ -276,6 +276,8 @@ export const t = {
   sendingLabel: "Wysyłanie…",
   attachmentLabel: (name: string, size: string) => `Załącznik ${name}, ${size}`,
   attachmentNotReady: "Załącznik jeszcze niepobrany, spróbuj za chwilę",
+  shareAttachment: "Udostępnij lub zapisz",
+  previewAttachment: (name: string) => `Podgląd: ${name}`,
   newerLabel: "Nowszy wątek",
   olderLabel: "Starszy wątek",
   /** operation.failed by kind (plan 5.4): what the server could not do. */

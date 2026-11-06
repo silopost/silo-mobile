@@ -10,8 +10,9 @@ import { t } from "../../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
 import { useAuth } from "../../state/auth";
 import { toast } from "../../state/toasts";
+import { ImagePreview, Thumbnail, useHasThumbnail } from "./Thumbnail";
 
-/** Material Design icon of a file type (no thumbnails in API 0.3.0). */
+/** Material Design icon of a file type (without a server thumbnail). */
 export function attachmentIcon(contentType: string, filename: string): string {
   const type = contentType.toLowerCase();
   const ext = filename.toLowerCase().split(".").pop() ?? "";
@@ -66,10 +67,16 @@ export async function openAttachment(
   });
 }
 
-/** One attachment: icon of its type, name and size; a tap downloads and opens it. */
+/**
+ * One attachment: the server thumbnail of a picture (0.4.0) or the icon of its type, name and
+ * size. A tap on a picture opens the full-screen preview; on other files it downloads and opens.
+ */
 function AttachmentChip({ attachment: a }: { attachment: MessageAttachment }) {
   const theme = useAppTheme();
   const [progress, setProgress] = useState<number | null>(null);
+  const thumb = useHasThumbnail(a);
+  const [preview, setPreview] = useState(false);
+  const icon = attachmentIcon(a.contentType, a.filename);
   const size = formatSize(a.size);
   const open = async () => {
     if (progress !== null) return;
@@ -87,17 +94,23 @@ function AttachmentChip({ attachment: a }: { attachment: MessageAttachment }) {
       testID={`attachment-${a.id}`}
       accessibilityRole="button"
       accessibilityLabel={t.attachmentLabel(a.filename, size)}
+      accessibilityHint={thumb ? t.previewAttachment(a.filename) : undefined}
       accessibilityState={{ busy: progress !== null }}
-      onPress={() => void open()}
+      onPress={() => (thumb ? setPreview(true) : void open())}
       android_ripple={{ color: theme.colors.surfaceVariant }}
       style={[styles.chip, { borderColor: theme.colors.outlineVariant }]}
     >
       <View style={styles.row}>
-        <Icon
-          source={attachmentIcon(a.contentType, a.filename)}
-          size={24}
-          color={theme.colors.onSurfaceVariant}
-        />
+        {thumb ? (
+          <Thumbnail
+            id={a.id}
+            dimension={40}
+            fallbackIcon={icon}
+            fallbackColor={theme.colors.onSurfaceVariant}
+          />
+        ) : (
+          <Icon source={icon} size={24} color={theme.colors.onSurfaceVariant} />
+        )}
         <View style={styles.text}>
           <Text numberOfLines={1} variant="bodyMedium" style={{ color: theme.colors.onSurface }}>
             {a.filename}
@@ -109,6 +122,17 @@ function AttachmentChip({ attachment: a }: { attachment: MessageAttachment }) {
       </View>
       {progress !== null && (
         <ProgressBar testID={`attachment-progress-${a.id}`} progress={progress} />
+      )}
+      {preview && (
+        <ImagePreview
+          id={a.id}
+          title={a.filename}
+          onDismiss={() => setPreview(false)}
+          onShare={() => {
+            setPreview(false);
+            void open();
+          }}
+        />
       )}
     </Pressable>
   );
