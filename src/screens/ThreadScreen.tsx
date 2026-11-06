@@ -20,6 +20,7 @@ import { t } from "../lib/i18n";
 import { INBOX_SLUG, resolveLabelSlug } from "../lib/labels";
 import { MIN_TOUCH, useAppTheme } from "../lib/theme";
 import { useUi } from "../state/ui";
+import { searchHref } from "../features/search/href";
 
 /** Collapsed read messages, expanded unread ones and the last one (plan 5.2). */
 export function initiallyExpanded(messages: Message[]): Set<string> {
@@ -81,11 +82,19 @@ function headerChips(
   return chips;
 }
 
-/** A thread opened from a list (/u/<n>/<label>/<threadId>), as the Gmail app shows it. */
-export function ThreadScreen() {
-  const { label = INBOX_SLUG, threadId = "" } = useLocalSearchParams<{
+/**
+ * A thread opened from a list (/u/<n>/<label>/<threadId>) or from search results
+ * (/u/<n>/search/<threadId>?q=, `search`), as the Gmail app shows it.
+ */
+export function ThreadScreen({ search = false }: { search?: boolean }) {
+  const {
+    label = INBOX_SLUG,
+    threadId = "",
+    q = "",
+  } = useLocalSearchParams<{
     label: string;
     threadId: string;
+    q?: string;
   }>();
   const router = useRouter();
   const qc = useQueryClient();
@@ -98,14 +107,18 @@ export function ThreadScreen() {
   const [menu, setMenu] = useState(false);
 
   const resolved = resolveLabelSlug(label);
-  const viewLabelId =
-    resolved.kind === "system"
+  // Search results are no view of a label: actions there act as in "Wszystkie".
+  const viewLabelId = search
+    ? undefined
+    : resolved.kind === "system"
       ? resolved.view.labelId
       : resolved.kind === "label"
         ? resolved.labelId
         : undefined;
-  const listHref = `/u/${index}/${label}`;
-  const threadHref = (id: string) => `${listHref}/${id}`;
+  const listFilter = search ? { q } : { labelId: viewLabelId };
+  const listHref = search ? searchHref(index, q) : `/u/${index}/${label}`;
+  const threadHref = (id: string) =>
+    search ? searchHref(index, q, id) : `/u/${index}/${label}/${id}`;
 
   const thread = useQuery({
     ...threadQuery(threadId),
@@ -189,12 +202,8 @@ export function ThreadScreen() {
     back();
   };
 
-  const older = accountId
-    ? neighbourInList(qc, accountId, { labelId: viewLabelId }, threadId, 1)
-    : undefined;
-  const newer = accountId
-    ? neighbourInList(qc, accountId, { labelId: viewLabelId }, threadId, -1)
-    : undefined;
+  const older = accountId ? neighbourInList(qc, accountId, listFilter, threadId, 1) : undefined;
+  const newer = accountId ? neighbourInList(qc, accountId, listFilter, threadId, -1) : undefined;
 
   const starred = labelIds.includes("STARRED");
   const inTrash = labelIds.includes("TRASH");

@@ -95,7 +95,6 @@ export const t = {
   noAccounts: "Brak kont pocztowych. Dodaj konto, aby zobaczyć pocztę.",
   unknownLabel: "Nie ma takiej etykiety",
   thread: "Wątek",
-  searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
   themeTitle: "Motyw",
 
   // thread list
