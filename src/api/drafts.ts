@@ -63,9 +63,14 @@ export const saveDraft = (
 export const deleteDraft = (id: string): Promise<unknown> =>
   call(api().DELETE("/drafts/{id}", { params: { path: { id } } }));
 
-/** POST /drafts/{id}/send now; `sendAt` (scheduled send) is phase 4, not in contract 0.3.0. */
-export const sendDraft = (id: string): Promise<SendResult> =>
-  call(api().POST("/drafts/{id}/send", { params: { path: { id } }, body: {} }));
+/** POST /drafts/{id}/send now, or at `sendAt` (scheduled send, server 0.4.0). */
+export const sendDraft = (id: string, sendAt?: string): Promise<SendResult> =>
+  call(
+    api().POST("/drafts/{id}/send", {
+      params: { path: { id } },
+      body: sendAt ? { sendAt } : {},
+    }),
+  );
 
 /** "Cofnij" of a send: the server answers with the draft the message became again. */
 export const cancelOutbound = (id: string): Promise<Draft> =>

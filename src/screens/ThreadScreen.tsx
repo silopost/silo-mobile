@@ -11,6 +11,7 @@ import { threadQuery } from "../api/queries/threads";
 import type { Label, Message, ThreadDetail } from "../api/types";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { composeHref, openReply, replyTarget, type DraftMode } from "../features/compose/actions";
+import { undoSend } from "../features/compose/session";
 import { PendingIcon } from "../features/sync/PendingIcon";
 import { MessageCard } from "../features/thread/MessageCard";
 import { useThreadActions, type ThreadAction } from "../features/threadlist/actions";
@@ -148,6 +149,8 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   const detail = thread.data;
   const messages = detail?.messages ?? [];
   const labelIds = detail?.labelIds ?? [];
+  /** The queued message of a scheduled thread (POST /outbound/{id}/cancel). */
+  const outboundId = detail?.outboundId;
 
   const [expandedState, setExpanded] = useState<{ id: string; set: Set<string> } | null>(null);
   const [unfolded, setUnfolded] = useState(false);
@@ -354,6 +357,31 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
             </View>
           )}
 
+          {labelIds.includes("SCHEDULED") && detail.scheduledAt && (
+            <View
+              testID="thread-scheduled"
+              style={[styles.note, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+            >
+              <Icon source="send-clock-outline" size={20} color={muted} />
+              <Text variant="bodyMedium" style={[styles.grow, { color: theme.colors.onSurface }]}>
+                {t.scheduledFor(formatWhen(detail.scheduledAt))}
+              </Text>
+              {outboundId && accountId && (
+                <Button
+                  onPress={() =>
+                    void undoSend(qc, outboundId, accountId, {
+                      done: t.sendCancelled,
+                      conflict: t.sendInProgress,
+                    })
+                  }
+                  contentStyle={styles.touch}
+                >
+                  {t.cancelSend}
+                </Button>
+              )}
+            </View>
+          )}
+
           {thread.isPlaceholderData && (
             <Text variant="bodyMedium" style={[styles.pad, { color: muted }]}>
               {t.loading}
@@ -457,6 +485,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
   chip: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: "hidden" },
   pad: { paddingHorizontal: 16, paddingVertical: 8 },
+  touch: { minHeight: MIN_TOUCH },
   note: {
     flexDirection: "row",
     alignItems: "center",

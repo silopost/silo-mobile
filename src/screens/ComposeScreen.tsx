@@ -33,6 +33,8 @@ import {
   type SessionState,
 } from "../features/compose/session";
 import { Snackbar } from "../features/toasts/Snackbar";
+import { ScheduleSendSheet } from "../features/compose/ScheduleSendSheet";
+import { useServerFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../lib/theme";
 import { useAuth } from "../state/auth";
@@ -262,6 +264,8 @@ function ComposeDraft({ draftId }: { draftId: string }) {
   const [menu, setMenu] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const canSchedule = useServerFeature("schedule");
   const { form } = state;
   const hasRecipients = form.to.length + form.cc.length + form.bcc.length > 0;
 
@@ -288,6 +292,10 @@ function ComposeDraft({ draftId }: { draftId: string }) {
   const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
   const send = async () => {
     if (await session.send()) close();
+  };
+  const schedule = async (sendAt: string) => {
+    setScheduleOpen(false);
+    if (await session.send(sendAt)) close();
   };
   const discard = () => {
     setConfirmDiscard(false);
@@ -324,6 +332,16 @@ function ComposeDraft({ draftId }: { draftId: string }) {
           {/* Mounted only while open (Paper's Menu hides itself on mount otherwise). */}
           {menu ? (
             <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
+              {canSchedule && (
+                <Menu.Item
+                  title={t.scheduleSend}
+                  disabled={!state.loaded || !hasRecipients || state.sending}
+                  onPress={() => {
+                    setMenu(false);
+                    setScheduleOpen(true);
+                  }}
+                />
+              )}
               <Menu.Item
                 title={t.saveDraft}
                 onPress={() => {
@@ -355,6 +373,11 @@ function ComposeDraft({ draftId }: { draftId: string }) {
           </View>
         )
       )}
+      <ScheduleSendSheet
+        visible={scheduleOpen}
+        onDismiss={() => setScheduleOpen(false)}
+        onSelect={(sendAt) => void schedule(sendAt)}
+      />
       <AttachSheet
         visible={attachOpen}
         onDismiss={() => setAttachOpen(false)}

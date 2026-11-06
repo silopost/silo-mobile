@@ -1,9 +1,19 @@
 import { fireEvent, screen, waitFor, within } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import type { components } from "../api/schema";
-import { labels, message, sessionBody, thread, threadDetail, threadPage } from "../test/fixtures";
+import {
+  draft,
+  labels,
+  message,
+  sessionBody,
+  thread,
+  threadDetail,
+  threadPage,
+} from "../test/fixtures";
+import { formatWhen } from "../lib/format";
+import { hideToast, useToasts } from "../state/toasts";
 import { renderApp, signIn } from "../test/router";
-import { API, server, setupMsw } from "../test/server";
+import { API, server, serveMeta, setupMsw } from "../test/server";
 import { resetAuth } from "../test/utils";
 import { defaultUi, useUi } from "../state/ui";
 
@@ -26,6 +36,7 @@ function serve(detail: Detail | null) {
 
 beforeEach(() => {
   resetAuth();
+  hideToast();
   useUi.setState({ ...defaultUi });
   signIn();
   modifies = [];
@@ -227,5 +238,68 @@ describe("ThreadScreen", () => {
     serve(null);
     await renderApp("/u/0/inbox/t_1");
     expect(await screen.findByText("Nie znaleziono wątku")).toBeOnTheScreen();
+  });
+});
+
+describe("ThreadScreen, phase 4", () => {
+  const at = "2026-11-07T07:00:00Z";
+
+  it("a scheduled message says when it leaves; Anuluj wysyłkę cancels and opens the draft", async () => {
+    let cancels = 0;
+    server.use(
+      http.post(`${API}/outbound/ob_9/cancel`, () => {
+        cancels += 1;
+        return HttpResponse.json(draft({ id: "d_5", subject: "Plan" }));
+      }),
+      http.get(`${API}/drafts/d_5`, () => HttpResponse.json(draft({ id: "d_5", subject: "Plan" }))),
+      http.get(`${API}/contacts/autocomplete`, () => HttpResponse.json({ contacts: [] })),
+    );
+    serve({
+      ...threadDetail([message({ labelIds: ["SCHEDULED"] })]),
+      labelIds: ["SCHEDULED"],
+      scheduledAt: at,
+      outboundId: "ob_9",
+    });
+    const app = await renderApp("/u/0/scheduled/t_1");
+
+    expect(await screen.findByTestId("thread-scheduled")).toHaveTextContent(
+      `Zaplanowano na ${formatWhen(at)}`,
+      { exact: false },
+    );
+    await fireEvent.press(screen.getByText("Anuluj wysyłkę"));
+    await waitFor(() => expect(app.getPathname()).toBe("/compose"));
+    expect(cancels).toBe(1);
+    expect(app.getSearchParams()).toMatchObject({ draftId: "d_5" });
+  });
+
+  it("409 send_in_progress says the message is being sent", async () => {
+    server.use(
+      http.post(`${API}/outbound/ob_9/cancel`, () =>
+        HttpResponse.json({ code: "send_in_progress", status: 409 }, { status: 409 }),
+      ),
+    );
+    serve({
+      ...threadDetail([message({ labelIds: ["SCHEDULED"] })]),
+      labelIds: ["SCHEDULED"],
+      scheduledAt: at,
+      outboundId: "ob_9",
+    });
+    await renderApp("/u/0/scheduled/t_1");
+    await fireEvent.press(await screen.findByText("Anuluj wysyłkę"));
+    await waitFor(() =>
+      expect(useToasts.getState().current?.message).toBe("Ta wiadomość jest już wysyłana."),
+    );
+  });
+
+  it("a snoozed thread says until when and offers Anuluj odłożenie", async () => {
+    serveMeta("0.4.0");
+    serve({ ...three(), labelIds: ["SNOOZED"], snoozedUntil: at });
+    await renderApp("/u/0/snoozed/t_1");
+    expect(await screen.findByTestId("thread-snoozed")).toHaveTextContent(
+      `Odłożono do ${formatWhen(at)}`,
+      { exact: false },
+    );
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    expect(await screen.findByText("Anuluj odłożenie")).toBeOnTheScreen();
   });
 });

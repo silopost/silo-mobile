@@ -2,11 +2,13 @@ import { fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import { composeConfig, resetSessions } from "../features/compose/session";
 import { useCompose } from "../state/compose";
-import { hideToast } from "../state/toasts";
+import { hideToast, useToasts } from "../state/toasts";
 import { typeInEditor } from "../test/editor";
 import { draft, labels, sessionBody, thread, threadPage } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
-import { API, server, setupMsw } from "../test/server";
+import { API, server, serveMeta, setupMsw } from "../test/server";
+import { schedulePresets } from "../features/compose/ScheduleSendSheet";
+import { formatWhen } from "../lib/format";
 import { resetAuth } from "../test/utils";
 
 setupMsw();
@@ -35,9 +37,6 @@ beforeEach(() => {
   puts = [];
   server.use(
     http.get(`${API}/session`, () => HttpResponse.json(sessionBody)),
-    http.get(`${API}/meta`, () =>
-      HttpResponse.json({ serverVersion: "0.3.0", maxAttachmentBytes: 25 * 1024 * 1024 }),
-    ),
     http.get(`${API}/labels`, () => HttpResponse.json({ labels })),
     http.get(`${API}/accounts/:id/sync-status`, () => HttpResponse.json({}, { status: 404 })),
     http.get(`${API}/threads`, () => HttpResponse.json(threadPage([thread({})]))),
@@ -155,6 +154,51 @@ describe("ComposeScreen", () => {
     expect(app.getSearchParams()).toMatchObject({ draftId: "d_1" });
     expect(await screen.findByDisplayValue("Wróciło")).toBeOnTheScreen();
     expect(await screen.findByText("Wysyłanie cofnięte")).toBeOnTheScreen();
+  });
+
+  it("Zaplanuj wysyłkę sends with sendAt, says when, and Cofnij cancels it", async () => {
+    serveMeta("0.4.0");
+    const bodies: unknown[] = [];
+    server.use(
+      http.post(`${API}/drafts/d_1/send`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({
+          ...sendResult(),
+          undoUntil: new Date(Date.now() + 86_400_000).toISOString(),
+        });
+      }),
+      http.post(`${API}/outbound/o_1/cancel`, () => {
+        calls.push("CANCEL");
+        return HttpResponse.json(draft({ version: 4 }));
+      }),
+    );
+    const app = await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
+    await fireEvent.press(await screen.findByText("Zaplanuj wysyłkę"));
+    const preset = schedulePresets()[0]!.at.toISOString();
+    expect(await screen.findByText("Jutro rano")).toBeOnTheScreen();
+    expect(screen.getByText("Poniedziałek rano")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("schedule-tomorrowMorning"));
+
+    await waitFor(() => expect(bodies).toEqual([{ sendAt: preset }]));
+    await waitFor(() => expect(app.getPathname()).not.toBe("/compose"));
+    const toast = useToasts.getState().current!;
+    expect(toast.message).toBe(`Zaplanowano na ${formatWhen(preset)}`);
+    // A short snackbar: the message stays cancellable in Zaplanowane until it leaves.
+    expect(toast.duration).toBeLessThanOrEqual(10_000);
+
+    await fireEvent.press(await screen.findByText("Cofnij"));
+    await waitFor(() => expect(calls).toContain("CANCEL"));
+    await waitFor(() => expect(app.getPathname()).toBe("/compose"));
+  });
+
+  it("Zaplanuj wysyłkę is not offered by a 0.3.0 server", async () => {
+    await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
+    await screen.findByText("Odrzuć");
+    expect(screen.queryByText("Zaplanuj wysyłkę")).toBeNull();
   });
 
   it("Cofnij too late says the message was sent", async () => {

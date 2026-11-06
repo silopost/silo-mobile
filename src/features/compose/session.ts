@@ -14,7 +14,7 @@ import {
 import { isApiError } from "../../api/errors";
 import { keys } from "../../api/keys";
 import type { Address, Draft, Meta, SendResult, UploadInfo } from "../../api/types";
-import { formatSize } from "../../lib/format";
+import { formatSize, formatWhen } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { useAuth } from "../../state/auth";
 import { useCompose } from "../../state/compose";
@@ -415,10 +415,11 @@ export class DraftSession {
 
   /**
    * "Wyślij": the only local check is "at least one recipient" (the server validates the rest,
-   * plan 2.6), then the last PUT and POST /drafts/{id}/send (plan 3.9). Resolves true when the
-   * message was handed to the server; the screen closes then.
+   * plan 2.6), then the last PUT and POST /drafts/{id}/send (plan 3.9). With `sendAt` ("Zaplanuj
+   * wysyłkę", server 0.4.0) the server keeps the message until that time; no timer runs here.
+   * Resolves true when the message was handed to the server; the screen closes then.
    */
-  async send(): Promise<boolean> {
+  async send(sendAt?: string): Promise<boolean> {
     if (this.state.sending) return false;
     const f = this.state.form;
     if (f.to.length + f.cc.length + f.bcc.length === 0) {
@@ -437,7 +438,7 @@ export class DraftSession {
     }
     let res: SendResult;
     try {
-      res = await sendDraft(this.id);
+      res = await sendDraft(this.id, sendAt);
     } catch (err) {
       this.set({
         sending: false,
@@ -450,7 +451,8 @@ export class DraftSession {
     sessions.delete(this.id);
     this.qc.removeQueries({ queryKey: keys.draft(this.id) });
     void this.qc.invalidateQueries({ queryKey: keys.threadsAll(this.state.accountId) });
-    showSent(this.qc, res, this.state.accountId);
+    if (sendAt) showScheduled(this.qc, res, this.state.accountId, sendAt);
+    else showSent(this.qc, res, this.state.accountId);
     return true;
   }
 }
@@ -525,16 +527,41 @@ export function showSent(qc: QueryClient, res: SendResult, accountId: string) {
   });
 }
 
-/** "Cofnij": POST /outbound/{id}/cancel; the draft it answers opens in compose again. */
-export async function undoSend(qc: QueryClient, outboundId: string, accountId: string) {
+/** Longest a "Zaplanowano na … · Cofnij" snackbar stays (the send itself may be days away). */
+export const SCHEDULED_SNACKBAR_MS = 10_000;
+
+/**
+ * "Zaplanowano na <czas> · Cofnij" (plan 3.9): "Cofnij" cancels the scheduled message as an undo
+ * send does. The message stays cancellable until it leaves ("Anuluj wysyłkę" in Zaplanowane), so
+ * the snackbar only stays a short while.
+ */
+export function showScheduled(qc: QueryClient, res: SendResult, accountId: string, sendAt: string) {
+  show({
+    message: t.scheduledFor(formatWhen(sendAt)),
+    action: { label: t.undo, onPress: () => void undoSend(qc, res.outboundId, accountId) },
+    hideAt: Math.min(Date.parse(res.undoUntil), Date.now() + SCHEDULED_SNACKBAR_MS),
+  });
+}
+
+/**
+ * "Cofnij" of a send and "Anuluj wysyłkę" of a scheduled message: POST /outbound/{id}/cancel;
+ * the draft it answers opens in compose again. 409 (sent or being sent) says `texts.conflict`.
+ */
+export async function undoSend(
+  qc: QueryClient,
+  outboundId: string,
+  accountId: string,
+  texts: { done: string; conflict: string } = { done: t.sendUndone, conflict: t.tooLateToUndo },
+) {
   hideToast();
   try {
     const d = await cancelOutbound(outboundId);
     openLoaded(qc, d);
     router.push(composeHref(d.id));
-    toast(t.sendUndone);
+    toast(texts.done);
   } catch (err) {
-    toast(isApiError(err, 409) ? t.tooLateToUndo : t.genericError);
+    toast(isApiError(err, 409) ? texts.conflict : t.genericError);
   }
   void qc.invalidateQueries({ queryKey: keys.threadsAll(accountId) });
+  void qc.invalidateQueries({ queryKey: keys.labels(accountId) });
 }
