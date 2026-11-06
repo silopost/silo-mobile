@@ -24,7 +24,7 @@ const invalid = (key: readonly unknown[]) => qc.getQueryState(key)?.isInvalidate
 beforeEach(() => {
   qc = new QueryClient();
   hideToast();
-  useCompose.setState({ remoteVersions: {} });
+  useCompose.setState({ remoteVersions: {}, failures: {} });
   (router.push as jest.Mock).mockClear();
   qc.setQueryData(keys.threads("acc_1", {}), lists([thread({}), thread({ id: "t_2" })]));
   qc.setQueryData(keys.threads("acc_1", { labelId: "INBOX" }), lists([thread({})]));
@@ -141,12 +141,25 @@ describe("applyEvent", () => {
     expect(useCompose.getState().remoteVersions).toEqual({ d_1: 3 });
   });
 
-  it("outbound.status failed offers to open the draft again", () => {
+  it("outbound.status failed records the failure and offers to open the draft again", () => {
     applyEvent(qc, "outbound.status", { accountId: "acc_1", draftId: "d_1", status: "sent" });
     expect(invalid(keys.threads("acc_1", {}))).toBe(true);
     expect(useToasts.getState().current).toBeNull();
 
-    applyEvent(qc, "outbound.status", { accountId: "acc_1", draftId: "d_1", status: "failed" });
+    qc.setQueryData(keys.draft("d_1"), { id: "d_1" });
+    applyEvent(qc, "outbound.status", {
+      accountId: "acc_1",
+      draftId: "d_1",
+      status: "failed",
+      error: "550 mailbox unavailable",
+      failedRecipients: ["x@example.com"],
+    });
+    // The compose screen shows why (red bar) and reloads the draft with its lastSend.
+    expect(useCompose.getState().failures.d_1).toEqual({
+      error: "550 mailbox unavailable",
+      failedRecipients: ["x@example.com"],
+    });
+    expect(invalid(keys.draft("d_1"))).toBe(true);
     const shown = useToasts.getState().current!;
     expect(shown.message).toBe("Nie udało się wysłać");
     expect(shown.action?.label).toBe("Otwórz");

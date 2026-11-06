@@ -1,16 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { api } from "../../api/client";
-import { call } from "../../api/errors";
+import { createDraft as postDraft } from "../../api/drafts";
 import { keys } from "../../api/keys";
 import type { CreateDraftBody, Draft, Message } from "../../api/types";
 import { t } from "../../lib/i18n";
 import { toast } from "../../state/toasts";
+import { composeHref, openLoaded } from "./session";
+
+export { composeHref };
 
 export type DraftMode = NonNullable<CreateDraftBody["mode"]>;
-
-/** Path of the compose screen for a draft. */
-export const composeHref = (draftId: string) => `/compose?draftId=${encodeURIComponent(draftId)}`;
 
 let creating = false;
 
@@ -23,7 +22,9 @@ export async function createDraft(qc: QueryClient, body: CreateDraftBody): Promi
   if (creating) return;
   creating = true;
   try {
-    const draft: Draft = await call(api().POST("/drafts", { body }));
+    const draft: Draft = await postDraft(body);
+    // Compose opens without a GET; the draft is deleted if left without an edit (as in Gmail).
+    openLoaded(qc, draft, { created: true });
     void qc.invalidateQueries({ queryKey: keys.threadsAll(draft.accountId) });
     void qc.invalidateQueries({ queryKey: keys.thread(draft.threadId) });
     router.push(composeHref(draft.id));

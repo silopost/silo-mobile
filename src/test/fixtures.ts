@@ -178,3 +178,27 @@ export function attachment(
     ...over,
   };
 }
+
+/** Draft d_1 of acc_1 at version 1, to Jan unless overridden. */
+export function draft(over: Partial<Schemas["Draft"]>): Schemas["Draft"] {
+  return {
+    id: "d_1",
+    accountId: "acc_1",
+    threadId: "t_9",
+    messageId: "m_d1",
+    attachments: null,
+    to: [{ email: "jan@example.com", name: "Jan" }],
+    cc: null,
+    bcc: null,
+    subject: "",
+    bodyHtml: "",
+    bodyJson: null,
+    inReplyToMessageId: null,
+    lastSend: null,
+    serverChanged: false,
+    syncedVersion: 0,
+    updatedAt: "2026-11-05T10:00:00Z",
+    version: 1,
+    ...over,
+  };
+}

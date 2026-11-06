@@ -145,7 +145,13 @@ export function applyEvent(
       const draftId = str(data.draftId);
       if (accountId) void qc.invalidateQueries({ queryKey: keys.threadsAll(accountId) });
       if (data.status !== "failed" || !draftId) return;
-      // The server made the message a draft again (plan 3.9 step 6); compose opens it (slice 7).
+      // The server made the message a draft again (plan 3.9 step 6): compose shows why in a red
+      // bar, and reloads the draft (lastSend) when it opens it.
+      useCompose.getState().setFailure(draftId, {
+        error: str(data.error),
+        failedRecipients: strings(data.failedRecipients),
+      });
+      void qc.invalidateQueries({ queryKey: keys.draft(draftId) });
       show({
         message: t.sendFailedOpen,
         action: {
