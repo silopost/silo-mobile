@@ -1,9 +1,10 @@
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../lib/theme";
+import { useActiveAccount } from "../account";
 import { Snackbar } from "../toasts/Snackbar";
 import { MailTopBar } from "../topbar/MailTopBar";
 import { ComposeFab } from "./ComposeFab";
@@ -22,6 +23,10 @@ type Props = {
 export function MailShell({ title, fabExtended = true, topBar, children }: Props) {
   const theme = useAppTheme();
   const router = useRouter();
+  const account = useActiveAccount();
+  // One snackbar on screen: compose and the thread screen cover the list (the toast store is
+  // shared, so "Wysłano · Cofnij" shown by compose appears here once compose closes).
+  const focused = useIsFocused();
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -38,8 +43,16 @@ export function MailShell({ title, fabExtended = true, topBar, children }: Props
         </Text>
       )}
       <View style={styles.content}>{children}</View>
-      <ComposeFab extended={fabExtended} onPress={() => router.push("/compose")} />
-      <Snackbar />
+      <ComposeFab
+        extended={fabExtended}
+        onPress={() =>
+          // A new message from the account of the list (POST /drafts {accountId}).
+          router.push(
+            account ? { pathname: "/compose", params: { accountId: account.id } } : "/compose",
+          )
+        }
+      />
+      {focused && <Snackbar />}
     </SafeAreaView>
   );
 }

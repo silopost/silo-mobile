@@ -155,6 +155,17 @@ describe("thread list", () => {
     expect(app.getSearchParams().draftId).toBe("d_4");
   });
 
+  it("a message waiting to be sent shows a clock and opens its thread, not compose", async () => {
+    serve({
+      "": threadPage([thread({ id: "t_8", subject: "Wychodząca", labelIds: ["SCHEDULED"] })]),
+    });
+    const app = await renderApp("/u/0/scheduled");
+    const row = await screen.findByTestId("thread-t_8");
+    expect(row.props.accessibilityLabel).toContain("zaplanowane");
+    await fireEvent.press(row);
+    await waitFor(() => expect(app.getPathname()).toBe("/u/0/scheduled/t_8"));
+  });
+
   it("long press starts selection; taps toggle rows", async () => {
     serve({ "": page1 });
     await renderApp("/u/0/inbox");

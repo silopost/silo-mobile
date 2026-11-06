@@ -71,6 +71,12 @@ beforeEach(() => {
 });
 afterEach(() => resetSessions());
 
+const sendResult = () => ({
+  messageId: "m_9",
+  outboundId: "o_1",
+  undoUntil: new Date(Date.now() + 10_000).toISOString(),
+});
+
 async function addRecipient(email: string) {
   const input = await screen.findByLabelText("Dodaj odbiorców: Do");
   await fireEvent.changeText(input, email);
@@ -114,6 +120,79 @@ describe("ComposeScreen", () => {
     });
     expect(await screen.findByText("Zapisano wersję roboczą")).toBeOnTheScreen();
     expect(calls).not.toContain("DELETE /drafts/d_1");
+  });
+
+  it("send: PUT, then POST send, 'Wysłano · Cofnij' on the list, Cofnij reopens the draft", async () => {
+    server.use(
+      http.post(`${API}/drafts/d_1/send`, () => {
+        calls.push("SEND");
+        return HttpResponse.json(sendResult());
+      }),
+      http.post(`${API}/outbound/o_1/cancel`, () => {
+        calls.push("CANCEL");
+        return HttpResponse.json(draft({ version: 4, subject: "Wróciło" }));
+      }),
+    );
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByLabelText("Utwórz"));
+    await addRecipient("jan@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Temat"), "Wróciło");
+
+    await fireEvent.press(screen.getByLabelText("Wyślij"));
+
+    await waitFor(() => expect(app.getPathname()).toBe("/u/0/inbox"));
+    expect(calls.filter((c) => c !== "GET /drafts/d_1")).toEqual([
+      "POST /drafts",
+      "PUT /drafts/d_1",
+      "SEND",
+    ]);
+    expect(await screen.findByText("Wysłano")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByText("Cofnij"));
+
+    await waitFor(() => expect(app.getPathname()).toBe("/compose"));
+    expect(calls).toContain("CANCEL");
+    expect(app.getSearchParams()).toMatchObject({ draftId: "d_1" });
+    expect(await screen.findByDisplayValue("Wróciło")).toBeOnTheScreen();
+    expect(await screen.findByText("Wysyłanie cofnięte")).toBeOnTheScreen();
+  });
+
+  it("Cofnij too late says the message was sent", async () => {
+    server.use(
+      http.post(`${API}/drafts/d_1/send`, () => HttpResponse.json(sendResult())),
+      http.post(`${API}/outbound/o_1/cancel`, () =>
+        HttpResponse.json({ status: 409, code: "send_in_progress" }, { status: 409 }),
+      ),
+    );
+    const app = await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Wyślij"));
+    await fireEvent.press(await screen.findByText("Cofnij"));
+
+    expect(await screen.findByText("Za późno, wiadomość została wysłana")).toBeOnTheScreen();
+    expect(app.getPathname()).not.toBe("/compose");
+  });
+
+  it("422 invalid_address marks the recipient red and stays open", async () => {
+    server.use(
+      http.post(`${API}/drafts/d_1/send`, () =>
+        HttpResponse.json(
+          { status: 422, code: "invalid_address", address: "jan@example.com", field: "to" },
+          { status: 422 },
+        ),
+      ),
+    );
+    const app = await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Wyślij"));
+
+    expect(
+      await screen.findByText(
+        "Nieprawidłowy adres odbiorcy: jan@example.com. Popraw adres oznaczony na czerwono.",
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Jan, Nieprawidłowy adres" })).toBeOnTheScreen();
+    expect(app.getPathname()).toBe("/compose");
   });
 
   it("Odrzuć asks first, then deletes the draft", async () => {
