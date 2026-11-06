@@ -17,4 +17,8 @@ export const keys = {
   /** The inline (cid:) images of a message as data URIs. */
   messageInline: (id: string) => ["messageInline", id] as const,
   syncStatus: (accountId: string) => ["syncStatus", accountId] as const,
+  /** A draft as the compose screen last loaded or saved it. */
+  draft: (id: string) => ["draft", id] as const,
+  /** Address suggestions for the text typed in a recipient field. */
+  contacts: (q: string) => ["contacts", q] as const,
 };
