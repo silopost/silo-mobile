@@ -1,9 +1,12 @@
 import { fireEvent, screen, waitFor } from "expo-router/testing-library";
+import * as ImagePicker from "expo-image-picker";
 import { http, HttpResponse } from "msw";
+import { uploadConfig } from "../api/drafts";
 import { composeConfig, resetSessions } from "../features/compose/session";
 import { useCompose } from "../state/compose";
 import { hideToast, useToasts } from "../state/toasts";
-import { typeInEditor } from "../test/editor";
+import { editorHtml, typeInEditor } from "../test/editor";
+import { FakeXhr } from "../test/xhr";
 import { draft, labels, sessionBody, thread, threadPage } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
 import { API, server, serveMeta, setupMsw } from "../test/server";
@@ -12,6 +15,8 @@ import { formatWhen } from "../lib/format";
 import { resetAuth } from "../test/utils";
 
 setupMsw();
+
+jest.mock("expo-image-picker", () => ({ launchImageLibraryAsync: jest.fn() }));
 
 const autosaveMs = composeConfig.autosaveMs;
 let calls: string[];
@@ -290,5 +295,109 @@ describe("ComposeScreen", () => {
       ),
     ).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Jan, Nieprawidłowy adres" })).toBeOnTheScreen();
+  });
+});
+
+describe("inline pictures (server 0.4.0)", () => {
+  const readAsDataUri = composeConfig.readAsDataUri;
+  const createXhr = uploadConfig.createXhr;
+  const preview = "data:image/png;base64,AAAA";
+  const pic = {
+    id: "u_9",
+    cid: "c9@silo",
+    inline: true,
+    thumbnail: true,
+    filename: "plaza.png",
+    contentType: "image/png",
+    size: 4,
+  };
+
+  beforeEach(() => {
+    serveMeta("0.4.0");
+    composeConfig.readAsDataUri = async () => preview;
+    uploadConfig.createXhr = () => new FakeXhr() as unknown as XMLHttpRequest;
+    FakeXhr.last = undefined;
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: "file:///plaza.png", fileName: "plaza.png", mimeType: "image/png", fileSize: 4 },
+      ],
+    });
+  });
+  afterEach(() => {
+    composeConfig.readAsDataUri = readAsDataUri;
+    uploadConfig.createXhr = createXhr;
+  });
+
+  it("uploads with inline=true, shows the picture and saves <img src=cid:>", async () => {
+    await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Załącz"));
+    await fireEvent.press(await screen.findByRole("button", { name: "Wstaw obraz w treści" }));
+
+    await waitFor(() => expect(FakeXhr.last?.method).toBe("POST"));
+    const xhr = FakeXhr.last!;
+    expect(xhr.url).toBe(`${API}/uploads`);
+    expect([...(xhr.body as FormData).keys()]).toEqual(["inline", "file"]);
+    xhr.respond(201, pic);
+
+    // The editor shows the picture from the device; no tile for it.
+    await waitFor(() => expect(editorHtml()).toContain(`<img src="${preview}">`));
+    expect(screen.queryByLabelText("plaza.png, 4 B")).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText("Zapisz i zamknij"));
+    await waitFor(() => expect(puts.at(-1)).toMatchObject({ syncNow: true }));
+    expect(puts.at(-1)?.bodyHtml).toBe('<p>Treść</p><img src="cid:c9@silo">');
+    expect(puts.at(-1)?.attachmentIds).toEqual(["u_9"]);
+  });
+
+  it("removing the picture from the text unpins its upload", async () => {
+    await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Załącz"));
+    await fireEvent.press(await screen.findByRole("button", { name: "Wstaw obraz w treści" }));
+    await waitFor(() => expect(FakeXhr.last?.method).toBe("POST"));
+    FakeXhr.last!.respond(201, pic);
+    await waitFor(() => expect(editorHtml()).toContain(preview));
+
+    await typeInEditor("<p>Treść</p>");
+    await fireEvent.press(screen.getByLabelText("Zapisz i zamknij"));
+    await waitFor(() => expect(puts.at(-1)).toMatchObject({ syncNow: true }));
+    expect(puts.at(-1)?.attachmentIds).toEqual([]);
+  });
+
+  it("shows the cid: pictures of a loaded draft with data URIs fetched with the bearer", async () => {
+    let auth: string | null = null;
+    server.use(
+      http.get(`${API}/drafts/d_1`, () =>
+        HttpResponse.json(
+          draft({
+            subject: "Oferta",
+            bodyHtml: '<p>Patrz</p><img src="cid:c9@silo">',
+            attachments: [pic],
+          }),
+        ),
+      ),
+      http.get(`${API}/attachments/u_9`, ({ request }) => {
+        auth = request.headers.get("Authorization");
+        return new HttpResponse(new Uint8Array([1, 2, 3]), {
+          headers: { "Content-Type": "image/png" },
+        });
+      }),
+    );
+    await renderApp("/compose?draftId=d_1");
+    await waitFor(() =>
+      expect(editorHtml()).toBe('<p>Patrz</p><img src="data:image/png;base64,AQID">'),
+    );
+    expect(auth).toBe("Bearer tok_1");
+  });
+
+  it("is not offered by a 0.3.0 server", async () => {
+    serveMeta("0.3.0");
+    await renderApp("/compose?draftId=d_1");
+    await screen.findByDisplayValue("Oferta");
+    await fireEvent.press(screen.getByLabelText("Załącz"));
+    expect(await screen.findByRole("button", { name: "Załącz plik" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Wstaw obraz w treści" })).toBeNull();
   });
 });

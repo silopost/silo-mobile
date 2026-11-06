@@ -130,6 +130,11 @@ function ComposeForm({ session, state }: { session: DraftSession; state: Session
     onChange: (bodyHtml, bodyJson) => session.edit(() => ({ bodyHtml, bodyJson })),
     scrollRef: scrollRef as unknown as RefObject<CaretScrollView | null>,
   });
+  // "Wstaw obraz w treści": the session puts an uploaded picture at the caret.
+  useEffect(() => {
+    session.setImageInserter((src) => editor.setImage(src));
+    return () => session.setImageInserter(null);
+  }, [session, editor]);
   const muted = theme.colors.onSurfaceVariant;
   const line = { borderBottomColor: theme.colors.outlineVariant };
 
@@ -266,6 +271,7 @@ function ComposeDraft({ draftId }: { draftId: string }) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const canSchedule = useServerFeature("schedule");
+  const canInline = useServerFeature("inlineImages");
   const { form } = state;
   const hasRecipients = form.to.length + form.cc.length + form.bcc.length > 0;
 
@@ -382,6 +388,9 @@ function ComposeDraft({ draftId }: { draftId: string }) {
         visible={attachOpen}
         onDismiss={() => setAttachOpen(false)}
         onFiles={(files) => session.addFiles(files)}
+        onInlineImages={
+          canInline ? (files) => files.forEach((f) => session.addInlineImage(f)) : undefined
+        }
       />
       {confirmDiscard && (
         <Portal>

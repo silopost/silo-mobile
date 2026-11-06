@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { toBase64 } from "../lib/messageHtml";
 import { useAuth } from "../state/auth";
 import { forgetSession } from "./cache";
 import { api, apiBaseUrl, clientId } from "./client";
@@ -101,12 +102,15 @@ export const isAbortError = (err: unknown) => err instanceof Error && err.name =
  * POST /uploads (multipart, field `file`) through XMLHttpRequest, which reports upload progress
  * (plan 5.6); fetch does not. React Native sends a file from its URI when FormData gets
  * `{uri, name, type}`. Same headers as the API client: bearer token and X-Silo-Client. Rejects
- * with ApiError for an error answer (413 upload_too_large carries limit and size).
+ * with ApiError for an error answer (413 upload_too_large carries limit and size). `inline`
+ * (server 0.4.0): a picture shown in the body; the form field comes before the file and the
+ * answer carries its cid (422 inline_not_image for other types).
  */
 export async function uploadFile(
   file: PickedFile,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,
+  inline = false,
 ): Promise<UploadInfo> {
   const { serverUrl, token } = useAuth.getState();
   if (!serverUrl) throw new Error("No Silo server configured");
@@ -144,10 +148,26 @@ export async function uploadFile(
     xhr.onabort = () => reject(abortError());
     signal?.addEventListener("abort", () => xhr.abort());
     const form = new FormData();
+    if (inline) form.append("inline", "true");
     // React Native's FormData reads the file from `uri`; the DOM typings only know Blob.
     form.append("file", { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
     xhr.send(form);
   });
+}
+
+/**
+ * An inline upload of a draft (u_ id) as a data URI for the preview in the editor: GET
+ * /attachments/{id}?inline=1 with the bearer header, the same way the thread shows cid: images.
+ */
+export async function fetchUploadDataUri(id: string, contentType: string): Promise<string | null> {
+  const { data, response } = await api().GET("/attachments/{id}", {
+    params: { path: { id }, query: { inline: true } },
+    parseAs: "arrayBuffer",
+  });
+  if (!response.ok || !data) return null;
+  const bytes = new Uint8Array(data as unknown as ArrayBuffer);
+  const type = contentType || response.headers.get("Content-Type")?.split(";")[0] || "image/png";
+  return `data:${type};base64,${toBase64(bytes)}`;
 }
 
 export const MAX_PARALLEL_UPLOADS = 3;

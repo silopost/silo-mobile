@@ -56,6 +56,16 @@ describe("uploadFile", () => {
     expect(progress).toEqual([0.5, 1]);
   });
 
+  it("sends inline=true before the file for a picture in the body", async () => {
+    const xhrP = opened();
+    const done = uploadFile(file, () => undefined, undefined, true);
+    const xhr = await xhrP;
+    expect([...(xhr.body as FormData).keys()]).toEqual(["inline", "file"]);
+    expect((xhr.body as FormData).get("inline")).toBe("true");
+    xhr.respond(201, { id: "u_9", cid: "c9@silo", inline: true });
+    await expect(done).resolves.toMatchObject({ cid: "c9@silo" });
+  });
+
   it("rejects 413 upload_too_large with limit and size of the problem", async () => {
     const xhrP = opened();
     const done = uploadFile(file, () => undefined);

@@ -1,9 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   cancelOutbound,
   deleteDraft,
   draftQuery,
+  fetchUploadDataUri,
   isAbortError,
   queueUpload,
   saveDraft,
@@ -15,13 +17,26 @@ import { isApiError } from "../../api/errors";
 import { keys } from "../../api/keys";
 import type { Address, Draft, Meta, SendResult, UploadInfo } from "../../api/types";
 import { formatSize, formatWhen } from "../../lib/format";
+import {
+  hasInlineImages,
+  refersToInline,
+  toEditorContent,
+  toServerHtml,
+  toServerJson,
+  type Previews,
+} from "../../lib/inlineImages";
 import { t } from "../../lib/i18n";
 import { useAuth } from "../../state/auth";
 import { useCompose } from "../../state/compose";
 import { hideToast, show, toast } from "../../state/toasts";
 
 /** Autosave after this much idle time (plan 3.8 step 1); tests shorten it. */
-export const composeConfig = { autosaveMs: 2000 };
+export const composeConfig = {
+  autosaveMs: 2000,
+  /** A picked picture as a data URI for the editor (replaced in tests). */
+  readAsDataUri: async (file: PickedFile): Promise<string> =>
+    `data:${file.type};base64,${await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" })}`,
+};
 
 export type Field = "to" | "cc" | "bcc";
 
@@ -123,6 +138,17 @@ export class DraftSession {
   private saving: Promise<boolean> | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private uploadAborts = new Map<number, AbortController>();
+  /** Data URIs the editor shows inline pictures with, by cid (lib/inlineImages). */
+  private previews: Previews = new Map();
+  /** Inline uploads inserted but not yet seen in the editor's HTML (not unpinned meanwhile). */
+  private pendingInline = new Set<string>();
+  /** Puts a picture into the editor at the caret; set by the screen while the editor is shown. */
+  private insertImage: ((src: string) => void) | null = null;
+
+  /** The screen hands over how to put a picture at the caret of its editor (null: unmounted). */
+  setImageInserter(insert: ((src: string) => void) | null) {
+    this.insertImage = insert;
+  }
   /** Created by this screen (new message, reply) and never saved: closing deletes it. */
   createdHere = false;
   /** Saved at least once by this session. */
@@ -177,6 +203,33 @@ export class DraftSession {
       error: null,
       invalid: null,
     });
+    void this.loadPreviews(d);
+  }
+
+  /**
+   * A draft with inline pictures (its own, or those the server copied with a quote): the
+   * editor's WebView cannot load `cid:`, so the uploads are fetched with the bearer header and
+   * shown as data URIs. Applied only while nothing was typed since the load.
+   */
+  private async loadPreviews(d: Draft) {
+    const attachments = d.attachments ?? [];
+    if (!hasInlineImages(d.bodyHtml, attachments)) return;
+    const seq = this.state.loadSeq;
+    for (const a of attachments) {
+      if (!a.inline || !a.cid || this.previews.has(a.cid)) continue;
+      const uri = await fetchUploadDataUri(a.id, a.contentType).catch(() => null);
+      if (uri) this.previews.set(a.cid, uri);
+    }
+    if (this.closed || this.state.loadSeq !== seq || this.dirty) return;
+    const f = this.state.form;
+    this.set({
+      loadSeq: seq + 1,
+      form: {
+        ...f,
+        bodyHtml: toEditorContent(f.bodyHtml, this.previews, f.attachments) as string,
+        bodyJson: f.bodyJson ? toEditorContent(f.bodyJson, this.previews, f.attachments) : null,
+      },
+    });
   }
 
   /** GET /drafts/{id} unless loaded (a draft opened from a list or a notification). */
@@ -216,7 +269,22 @@ export class DraftSession {
   }
 
   edit(change: (f: Form) => Partial<Form>) {
-    const form = { ...this.state.form, ...change(this.state.form) };
+    const patch = change(this.state.form);
+    const form = { ...this.state.form, ...patch };
+    // A picture removed from the text unpins its inline upload: the server would otherwise send
+    // it as a plain attachment (plan 5.6).
+    if (patch.bodyHtml !== undefined) {
+      const html = form.bodyHtml;
+      for (const cid of this.pendingInline)
+        if (html.includes(this.previews.get(cid) ?? `cid:${cid}`)) this.pendingInline.delete(cid);
+      form.attachments = form.attachments.filter(
+        (a) =>
+          !a.inline ||
+          !a.cid ||
+          this.pendingInline.has(a.cid) ||
+          refersToInline(html, a, this.previews),
+      );
+    }
     const bad = this.state.invalid;
     const stillBad = bad !== null && form[bad.field].some((a) => a.email === bad.address);
     this.set({ form, dirty: true, save: "idle", ...(stillBad ? {} : { invalid: null }) });
@@ -250,8 +318,9 @@ export class DraftSession {
             cc: f.cc,
             bcc: f.bcc,
             subject: f.subject,
-            bodyHtml: f.bodyHtml,
-            bodyJson: f.bodyJson,
+            // Previews of inline pictures go back to cid: (lib/inlineImages).
+            bodyHtml: toServerHtml(f.bodyHtml, this.previews, f.attachments),
+            bodyJson: toServerJson(f.bodyJson, this.previews, f.attachments),
             attachmentIds: f.attachments.map((a) => a.id),
           },
           syncNow,
@@ -315,46 +384,67 @@ export class DraftSession {
   }
 
   addFiles(files: PickedFile[]) {
+    for (const file of files) this.upload(file, false);
+  }
+
+  /**
+   * "Wstaw obraz w treści" (server 0.4.0): POST /uploads with inline=true; the answer's cid is
+   * the picture's Content-ID. The editor shows the picture from the device as a data URI; the
+   * save writes `<img src="cid:…">` and the upload goes to attachmentIds like any attachment.
+   */
+  addInlineImage(file: PickedFile) {
+    this.upload(file, true);
+  }
+
+  private upload(file: PickedFile, inline: boolean) {
     // GET /meta maxAttachmentBytes: a file over the limit is refused before it is uploaded.
     const { serverUrl } = useAuth.getState();
     const max = serverUrl
       ? this.qc.getQueryData<Meta>(keys.meta(serverUrl))?.maxAttachmentBytes
       : undefined;
-    for (const file of files) {
-      if (max && file.size > max) {
-        toast(t.uploadTooLarge(file.name, formatSize(max)));
-        continue;
-      }
-      const key = ++uploadSeq;
-      const abort = new AbortController();
-      this.uploadAborts.set(key, abort);
-      const item: UploadItem = { key, name: file.name, size: file.size, progress: 0 };
-      this.set({ uploads: [...this.state.uploads, item], error: null });
-      const patch = (p: Partial<UploadItem>) =>
-        this.set({ uploads: this.state.uploads.map((u) => (u.key === key ? { ...u, ...p } : u)) });
-      queueUpload(() =>
-        abort.signal.aborted
-          ? Promise.reject(Object.assign(new Error("aborted"), { name: "AbortError" }))
-          : uploadFile(file, (progress) => patch({ progress }), abort.signal),
-      ).then(
-        (info) => {
-          this.uploadAborts.delete(key);
-          if (this.closed) return;
-          this.set({ uploads: this.state.uploads.filter((u) => u.key !== key) });
-          this.edit((f) => ({ attachments: [...f.attachments, info] }));
-        },
-        (err: unknown) => {
-          this.uploadAborts.delete(key);
-          if (isAbortError(err) || this.closed) return;
-          const limit = isApiError(err, 413) ? (err.problem?.limit ?? max) : undefined;
-          patch({
-            error: isApiError(err, 413)
-              ? t.uploadTooLarge(file.name, limit ? formatSize(limit) : undefined)
-              : t.uploadFailed(file.name),
-          });
-        },
-      );
+    if (max && file.size > max) {
+      toast(t.uploadTooLarge(file.name, formatSize(max)));
+      return;
     }
+    const key = ++uploadSeq;
+    const abort = new AbortController();
+    this.uploadAborts.set(key, abort);
+    const item: UploadItem = { key, name: file.name, size: file.size, progress: 0 };
+    this.set({ uploads: [...this.state.uploads, item], error: null });
+    const patch = (p: Partial<UploadItem>) =>
+      this.set({ uploads: this.state.uploads.map((u) => (u.key === key ? { ...u, ...p } : u)) });
+    queueUpload(() =>
+      abort.signal.aborted
+        ? Promise.reject(Object.assign(new Error("aborted"), { name: "AbortError" }))
+        : uploadFile(file, (progress) => patch({ progress }), abort.signal, inline),
+    ).then(
+      async (info) => {
+        this.uploadAborts.delete(key);
+        if (this.closed) return;
+        const preview =
+          inline && info.cid && this.insertImage
+            ? await composeConfig.readAsDataUri(file).catch(() => null)
+            : null;
+        if (this.closed) return;
+        this.set({ uploads: this.state.uploads.filter((u) => u.key !== key) });
+        if (preview && info.cid) {
+          this.previews.set(info.cid, preview);
+          this.pendingInline.add(info.cid);
+        }
+        this.edit((f) => ({ attachments: [...f.attachments, info] }));
+        if (preview) this.insertImage?.(preview);
+      },
+      (err: unknown) => {
+        this.uploadAborts.delete(key);
+        if (isAbortError(err) || this.closed) return;
+        const limit = isApiError(err, 413) ? (err.problem?.limit ?? max) : undefined;
+        patch({
+          error: isApiError(err, 413)
+            ? t.uploadTooLarge(file.name, limit ? formatSize(limit) : undefined)
+            : t.uploadFailed(file.name),
+        });
+      },
+    );
   }
 
   /** "x" on an upload tile: cancels the request (AbortSignal) or drops the failed tile. */

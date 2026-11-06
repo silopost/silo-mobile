@@ -310,6 +310,7 @@ export const t = {
   attach: "Załącz",
   attachFile: "Załącz plik",
   insertFromGallery: "Wstaw z galerii",
+  insertInlineImage: "Wstaw obraz w treści",
   send: "Wyślij",
   sending: "Wysyłanie…",
   composeMenu: "Więcej opcji wiadomości",

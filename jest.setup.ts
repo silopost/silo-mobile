@@ -81,6 +81,7 @@ jest.mock("@10play/tentap-editor", () => {
     getHTML: () => Promise<string>;
     getJSON: () => Promise<object>;
     setContent: (c: unknown) => void;
+    setImage: (src: string) => void;
     focus: () => void;
     blur: () => void;
     type: (html: string) => void;
@@ -96,6 +97,11 @@ jest.mock("@10play/tentap-editor", () => {
         getJSON: jest.fn(async () => ({ type: "doc", html: b.html })),
         setContent: jest.fn((c: unknown) => {
           b.html = toHtml(c);
+        }),
+        // An inserted picture lands at the end of the content (the caret is not modelled).
+        setImage: jest.fn((src: string) => {
+          b.html += `<img src="${src}">`;
+          b.options.onChange?.();
         }),
         focus: jest.fn(),
         blur: jest.fn(),
