@@ -17,11 +17,6 @@ function Placeholder({ text }: { text: string }) {
   );
 }
 
-/** A thread opened from a list (slice 6). */
-export function ThreadScreen() {
-  return <Placeholder text={t.threadSoon} />;
-}
-
 /** Search results (a later slice); back returns to the list it was opened from. */
 export function SearchScreen() {
   const router = useRouter();

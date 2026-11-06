@@ -15,13 +15,13 @@ type Props = {
   filter: ListFilter;
 };
 
-type BarAction = { action: ThreadAction; icon: string; label: string };
+export type BarAction = { action: ThreadAction; icon: string; label: string };
 
 /**
  * The icons of the bar for a view: Trash deletes forever (restoring is in the menu), Spam says
  * "not spam" and deletes forever; elsewhere archive and move to Trash.
  */
-function primaryActions(labelId: string | undefined): BarAction[] {
+export function primaryActions(labelId: string | undefined): BarAction[] {
   if (labelId === "TRASH") {
     return [{ action: "deleteForever", icon: "delete-forever-outline", label: t.deleteForever }];
   }

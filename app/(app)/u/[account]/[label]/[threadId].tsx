@@ -1,3 +1,3 @@
-import { ThreadScreen } from "../../../../../src/screens/PlaceholderScreens";
+import { ThreadScreen } from "../../../../../src/screens/ThreadScreen";
 
 export default ThreadScreen;

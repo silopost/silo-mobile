@@ -14,6 +14,15 @@ export type RunOptions = {
   remove?: string[];
   /** For "moveTo": the place chosen in the Przenieś do sheet. */
   target?: string;
+  /** No snackbar (marking read on opening a thread). */
+  silent?: boolean;
+  /** Called on "Cofnij", e.g. to reopen the thread the action was taken in. */
+  onUndo?: () => void;
+  /**
+   * Called once the action is applied locally (after the choice in a sheet or the confirmation),
+   * e.g. to leave the thread screen; not called when the user cancels.
+   */
+  after?: () => void;
 };
 
 export type ThreadActions = {

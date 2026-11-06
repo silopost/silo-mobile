@@ -39,7 +39,7 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
 
   const execute = (action: ThreadAction, ids: string[], opts: RunOptions = {}) => {
     if (!accountId || ids.length === 0) return Promise.resolve();
-    return runThreadAction(qc, {
+    const done = runThreadAction(qc, {
       accountId,
       ids,
       action,
@@ -47,7 +47,12 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
       remove: opts.remove,
       target: opts.target,
       viewLabelId: opts.labelId,
+      silent: opts.silent,
+      onUndo: opts.onUndo,
     });
+    // runThreadAction changed the cache synchronously (or right after cancelling a refetch).
+    opts.after?.();
+    return done;
   };
 
   /** Labels of the threads as cached (an open thread, else a list row). */

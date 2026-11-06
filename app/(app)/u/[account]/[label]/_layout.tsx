@@ -6,7 +6,8 @@ export default function LabelLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="[threadId]" options={{ title: t.thread }} />
+      {/* The thread screen draws its own Gmail bar. */}
+      <Stack.Screen name="[threadId]" options={{ title: t.thread, headerShown: false }} />
     </Stack>
   );
 }

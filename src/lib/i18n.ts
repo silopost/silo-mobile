@@ -95,7 +95,6 @@ export const t = {
   noAccounts: "Brak kont pocztowych. Dodaj konto w wersji przeglądarkowej Silo.",
   unknownLabel: "Nie ma takiej etykiety",
   thread: "Wątek",
-  threadSoon: "Widok wątku pojawi się w kolejnej wersji.",
   searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
   composeSoon: "Edytor wiadomości pojawi się w kolejnej wersji.",
   draftSoon: (id: string) => `Wersja robocza ${id} otworzy się tu w kolejnej wersji.`,
