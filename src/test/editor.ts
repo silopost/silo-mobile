@@ -4,12 +4,16 @@ type FakeEditor = { html: string; type: (html: string) => void };
 const editors = () =>
   (jest.requireMock("@10play/tentap-editor") as { __editors: FakeEditor[] }).__editors;
 
-/** The user types into the last compose editor: its content becomes `html`. */
-export function typeInEditor(html: string): void {
+/**
+ * The user types into the last compose editor: its content becomes `html`. Resolves once the
+ * change reached the screen (the editor reads its content back asynchronously).
+ */
+export async function typeInEditor(html: string): Promise<void> {
   const list = editors();
   const editor = list[list.length - 1];
   if (!editor) throw new Error("No compose editor rendered");
   editor.type(html);
+  await new Promise((r) => setTimeout(r, 0));
 }
 
 /** Content of the last compose editor. */

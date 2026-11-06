@@ -1,3 +1,3 @@
-import { ComposeScreen } from "../../src/screens/PlaceholderScreens";
+import { ComposeScreen } from "../../src/screens/ComposeScreen";
 
 export default ComposeScreen;

@@ -46,6 +46,8 @@ export default function AppLayout() {
         name="compose"
         options={{
           title: t.compose,
+          // The screen draws the top bar of Gmail's compose itself.
+          headerShown: false,
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
         }}

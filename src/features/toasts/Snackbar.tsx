@@ -6,8 +6,11 @@ import { hideToast, useToasts } from "../../state/toasts";
 /** Room for the compose FAB below the snackbar (56 dp FAB + 16 dp margin + 8 dp gap). */
 const ABOVE_FAB = 80;
 
-/** The app's snackbar: the current toast at the bottom, above the compose FAB. */
-export function Snackbar() {
+/**
+ * The app's snackbar: the current toast at the bottom, above the compose FAB. `offset` is the
+ * room kept below it (compose has the formatting toolbar there instead of the FAB).
+ */
+export function Snackbar({ offset = ABOVE_FAB }: { offset?: number }) {
   const current = useToasts((s) => s.current);
   const insets = useSafeAreaInsets();
   return (
@@ -17,7 +20,7 @@ export function Snackbar() {
       duration={current?.duration}
       onDismiss={() => hideToast(current?.id)}
       action={current?.action}
-      wrapperStyle={[styles.wrapper, { bottom: insets.bottom + ABOVE_FAB }]}
+      wrapperStyle={[styles.wrapper, { bottom: insets.bottom + offset }]}
     >
       {current?.message ?? ""}
     </PaperSnackbar>

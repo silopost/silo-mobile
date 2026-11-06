@@ -96,8 +96,6 @@ export const t = {
   unknownLabel: "Nie ma takiej etykiety",
   thread: "Wątek",
   searchSoon: "Wyszukiwanie pojawi się w kolejnej wersji.",
-  composeSoon: "Edytor wiadomości pojawi się w kolejnej wersji.",
-  draftSoon: (id: string) => `Wersja robocza ${id} otworzy się tu w kolejnej wersji.`,
   themeTitle: "Motyw",
 
   // thread list

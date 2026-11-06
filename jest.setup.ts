@@ -105,10 +105,11 @@ jest.mock("@10play/tentap-editor", () => {
           b.options.onChange?.();
         },
       };
-      editors.push(b);
       return b;
     });
     bridge.options = options;
+    // The bridge React kept (an initializer may run twice in strict mode) is the latest one.
+    if (editors[editors.length - 1] !== bridge) editors.push(bridge);
     return bridge;
   }
   const Fake = (props: Record<string, unknown>) => createElement(View, props);
