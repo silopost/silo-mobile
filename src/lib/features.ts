@@ -4,7 +4,15 @@ import type { Meta } from "../api/types";
 import { useAuth } from "../state/auth";
 
 /** Features of a later API than the oldest server the app supports (0.3.0). */
-export type ServerFeature = "search" | "snooze" | "schedule" | "settings" | "filters";
+export type ServerFeature =
+  | "search"
+  | "snooze"
+  | "schedule"
+  | "settings"
+  | "filters"
+  | "labels"
+  | "thumbnails"
+  | "inlineImages";
 
 /**
  * The first server version of each feature. `GET /meta` has no feature flags (plan 5.1 lists
@@ -16,6 +24,11 @@ const SINCE: Record<ServerFeature, string> = {
   schedule: "0.4.0",
   settings: "0.4.0",
   filters: "0.4.0",
+  // PATCH /labels/{id} with colours, parent and showInList; keywordState.
+  labels: "0.4.0",
+  thumbnails: "0.4.0",
+  // POST /uploads with inline=true answers a cid.
+  inlineImages: "0.4.0",
 };
 
 /** MAJOR.MINOR.PATCH of a version ("v0.4.0", "0.4.0-rc.1", "0.4"); null when it is none. */

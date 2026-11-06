@@ -94,3 +94,43 @@ export function systemCount(view: SystemView, labels: Label[]): number {
 export function isListed(l: Label): boolean {
   return l.showInList === "show" || (l.showInList === "show_if_unread" && l.threadsUnread > 0);
 }
+
+/** Labels as a tree by parentId, depth-first, siblings by position then name (silo-web's order). */
+export function labelTree(labels: Label[]): { label: Label; depth: number }[] {
+  const ids = new Set(labels.map((l) => l.id));
+  const children = new Map<string | null, Label[]>();
+  for (const l of labels) {
+    const parent = l.parentId && ids.has(l.parentId) ? l.parentId : null;
+    children.set(parent, [...(children.get(parent) ?? []), l]);
+  }
+  const out: { label: Label; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (parent: string | null, depth: number) => {
+    const list = [...(children.get(parent) ?? [])].sort(
+      (a, b) => a.position - b.position || a.name.localeCompare(b.name),
+    );
+    for (const l of list) {
+      if (seen.has(l.id)) continue;
+      seen.add(l.id);
+      out.push({ label: l, depth });
+      walk(l.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+}
+
+/** The label and every label below it: none of them can become its parent (422 invalid_parent). */
+export function subtree(labels: Label[], id: string): Set<string> {
+  const out = new Set([id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const l of labels) {
+      if (l.parentId && out.has(l.parentId) && !out.has(l.id)) {
+        out.add(l.id);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}

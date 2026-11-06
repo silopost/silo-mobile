@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Label } from "../../api/queries/labels";
 import { formatCount } from "../../lib/format";
 import { t } from "../../lib/i18n";
-import { isListed, systemCount, SYSTEM_VIEWS, type IconName } from "../../lib/labels";
+import { isListed, labelTree, systemCount, SYSTEM_VIEWS, type IconName } from "../../lib/labels";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
 
 type ItemProps = {
@@ -16,6 +16,8 @@ type ItemProps = {
   countKind?: "unread" | "total";
   active?: boolean;
   disabled?: boolean;
+  /** Nesting of a label under its parent (Label.parentId): indented by 16 dp a level. */
+  depth?: number;
   onPress?: () => void;
   testID?: string;
 };
@@ -29,6 +31,7 @@ export function DrawerItem({
   countKind = "unread",
   active = false,
   disabled = false,
+  depth = 0,
   onPress,
   testID,
 }: ItemProps) {
@@ -53,7 +56,7 @@ export function DrawerItem({
         disabled && styles.disabled,
       ]}
     >
-      <View style={styles.row}>
+      <View style={[styles.row, depth > 0 && { paddingLeft: 24 + depth * 16 }]}>
         <Icon source={icon} size={24} color={iconColor ?? color} />
         <Text
           variant="labelLarge"
@@ -163,8 +166,9 @@ function LabelSection(props: {
       >
         {props.title}
       </Text>
-      {props.labels.map((l) => (
+      {labelTree(props.labels).map(({ label: l, depth }) => (
         <DrawerItem
+          depth={depth}
           key={l.id}
           testID={`nav-${l.id}`}
           label={l.name}

@@ -86,6 +86,7 @@ export function AccountSettingsScreen() {
   const remove = useDeleteAccount();
   const resync = useAccountResync(id);
   const filtersFeature = useServerFeature("filters");
+  const labelsFeature = useServerFeature("labels");
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const close = () => {
     update.reset();
@@ -168,6 +169,18 @@ export function AccountSettingsScreen() {
           testID="account-name"
           onPress={() => setDialog("name")}
         />
+        {labelsFeature && (
+          <SettingsItem
+            title={t.labelsTitle}
+            description={t.labelsHint}
+            icon="label-multiple-outline"
+            role="link"
+            testID="account-labels"
+            onPress={() =>
+              router.push({ pathname: "/settings/labels", params: { accountId: account.id } })
+            }
+          />
+        )}
         {filtersFeature && (
           <SettingsItem
             title={t.filtersTitle}

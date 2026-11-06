@@ -149,6 +149,31 @@ export const t = {
   create: "Utwórz",
   newLabel: "Nowa etykieta",
   labelName: "Nazwa etykiety",
+  labelExists: "Etykieta o tej nazwie już istnieje.",
+  labelInvalidParent: "Etykiety nie można umieścić pod nią samą ani pod jej podetykietą.",
+  labelRefused: "Serwer odrzucił zmianę etykiety.",
+  labelDeleted: "Usunięto etykietę",
+  labelsTitle: "Etykiety",
+  labelsHint: "Etykiety tego konta, zapisywane na serwerze poczty jako słowa kluczowe",
+  labelsEmpty: "Brak etykiet. Utwórz etykietę w menu nawigacji lub tutaj.",
+  labelEdit: "Edytuj etykietę",
+  labelColor: "Kolor",
+  labelNoColor: "Bez koloru",
+  labelColorChoice: (n: number) => `Kolor ${n}`,
+  labelParent: "Umieść pod etykietą",
+  labelNoParent: "Brak (najwyższy poziom)",
+  labelShowInList: "Pokaż w menu nawigacji",
+  labelShowIfUnread: "Gdy są nieprzeczytane",
+  labelCounts: (unread: number, total: number) =>
+    unread > 0
+      ? `${n3(unread, "nieprzeczytany", "nieprzeczytane", "nieprzeczytanych")} · ${n3(total, "wątek", "wątki", "wątków")}`
+      : n3(total, "wątek", "wątki", "wątków"),
+  labelLocalOnly: "Tylko lokalnie – serwer poczty nie obsługuje słów kluczowych",
+  labelPartial: (folders: string) => `Tylko lokalnie w folderach: ${folders}`,
+  labelDeleteTitle: (name: string) => `Usunąć etykietę „${name}”?`,
+  labelDeleteBody:
+    "Usunie etykietę i jej słowo kluczowe z wiadomości na serwerze. Same wiadomości zostaną.",
+  labelSaved: "Zapisano etykietę",
   labelOnSome: (name: string) => `${name}, na części zaznaczonych wątków`,
   deleteForeverTitle: "Usunąć na zawsze?",
   deleteForeverBody: (n: number) =>
