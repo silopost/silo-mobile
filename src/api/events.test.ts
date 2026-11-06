@@ -5,6 +5,7 @@ import { useCompose } from "../state/compose";
 import { hideToast, useToasts } from "../state/toasts";
 import { applyEvent } from "./events";
 import { keys } from "./keys";
+import { appliedHere } from "./queries/filters";
 import type { LabelsData, ThreadLists } from "./mutations/cache";
 import type { SyncStatus, ThreadDetail } from "./types";
 
@@ -164,6 +165,18 @@ describe("applyEvent", () => {
     expect(invalid(keys.settings)).toBe(false);
     applyEvent(qc, "settings.updated", { updatedAt: "2026-11-06T10:00:01Z", origin: "web" }, ME);
     expect(invalid(keys.settings)).toBe(true);
+  });
+
+  it("filter.applied refetches lists and labels and reports a filter applied here", () => {
+    appliedHere.add("f_1");
+    applyEvent(qc, "filter.applied", { filterId: "f_2", accountId: "acc_1", threads: 1 }, ME);
+    expect(useToasts.getState().current).toBeNull();
+    expect(invalid(keys.threads("acc_1", {}))).toBe(true);
+    expect(invalid(keys.labels("acc_1"))).toBe(true);
+
+    applyEvent(qc, "filter.applied", { filterId: "f_1", accountId: "acc_1", threads: 12 }, ME);
+    expect(useToasts.getState().current?.message).toBe("Filtr zastosowano do 12 wątków");
+    expect(appliedHere.has("f_1")).toBe(false);
   });
 
   it("operation.failed restores the server state and explains it", () => {

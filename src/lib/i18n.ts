@@ -397,6 +397,55 @@ export const t = {
   invalidSetting: "Serwer odrzucił tę wartość ustawienia.",
   invalidTimezone: "Nieznana strefa czasowa.",
 
+  // filters (phase 4: /filters, plan 3.11)
+  filtersTitle: "Filtry",
+  filtersHint: "Filtry działają na serwerze dla nowej poczty w Odebranych",
+  filtersEmpty: "Brak filtrów. Dodaj filtr, aby porządkować nową pocztę automatycznie.",
+  filterCreate: "Utwórz filtr",
+  filterEdit: "Edytuj filtr",
+  filterName: "Nazwa (opcjonalnie)",
+  filterCriteria: "Kryteria",
+  filterCriteriaHint: "Tak jak w wyszukiwarce, np. from:sklep@example.com has:attachment",
+  filterNoCriteria: "Wpisz kryteria filtra.",
+  filterTest: "Testuj wyszukiwanie",
+  filterActionsTitle: "Działania",
+  filterActions: {
+    archive: "Pomiń Odebrane (archiwizuj)",
+    markRead: "Oznacz jako przeczytane",
+    star: "Oznacz gwiazdką",
+    important: "Oznacz jako ważne",
+    trash: "Usuń",
+  },
+  filterAddLabels: "Nadaj etykietę",
+  filterNoLabels: "Brak",
+  filterForwardTo: "Przekaż do",
+  filterForwardHint: "Adres e-mail; tylko nowa poczta",
+  filterApplyExisting: "Zastosuj też do istniejących wiadomości",
+  filterEnabled: (name: string) => `Włącz filtr ${name}`,
+  filterMoveUp: (name: string) => `Przesuń w górę: ${name}`,
+  filterMoveDown: (name: string) => `Przesuń w dół: ${name}`,
+  filterMenu: (name: string) => `Więcej opcji filtra ${name}`,
+  filterRemoveTitle: "Usunąć filtr?",
+  filterRemoveBody: (name: string) =>
+    `Filtr „${name}” przestanie działać. Wiadomości, które już zmienił, zostaną bez zmian.`,
+  filterRemoved: "Usunięto filtr",
+  filterSaved: "Zapisano filtr",
+  filterApplying: (n: number | null) =>
+    n === null
+      ? "Stosowanie filtra…"
+      : `Stosowanie filtra… (ok. ${n3(n, "wątek", "wątki", "wątków")})`,
+  filterApplied: (n: number) => `Filtr zastosowano do ${n3(n, "wątku", "wątków", "wątków")}`,
+  filterInvalidQuery: "Nieprawidłowe kryteria – sprawdź składnię wyszukiwania.",
+  filterInvalidFilter:
+    "Serwer odrzucił filtr: wybierz co najmniej jedno działanie, nie łącz archiwizacji z usuwaniem, kryteria nie mogą obejmować całej poczty, a adres przekazania musi być poprawny.",
+  filterInvalidLabel: "Wybrana etykieta nie należy już do tego konta.",
+  filterFromSearch: "Utwórz filtr z tego wyszukiwania",
+  filterSummary: {
+    label: (name: string) => `Etykieta: ${name}`,
+    forward: (email: string) => `Przekaż do ${email}`,
+  },
+  filterDisabled: "Wyłączony",
+
   // account settings
   displayName: "Nazwa wyświetlana",
   displayNameHint: "Nazwa nadawcy w wysyłanych wiadomościach",

@@ -9,6 +9,7 @@ import { forgetSession } from "./cache";
 import { api, apiBaseUrl, clientId } from "./client";
 import { call, isApiError } from "./errors";
 import { keys } from "./keys";
+import { appliedHere } from "./queries/filters";
 import { updateLists, type LabelsData } from "./mutations/cache";
 import { handleOperationFailed, isThreadOpRunning } from "./mutations/threads";
 import { fetchEventSource, type SseHandlers, type SseSource } from "./sse";
@@ -30,6 +31,7 @@ export const EVENT_TYPES = [
   "label.changed",
   "draft.updated",
   "operation.failed",
+  "filter.applied",
   "settings.updated",
   "outbound.status",
   "account.status",
@@ -150,6 +152,17 @@ export function applyEvent(
         threadIds: strings(data.threadIds),
       });
       return;
+    case "filter.applied": {
+      // POST /filters/{id}/apply is done: its actions changed threads and counters.
+      if (accountId) {
+        void qc.invalidateQueries({ queryKey: keys.threadsAll(accountId) });
+        void qc.invalidateQueries({ queryKey: keys.labels(accountId) });
+      }
+      const filterId = str(data.filterId);
+      if (filterId && appliedHere.delete(filterId))
+        show({ message: t.filterApplied(Number(data.threads ?? 0)) });
+      return;
+    }
     case "draft.updated": {
       // Saved by another device or program: the compose screen offers "Wczytaj / Nadpisz".
       const draftId = str(data.draftId);
