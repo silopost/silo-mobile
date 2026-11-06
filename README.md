@@ -8,7 +8,8 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 5 – server events (SSE over fetch with a polling fallback, AppState lifecycle,
+Status: slice 6 – the thread screen (message cards, HTML in a WebView, attachments, reply →
+draft). Slice 5: server events (SSE over fetch with a polling fallback, AppState lifecycle,
 offline banner). Slice 4: thread actions with optimistic update and "Cofnij" (swipes, star,
 selection bar, "Etykiety" and "Przenieś do" sheets, creating labels). Slice 3: the Gmail thread list (rows,
 swipe, multi-select, pull-to-refresh, sync banners); slice 2: the Gmail shell (routes, drawer,
@@ -40,7 +41,7 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
 | start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first |
 | label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`  |
 | draft (Drafts view)   | `/compose?draftId=d_…` (placeholder, slice 7)                      |
-| thread                | `/u/<n>/<label>/<threadId>` (placeholder, slice 6)                 |
+| thread                | `/u/<n>/<label>/<threadId>`                                        |
 | search                | `/u/<n>/search` (placeholder)                                      |
 | compose (full screen) | `/compose` (placeholder, slice 7)                                  |
 | settings              | `/settings` (theme), `/settings/sessions`                          |
@@ -142,6 +143,51 @@ mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentO
   primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
   actions, density) live in `src/state/ui.ts` (zustand + AsyncStorage).
+
+## Widok wątku (slice 6)
+
+- **Screen** (`src/screens/ThreadScreen.tsx`): `GET /threads/{id}` (`threadQuery`) with the cached
+  list row as `placeholderData`, so the subject and chips show at once; 404 → "Nie znaleziono
+  wątku". Header: subject (headline), location chip (Odebrane, Spam, Kosz, a server folder), user
+  label chips in their colours, importance marker, thread star.
+- **Bar**: back, then the selection bar's logic (`primaryActions`) for the thread's place –
+  archive (or "Przenieś do Odebranych" out of the Inbox), delete; in Trash delete forever; in Spam
+  "To nie spam" and delete forever – mark unread, ⋮ (Przenieś do, Etykiety, star, Zgłoś spam / To
+  nie spam, Przywróć z kosza). All through `useThreadActions().run` with the new `after`
+  (called once applied locally: leave to the list) and `onUndo` ("Cofnij" reopens the thread).
+  Leaving actions: archive, inbox, trash, untrash, spam, not spam, delete forever, move, unread.
+- **Mark read**: once loaded (not the placeholder), an unread thread is marked read once per
+  thread with `run('read', …, {silent: true})` → `POST /threads/modify -UNREAD` (plan 5.2).
+- **Cards** (`src/features/thread/MessageCard.tsx`): unread messages and the last one expanded,
+  the rest collapsed; 3+ collapsed messages after the first fold into a round counter bar.
+  Collapsed: avatar, sender, snippet, date, star. Expanded: sender, date (tap: full date), "do mnie
+  ▾" with Od/Do/DW/Data, star, reply, ⋮ (Odpowiedz, Odpowiedz wszystkim, Przekaż dalej, Oznacz jako
+  nieprzeczytane od tej wiadomości), body, attachments; `PendingIcon`; "Wysyłanie…" for
+  `SCHEDULED` (no reply). A draft is a "Wersja robocza" row → `/compose?draftId=<draftId>`. The
+  star of a message and "unread from here" use `POST /messages/modify`
+  (`src/api/mutations/messages.ts`, optimistic on the open thread, no undo; "unread from here"
+  returns to the list).
+- **Reply bar**: outlined Odpowiedz / Odpowiedz wszystkim / Przekaż dalej for the last message
+  that is neither a draft nor scheduled (`replyTarget`); `src/features/compose/actions.ts`
+  `openReply` → `POST /drafts {replyToMessageId, mode}` → `/compose?draftId=<id>` (one draft per
+  double tap). Below, newer/older arrows from the cached list (`neighbourInList`), replacing the
+  route so back still returns to the list.
+- **Body** (`src/features/thread/MessageHtml.tsx`): `messageHtmlQuery` (`GET /messages/{id}/html`
+  as text, `staleTime: Infinity`, 503 retried after `Retry-After` up to 6×; "Pobieranie treści…"
+  meanwhile, "Treść niedostępna · Spróbuj ponownie" after). `prepareHtml` (`src/lib/messageHtml.ts`)
+  wraps it in a document with a CSP (`default-src 'none'`; images only `data:`/`blob:` until "Pokaż
+  obrazy", which adds `https:`/`http:` for that message), a device-width viewport (wide mail
+  scrolls sideways in the card), and cid: images swapped for data URIs that the app fetched with
+  the bearer header (`fetchInlineImages`, 5 MB per message). `react-native-webview` loads it with
+  JavaScript only for the injected height script (`injectedJavaScript` → `onMessage` sets the
+  height); every navigation is refused – http(s) links open in a Custom Tab (`expo-web-browser`),
+  `mailto:`/`tel:` through `expo-linking`, other schemes are ignored. No file access, DOM
+  storage, cookies or cache. The page is white in dark mode too (mail is designed for it).
+- **Attachments** (`src/features/thread/AttachmentChips.tsx`): chips for non-inline files – icon
+  by type, name, `formatSize`; a tap downloads with `expo-file-system/legacy`
+  `createDownloadResumable` (headers `Authorization` and `X-Silo-Client`, into
+  `cacheDirectory`, progress bar in the chip) and opens the share sheet (`expo-sharing`); 503 →
+  "Załącznik jeszcze niepobrany, spróbuj za chwilę".
 
 ## Zdarzenia: SSE, polling, AppState
 
@@ -249,7 +295,9 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
 - `jest.config.js` lets Babel transform msw and its ES-module-only dependencies (`.mjs` files and a
   few packages) like the React Native packages.
 
-`expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`, as are
+`react-native-webview` is a View that keeps its props (tests read `source.html` and call
+`onMessage`); `expo-file-system/legacy`, `expo-sharing`, `expo-web-browser` and `expo-linking`
+are mocked per test file. `expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`, as are
 AsyncStorage, NetInfo, gesture-handler, worklets and the safe-area insets (the libraries' jest
 mocks). `jest.setup.ts` also replaces `fetchEventSource` with a source that never opens, so
 screen tests make no SSE requests; `src/api/sse.test.ts` tests the real one against an msw
@@ -282,7 +330,7 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Thread, search, compose, label management (colours, rename, delete), account setup: later
+- Search, compose (the editor), label management (colours, rename, delete), account setup: later
   slices.
 - Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 

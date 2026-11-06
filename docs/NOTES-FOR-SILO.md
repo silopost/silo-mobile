@@ -128,6 +128,44 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
 
+## Thread screen on mobile (slice 6)
+
+- **Remote images are left in by the server.** `/messages/{id}/html` keeps remote images and its
+  CSP allows `https:`/`http:` images; a browser honours that header, but the app loads the HTML
+  as a string into a WebView, so the header never applies. silo-mobile blocks them itself (its
+  own CSP meta in the document) until "Pokaż obrazy". Proposal (deferred decision 4):
+  `?blockRemote=1` that rewrites remote `src` server-side, or an image proxy that also hides the
+  reader's IP.
+- **cid: images need the bearer header.** They point at `/api/v1/attachments/{id}?inline=1`; a
+  WebView sends no `Authorization` with the sub-requests of a page and a token in the URL is
+  forbidden (ADR 0007), so the app fetches them with the API client and inlines them as data URIs
+  (5 MB per message; larger ones stay broken). Native clients would need signed short-lived URLs
+  or an `inline=data` variant of `/messages/{id}/html`.
+- **No thumbnails in 0.3.0.** Image attachments show a type icon;
+  `/attachments/{id}/thumbnail` arrives in Faza 4.
+- **ETag is not in the contract.** `/messages/{id}/html` and `/attachments/{id}` send `ETag` and
+  `Cache-Control: immutable`, but OpenAPI declares neither and the server does not answer
+  `If-None-Match` with 304; the app relies on `staleTime: Infinity` instead.
+- **Attachment 503 without a delay for downloads.** The native downloader reports only the
+  status, so the app says "spróbuj za chwilę" without the `Retry-After` value.
+- **Thread STARRED/UNREAD are derived.** After `POST /messages/modify` the open thread mirrors
+  "starred/unread when any message is"; silo-web's practice, not stated in the contract.
+- **JavaScript in the WebView.** Auto height has no native alternative on Android in
+  react-native-webview, so JavaScript is on for the injected height script; the document CSP keeps
+  `script-src 'unsafe-inline'` for it. Message scripts are removed by the server and again by
+  `prepareHtml`. Android's `evaluateJavascript` is probably not subject to page CSP, so
+  `script-src 'none'` may work too – to be checked on a device.
+
+## Deviations from the Gmail app (slice 6)
+
+- **Newer/older arrows** at the bottom of the thread instead of Gmail's optional swipe between
+  threads (a horizontal pan would fight the sideways scroll of wide mail in the WebView).
+- **The message page stays white in dark mode**; Gmail darkens mail content.
+- **Attachments open through the share sheet** (open with / share) rather than Gmail's viewer.
+- **"Drukuj" and "Pokaż oryginał"** are left out of the menus.
+- **"Oznacz jako nieprzeczytane od tej wiadomości"** marks the later messages unread and returns
+  to the list, without "Cofnij" (per-message changes have no undo snackbar).
+
 ## Server events on mobile (slice 5)
 
 **Decision: SSE over `fetch` streaming with a small parser, no `react-native-sse`.** React
