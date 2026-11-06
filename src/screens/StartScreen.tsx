@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { ScrollView, StyleSheet } from "react-native";
 import { ActivityIndicator, Button, Text } from "react-native-paper";
 import { isApiError } from "../api/errors";
@@ -16,6 +16,7 @@ import { MIN_TOUCH, useAppTheme } from "../lib/theme";
 export function StartScreen() {
   const session = useQuery(sessionQuery);
   const theme = useAppTheme();
+  const router = useRouter();
   const style = [styles.center, { backgroundColor: theme.colors.background }];
 
   if (session.isPending) {
@@ -39,6 +40,17 @@ export function StartScreen() {
     return (
       <ScrollView contentContainerStyle={style}>
         <Text>{t.noAccounts}</Text>
+        <Button
+          mode="contained"
+          icon="account-plus-outline"
+          onPress={() => router.push("/settings/add-account")}
+          contentStyle={styles.touch}
+        >
+          {t.addAccount}
+        </Button>
+        <Button onPress={() => router.push("/settings")} contentStyle={styles.touch}>
+          {t.settings}
+        </Button>
       </ScrollView>
     );
   }

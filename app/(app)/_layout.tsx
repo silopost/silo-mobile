@@ -43,6 +43,7 @@ export default function AppLayout() {
       <Stack.Screen name="settings/index" options={{ title: t.settings }} />
       <Stack.Screen name="settings/general" options={{ title: t.generalSettings }} />
       <Stack.Screen name="settings/account/[id]" options={{ title: t.accountSettings }} />
+      <Stack.Screen name="settings/add-account" options={{ title: t.addAccountTitle }} />
       <Stack.Screen name="settings/sessions" options={{ title: t.sessionsTitle }} />
       <Stack.Screen
         name="compose"

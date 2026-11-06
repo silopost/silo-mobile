@@ -1,4 +1,4 @@
-import { screen, waitFor } from "expo-router/testing-library";
+import { fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import { account, sessionBody } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
@@ -40,11 +40,13 @@ describe("start route", () => {
     await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
   });
 
-  it("says so when the user has no mail account", async () => {
+  it("says so when the user has no mail account and offers to add one", async () => {
     server.use(
       http.get(`${API}/session`, () => HttpResponse.json({ ...sessionBody, accounts: [] })),
     );
-    await renderApp("/");
+    const app = await renderApp("/");
     expect(await screen.findByText(/Brak kont pocztowych/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText("Dodaj konto"));
+    await waitFor(() => expect(app.getPathname()).toBe("/settings/add-account"));
   });
 });

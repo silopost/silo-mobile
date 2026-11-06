@@ -1,9 +1,7 @@
 import { useNavigation, useRouter } from "expo-router";
 import { DrawerActions } from "expo-router/react-navigation";
 import { useState } from "react";
-import { Alert } from "react-native";
 import { logout } from "../../api/auth";
-import { t } from "../../lib/i18n";
 import { INBOX_SLUG } from "../../lib/labels";
 import { sortedAccounts, useAccountIndex, useActiveAccount, useSession } from "../account";
 import { AccountSwitcher } from "../accounts/AccountSwitcher";
@@ -42,9 +40,8 @@ export function MailTopBar() {
           router.push("/settings");
         }}
         onAddAccount={() => {
-          // Adding an account (POST /accounts with the connection test) comes with slice 8.
           close();
-          Alert.alert(t.addAccount, t.comingSoon);
+          router.push("/settings/add-account");
         }}
         onSignOut={() => {
           close();
