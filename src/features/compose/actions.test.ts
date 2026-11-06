@@ -55,6 +55,26 @@ describe("openReply", () => {
     expect(router.push).toHaveBeenCalledWith("/compose?draftId=d_7");
   });
 
+  it("tells what a forward could not carry over (Draft.warnings, server 0.4.0)", async () => {
+    server.use(
+      http.post(`${API}/drafts`, () =>
+        HttpResponse.json(
+          {
+            ...draft,
+            subject: "Fwd: Oferta",
+            warnings: ["attachments_unavailable", "attachments_too_large"],
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    await openReply(new QueryClient(), "m_1", "forward");
+    expect(router.push).toHaveBeenCalledWith("/compose?draftId=d_7");
+    expect(useToasts.getState().current?.message).toBe(
+      "Części załączników oryginału nie udało się pobrać. Załączniki przekraczające limit rozmiaru zostały pominięte.",
+    );
+  });
+
   it("shows a snackbar when the draft cannot be created", async () => {
     server.use(
       http.post(`${API}/drafts`, () => HttpResponse.json({ status: 500 }, { status: 500 })),

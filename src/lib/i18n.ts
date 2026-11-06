@@ -277,6 +277,11 @@ export const t = {
   attachmentLabel: (name: string, size: string) => `Załącznik ${name}, ${size}`,
   attachmentNotReady: "Załącznik jeszcze niepobrany, spróbuj za chwilę",
   shareAttachment: "Udostępnij lub zapisz",
+  draftWarnings: {
+    quote_unavailable: "Nie udało się pobrać treści oryginału – cytat zawiera tylko fragment.",
+    attachments_unavailable: "Części załączników oryginału nie udało się pobrać.",
+    attachments_too_large: "Załączniki przekraczające limit rozmiaru zostały pominięte.",
+  } as Record<string, string>,
   previewAttachment: (name: string) => `Podgląd: ${name}`,
   newerLabel: "Nowszy wątek",
   olderLabel: "Starszy wątek",

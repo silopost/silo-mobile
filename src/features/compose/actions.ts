@@ -28,6 +28,10 @@ export async function createDraft(qc: QueryClient, body: CreateDraftBody): Promi
     void qc.invalidateQueries({ queryKey: keys.threadsAll(draft.accountId) });
     void qc.invalidateQueries({ queryKey: keys.thread(draft.threadId) });
     router.push(composeHref(draft.id));
+    // Server 0.4.0: what the prefill could not carry over (a forward without some attachments,
+    // a quote made of the snippet).
+    const warnings = (draft.warnings ?? []).map((w) => t.draftWarnings[w]).filter(Boolean);
+    if (warnings.length > 0) toast(warnings.join(" "));
   } catch {
     toast(t.genericError);
   } finally {
