@@ -41,6 +41,7 @@ export default function AppLayout() {
       {/* The mail views of an account: drawer, search bar and FAB of their own. */}
       <Stack.Screen name="u/[account]" options={{ headerShown: false }} />
       <Stack.Screen name="settings/index" options={{ title: t.settings }} />
+      <Stack.Screen name="settings/general" options={{ title: t.generalSettings }} />
       <Stack.Screen name="settings/sessions" options={{ title: t.sessionsTitle }} />
       <Stack.Screen
         name="compose"
