@@ -47,6 +47,7 @@ export default function AppLayout() {
       <Stack.Screen name="settings/about" options={{ title: t.aboutApp }} />
       <Stack.Screen name="settings/sessions" options={{ title: t.sessionsTitle }} />
       <Stack.Screen name="settings/filters" options={{ title: t.filtersTitle }} />
+      <Stack.Screen name="settings/filter" options={{ title: t.filterCreate }} />
       <Stack.Screen
         name="compose"
         options={{

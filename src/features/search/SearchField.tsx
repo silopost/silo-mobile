@@ -1,4 +1,4 @@
-import type { ComponentRef, RefObject } from "react";
+import type { ComponentRef, ReactNode, RefObject } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 import { IconButton } from "react-native-paper";
 import { t } from "../../lib/i18n";
@@ -13,6 +13,8 @@ type Props = {
   onFocus: () => void;
   autoFocus: boolean;
   inputRef?: RefObject<SearchInput | null>;
+  /** The overflow menu (⋮) at the end of the field, e.g. "Utwórz filtr z tego wyszukiwania". */
+  menu?: ReactNode;
 };
 
 /** The native text input of the field (focus, blur). */
@@ -30,6 +32,7 @@ export function SearchField({
   onFocus,
   autoFocus,
   inputRef,
+  menu,
 }: Props) {
   const theme = useAppTheme();
   return (
@@ -69,6 +72,7 @@ export function SearchField({
           style={styles.icon}
         />
       )}
+      {menu}
     </View>
   );
 }

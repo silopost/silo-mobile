@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Keyboard, StyleSheet, View } from "react-native";
-import { Icon, Text } from "react-native-paper";
+import { Icon, IconButton, Menu, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { isApiError } from "../api/errors";
 import { keys } from "../api/keys";
@@ -35,6 +35,8 @@ export function SearchScreen() {
   const index = useAccountIndex();
   const account = useActiveAccount();
   const smart = useServerFeature("search");
+  const filters = useServerFeature("filters");
+  const [menu, setMenu] = useState(false);
   const selecting = useSelection((s) => s.ids.size > 0);
   const input = useRef<SearchInput>(null);
   const [text, setText] = useState(q);
@@ -127,6 +129,22 @@ export function SearchScreen() {
           onFocus={() => setEditing(true)}
           autoFocus={!q}
           inputRef={input}
+          menu={
+            filters && showResults && accountId ? (
+              <SearchMenu
+                open={menu}
+                onOpen={() => setMenu(true)}
+                onDismiss={() => setMenu(false)}
+                onCreateFilter={() => {
+                  setMenu(false);
+                  router.push({
+                    pathname: "/settings/filter",
+                    params: { accountId, criteria: q },
+                  });
+                }}
+              />
+            ) : null
+          }
         />
       )}
       {invalid && (
@@ -192,6 +210,28 @@ export function SearchScreen() {
       </View>
       <Snackbar offset={16} />
     </SafeAreaView>
+  );
+}
+
+/** ⋮ of the results: "Utwórz filtr z tego wyszukiwania" (server 0.4.0). Menu mounted while open. */
+function SearchMenu(props: {
+  open: boolean;
+  onOpen: () => void;
+  onDismiss: () => void;
+  onCreateFilter: () => void;
+}) {
+  const anchor = (
+    <IconButton icon="dots-vertical" accessibilityLabel={t.moreActions} onPress={props.onOpen} />
+  );
+  if (!props.open) return anchor;
+  return (
+    <Menu visible onDismiss={props.onDismiss} anchor={anchor}>
+      <Menu.Item
+        title={t.filterFromSearch}
+        leadingIcon="filter-plus-outline"
+        onPress={props.onCreateFilter}
+      />
+    </Menu>
   );
 }
 
