@@ -142,4 +142,58 @@ describe("SearchScreen", () => {
     await fireEvent(input, "submitEditing");
     await waitFor(() => expect(threadQueries).toEqual(["jan"]));
   });
+  it("a chip adds its operator to the text and removes it again", async () => {
+    const app = await renderApp("/u/0/search?q=faktura");
+    const chip = await screen.findByTestId("search-chip-attachment");
+
+    await fireEvent.press(chip);
+    await waitFor(() => expect(threadQueries).toContain("faktura has:attachment"));
+    await fireEvent.press(await screen.findByTestId("search-chip-attachment"));
+    // Back to the first query (its results are still cached).
+    await waitFor(() => expect(app.getSearchParams()).toMatchObject({ q: "faktura" }));
+  });
+
+  it("a sheet chip writes from: with the typed address", async () => {
+    await renderApp("/u/0/search?q=faktura");
+    await fireEvent.press(await screen.findByTestId("search-chip-from"));
+    await fireEvent.changeText(await screen.findByTestId("search-from-input"), "Jan Kowalski");
+    await fireEvent.press(screen.getByText("Zastosuj"));
+    await waitFor(() => expect(threadQueries).toContain('faktura from:"Jan Kowalski"'));
+  });
+
+  it("shows the estimate and the server notes of approximate results and indexing", async () => {
+    server.use(
+      http.get(`${API}/threads`, () =>
+        HttpResponse.json({
+          ...threadPage([thread({ id: "t_1" })]),
+          resultSizeEstimate: 120,
+          approximate: true,
+          indexing: { done: 0.62 },
+        }),
+      ),
+    );
+    await renderApp("/u/0/search?q=umowa");
+    expect(await screen.findByTestId("search-count")).toHaveTextContent("Około 120 wyników");
+    expect(await screen.findByTestId("search-approximate")).toHaveTextContent(
+      "Wyniki przybliżone – wyszukiwanie trwało za długo",
+      { exact: false },
+    );
+    expect(screen.getByTestId("search-indexing")).toHaveTextContent(
+      "Indeksowanie w toku (62%) – wyniki mogą być niepełne",
+      { exact: false },
+    );
+  });
+
+  it("says the query is invalid on 422 invalid_query", async () => {
+    server.use(
+      http.get(`${API}/threads`, () =>
+        HttpResponse.json({ code: "invalid_query", status: 422 }, { status: 422 }),
+      ),
+    );
+    await renderApp("/u/0/search?q=(a");
+    expect(await screen.findByTestId("search-invalid")).toHaveTextContent(
+      "Nieprawidłowe zapytanie",
+    );
+    expect(screen.queryByTestId("thread-list")).toBeNull();
+  });
 });

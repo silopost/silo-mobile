@@ -127,3 +127,14 @@ jest.mock("@10play/tentap-editor", () => {
     darkEditorTheme: {},
   };
 });
+
+// Native date and time dialogs (snooze, scheduled send, search dates): DateTimePickerAndroid.open
+// is a jest.fn; a test answers it with `onValueChange` (picked) or `onDismiss`.
+jest.mock("@react-native-community/datetimepicker", () => {
+  const { View } = jest.requireActual("react-native");
+  return {
+    __esModule: true,
+    default: View,
+    DateTimePickerAndroid: { open: jest.fn(), dismiss: jest.fn() },
+  };
+});

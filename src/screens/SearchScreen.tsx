@@ -1,11 +1,15 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Keyboard, StyleSheet, View } from "react-native";
+import { Icon, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { isApiError } from "../api/errors";
 import { keys } from "../api/keys";
+import { threadsQuery } from "../api/queries/threads";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { searchHref } from "../features/search/href";
+import { SearchChips } from "../features/search/SearchChips";
 import { SearchField, type SearchInput } from "../features/search/SearchField";
 import { SearchSuggestions } from "../features/search/SearchSuggestions";
 import { SelectionBar } from "../features/threadlist/SelectionBar";
@@ -86,6 +90,27 @@ export function SearchScreen() {
   const threadHref = useCallback((id: string) => searchHref(index, q, id), [index, q]);
   const filter = { q };
 
+  /** A chip changed the query text: search it (or start typing again when nothing is left). */
+  const applyChip = (query: string) => {
+    if (query.trim()) {
+      submit(query);
+    } else {
+      setText("");
+      setEditing(true);
+      router.setParams({ q: "" });
+    }
+  };
+
+  // The same query as the list (shared cache entry): the estimate and the server's notes.
+  const results = useInfiniteQuery({
+    ...threadsQuery(accountId ?? "", filter),
+    enabled: !!accountId && !!q,
+  });
+  const first = results.data?.pages[0];
+  const invalid = isApiError(results.error, 422);
+  const showResults = !editing && !!q;
+  const indexing = first?.indexing && first.indexing.done < 1 ? first.indexing.done : null;
+
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -104,8 +129,45 @@ export function SearchScreen() {
           inputRef={input}
         />
       )}
+      {invalid && (
+        <Text
+          variant="bodyMedium"
+          accessibilityRole="alert"
+          testID="search-invalid"
+          style={[styles.invalid, { color: theme.colors.error }]}
+        >
+          {t.invalidQuery}
+        </Text>
+      )}
+      {smart && accountId && !selecting && (
+        <SearchChips accountId={accountId} query={showResults ? q : text} onChange={applyChip} />
+      )}
+      {showResults && first && smart && (
+        <>
+          {first.approximate && (
+            <Note icon="timer-sand" text={t.approximate} testID="search-approximate" />
+          )}
+          {indexing !== null && (
+            <Note
+              icon="database-sync-outline"
+              text={t.indexing(Math.floor(indexing * 100))}
+              testID="search-indexing"
+            />
+          )}
+        </>
+      )}
+      {showResults && first && (
+        <Text
+          variant="labelLarge"
+          accessibilityRole="header"
+          testID="search-count"
+          style={[styles.count, { color: theme.colors.onSurfaceVariant }]}
+        >
+          {t.resultCount(first.resultSizeEstimate)}
+        </Text>
+      )}
       <View style={styles.content}>
-        {editing || !q ? (
+        {invalid && showResults ? null : editing || !q ? (
           smart && accountId ? (
             <SearchSuggestions
               accountId={accountId}
@@ -133,7 +195,36 @@ export function SearchScreen() {
   );
 }
 
+/** A note of the server above the results (approximate results, indexing in progress). */
+function Note({ icon, text, testID }: { icon: string; text: string; testID: string }) {
+  const theme = useAppTheme();
+  return (
+    <View
+      testID={testID}
+      accessibilityRole="alert"
+      style={[styles.note, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+    >
+      <Icon source={icon} size={20} color={theme.colors.onSurfaceVariant} />
+      <Text variant="bodyMedium" style={[styles.noteText, { color: theme.colors.onSurface }]}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1 },
+  invalid: { paddingHorizontal: 32, paddingBottom: 8 },
+  count: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
+  note: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+  },
+  noteText: { flex: 1 },
 });

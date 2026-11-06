@@ -1,6 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../client";
-import { call } from "../errors";
+import { call, isApiError } from "../errors";
 import { keys, type ListFilter } from "../keys";
 
 export const PAGE_SIZE = 50;
@@ -27,6 +27,8 @@ export const threadsQuery = (accountId: string, filter: ListFilter) =>
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 30_000,
+    // A refused query (422 invalid_query of a search) is not asked again.
+    retry: (count, err) => !isApiError(err, 422) && count < 1,
     // A long list holds many pages; comparing all of them deeply on every new page costs more
     // than it saves (rows are memoised per thread, only the visible ones re-render).
     structuralSharing: false,
