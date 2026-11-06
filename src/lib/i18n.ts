@@ -59,7 +59,7 @@ export const t = {
   } satisfies Record<AccountState, string>,
 
   // sessions
-  sessionsTitle: "Zalogowane urządzenia",
+  sessionsTitle: "Sesje i urządzenia",
   thisDevice: "To urządzenie",
   sessionKinds: { bearer: "Aplikacja", cookie: "Przeglądarka" },
   unknownBrowser: "Przeglądarka",

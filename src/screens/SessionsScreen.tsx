@@ -10,7 +10,7 @@ import {
   Portal,
   Text,
 } from "react-native-paper";
-import { logout } from "../api/auth";
+import { logout, logoutEverywhere } from "../api/auth";
 import { isApiError } from "../api/errors";
 import { sessionsQuery, useRevokeSession } from "../api/queries/sessions";
 import type { components } from "../api/schema";
@@ -37,6 +37,9 @@ export function SessionsScreen() {
   const revoke = useRevokeSession();
   const [confirming, setConfirming] = useState<SessionInfo | null>(null);
   const signOut = useMutation({ mutationFn: logout });
+  const everywhere = useMutation({ mutationFn: logoutEverywhere });
+  const [confirmEverywhere, setConfirmEverywhere] = useState(false);
+  const busy = signOut.isPending || everywhere.isPending;
 
   const confirmRevoke = () => {
     if (confirming) revoke.mutate(confirming.id);
@@ -92,7 +95,7 @@ export function SessionsScreen() {
         )}
         ListFooterComponent={
           <View style={styles.footer}>
-            {revoke.isError && (
+            {(revoke.isError || everywhere.isError) && (
               <HelperText type="error" visible accessibilityRole="alert">
                 {t.genericError}
               </HelperText>
@@ -101,16 +104,49 @@ export function SessionsScreen() {
               mode="outlined"
               onPress={() => signOut.mutate()}
               loading={signOut.isPending}
-              disabled={signOut.isPending}
+              disabled={busy}
               accessibilityLabel={t.signOut}
               contentStyle={styles.touch}
             >
               {signOut.isPending ? t.signingOut : t.signOut}
             </Button>
+            <Button
+              mode="text"
+              onPress={() => setConfirmEverywhere(true)}
+              loading={everywhere.isPending}
+              disabled={busy}
+              accessibilityLabel={t.signOutEverywhere}
+              contentStyle={styles.touch}
+            >
+              {everywhere.isPending ? t.signingOut : t.signOutEverywhere}
+            </Button>
           </View>
         }
       />
       <Portal>
+        {confirmEverywhere && (
+          <Dialog visible onDismiss={() => setConfirmEverywhere(false)} testID="everywhere-dialog">
+            <Dialog.Title>{t.signOutEverywhereTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{t.signOutEverywhereBody}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setConfirmEverywhere(false)} contentStyle={styles.touch}>
+                {t.cancel}
+              </Button>
+              <Button
+                onPress={() => {
+                  setConfirmEverywhere(false);
+                  everywhere.mutate();
+                }}
+                contentStyle={styles.touch}
+                testID="confirm-everywhere"
+              >
+                {t.signOutEverywhere}
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        )}
         <Dialog visible={confirming !== null} onDismiss={() => setConfirming(null)}>
           <Dialog.Title>{t.revokeTitle}</Dialog.Title>
           <Dialog.Content>

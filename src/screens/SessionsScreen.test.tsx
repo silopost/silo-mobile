@@ -89,4 +89,46 @@ describe("SessionsScreen", () => {
     await waitFor(() => expect(useAuth.getState().status).toBe("signedOut"));
     expect(secureStore().has("silo.token")).toBe(false);
   });
+
+  it("signs out everywhere: DELETE per other session, then this one", async () => {
+    const third: SessionInfo = { ...browser, id: "s_3", userAgent: "Chrome" };
+    sessions = [phone, browser, third];
+    const revoked: string[] = [];
+    let signedOut = false;
+    server.use(
+      http.delete(`${API}/sessions/:id`, ({ params }) => {
+        revoked.push(String(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.delete(`${API}/session`, () => {
+        signedOut = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await renderScreen(<SessionsScreen />);
+
+    await fireEvent.press(await screen.findByRole("button", { name: "Wyloguj wszędzie" }));
+    expect(await screen.findByText("Wylogować wszystkie urządzenia?")).toBeOnTheScreen();
+    expect(revoked).toEqual([]);
+    await fireEvent.press(screen.getByTestId("confirm-everywhere"));
+
+    await waitFor(() => expect(useAuth.getState().status).toBe("signedOut"));
+    expect(revoked.sort()).toEqual(["s_2", "s_3"]);
+    expect(signedOut).toBe(true);
+  });
+
+  it("stays signed in when another session could not be revoked", async () => {
+    server.use(
+      http.delete(`${API}/sessions/:id`, () =>
+        HttpResponse.json({ code: "internal_error", status: 500 }, { status: 500 }),
+      ),
+    );
+    await renderScreen(<SessionsScreen />);
+
+    await fireEvent.press(await screen.findByRole("button", { name: "Wyloguj wszędzie" }));
+    await fireEvent.press(await screen.findByTestId("confirm-everywhere"));
+
+    expect(await screen.findByText("Nie udało się. Spróbuj ponownie.")).toBeOnTheScreen();
+    expect(useAuth.getState().status).toBe("signedIn");
+  });
 });

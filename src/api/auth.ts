@@ -58,3 +58,23 @@ export async function logout(): Promise<void> {
     await forgetSession();
   }
 }
+
+/**
+ * "Wyloguj wszędzie": API 0.3.0 has no DELETE /sessions, so every other session of GET /sessions
+ * is revoked with DELETE /sessions/{id} (a 404 means it had already ended), then this one with
+ * logout(). If another session could not be revoked, this device stays signed in and the error
+ * is thrown, so the user is not told everything was signed out when it was not.
+ */
+export async function logoutEverywhere(): Promise<void> {
+  const sessions = (await call(api().GET("/sessions"))).sessions ?? [];
+  const results = await Promise.allSettled(
+    sessions
+      .filter((s) => !s.current)
+      .map((s) => call(api().DELETE("/sessions/{id}", { params: { path: { id: s.id } } }))),
+  );
+  const failed = results.find(
+    (r): r is PromiseRejectedResult => r.status === "rejected" && !isApiError(r.reason, 404),
+  );
+  if (failed) throw failed.reason;
+  await logout();
+}
