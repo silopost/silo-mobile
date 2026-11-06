@@ -68,3 +68,61 @@ jest.mock("react-native-webview", () => {
   const WebView = (props: Record<string, unknown>) => createElement(View, props);
   return { __esModule: true, WebView, default: WebView };
 });
+
+// The compose editor (TipTap in a WebView): a fake bridge that keeps the content as HTML. Tests
+// type into it with `typeInEditor` (src/test/editor.ts), which fires the bridge's onChange.
+jest.mock("@10play/tentap-editor", () => {
+  const { View } = jest.requireActual("react-native");
+  const { createElement, useState } = jest.requireActual("react");
+  type MockOptions = { initialContent?: unknown; onChange?: () => void };
+  type MockBridge = {
+    html: string;
+    options: MockOptions;
+    getHTML: () => Promise<string>;
+    getJSON: () => Promise<object>;
+    setContent: (c: unknown) => void;
+    focus: () => void;
+    blur: () => void;
+    type: (html: string) => void;
+  };
+  const editors: MockBridge[] = [];
+  const toHtml = (c: unknown) => (typeof c === "string" ? c : JSON.stringify(c ?? ""));
+  function useEditorBridge(options: MockOptions) {
+    const [bridge] = useState((): MockBridge => {
+      const b: MockBridge = {
+        html: toHtml(options.initialContent),
+        options,
+        getHTML: jest.fn(async () => b.html),
+        getJSON: jest.fn(async () => ({ type: "doc", html: b.html })),
+        setContent: jest.fn((c: unknown) => {
+          b.html = toHtml(c);
+        }),
+        focus: jest.fn(),
+        blur: jest.fn(),
+        /** Test helper: the user typed, the content is now `html`. */
+        type: (html: string) => {
+          b.html = html;
+          b.options.onChange?.();
+        },
+      };
+      editors.push(b);
+      return b;
+    });
+    bridge.options = options;
+    return bridge;
+  }
+  const Fake = (props: Record<string, unknown>) => createElement(View, props);
+  return {
+    __editors: editors,
+    useEditorBridge,
+    useScrollToCaret: () => undefined,
+    RichText: ({ editor: _e, ...props }: Record<string, unknown>) => createElement(View, props),
+    Toolbar: ({ editor: _e, items: _i, ...props }: Record<string, unknown>) =>
+      createElement(View, props),
+    EditorKeyboardAvoidingView: Fake,
+    TenTapStartKit: [],
+    PlaceholderBridge: { configureExtension: () => ({}) },
+    DEFAULT_TOOLBAR_ITEMS: [],
+    darkEditorTheme: {},
+  };
+});

@@ -289,6 +289,7 @@ export const t = {
   bulletList: "Lista punktowana",
   orderedList: "Lista numerowana",
   link: "Wstaw link",
+  quote: "Cytat",
   linkUrl: "Adres linku",
   apply: "Zastosuj",
   removeLink: "Usuń link",
