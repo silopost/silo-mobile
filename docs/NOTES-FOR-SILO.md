@@ -57,7 +57,7 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   `origin`). A note in `securitySchemes`/`info` or a shared parameter would make that explicit.
 - **Draft body format ties the editor.** `Draft.bodyJson` is a TipTap document "stored as given"
   and `bodyHtml` is sent next to it. The contract does not say which one wins when a client
-  edits a draft without TipTap (plain text editor on mobile): it needs a rule such as "a save with
+  edits a draft without TipTap (a plain text editor, a server-side prefill): it needs a rule such as "a save with
   `bodyJson: null` makes `bodyHtml` authoritative and the web editor rebuilds its document from
   the HTML".
 - **No unread summary across accounts.** The account switcher shows the unread Inbox count of
@@ -127,6 +127,45 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
 - **No event for created labels.** `POST /labels` answers the label and the client refetches
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
+
+## Compose on mobile (slice 7)
+
+Contract gaps and open questions found while porting compose:
+
+- **No undo for discarding a draft.** `DELETE /drafts/{id}` is final; the Gmail app offers
+  "Cofnij" after "Odrzuć". Mobile asks for confirmation instead. Proposal: a soft delete with
+  `undoUntil` (as thread operations have) or `POST /drafts/{id}/restore`.
+- **No scheduled send in 0.3.0.** `SendDraftBody.sendAt` exists in the schema but is phase 4; the
+  app always sends `{}` and the Scheduled view is read-only.
+- **"Od" cannot change on an existing draft.** `Draft.accountId` is fixed at `POST /drafts` and
+  `UpdateDraftBody` has no account; the Gmail app lets the sender change at any time. Mobile
+  shows Od read-only: the FAB creates the draft for the account of the list. Proposal: an
+  optional `accountId` in `UpdateDraftBody` (the server moves the draft between accounts).
+- **The limit of a whole message is known only at send.** `Meta.maxAttachmentBytes` limits one
+  file; the total (attachments + body) comes back as 413 `message_too_large` with `limit` only
+  after "Wyślij". Proposal: `Meta.maxMessageBytes` so compose can warn while attaching.
+- **Picked files may have no size.** Android's pickers do not always report one; such files skip
+  the pre-check and rely on the server's 413 `upload_too_large`.
+- **`bodyJson` vs `bodyHtml`: which is the source of truth** is still unspecified (see "Draft body
+  format ties the editor" above). Both clients now send both from TipTap, so in practice they
+  agree; a third client or a server-side edit (the reply prefill comes as `bodyHtml` with
+  `bodyJson: null`) needs the rule written down.
+- **409 has two meanings.** `PUT /drafts/{id}` and `POST /outbound/{id}/cancel` both answer 409
+  (`draft_version_conflict`, `send_in_progress`); clients must branch on `Problem.code`, which is
+  not enumerated (see "Error codes are not enumerated" above).
+- **Contacts are not per account.** `GET /contacts/autocomplete` takes only `q`, so suggestions mix
+  the addresses of all the user's accounts; fine for one person, worth an optional `accountId`.
+- **`draft.updated` / `outbound.status` payloads** are only described in prose (see slice 5): the
+  app reads `draftId`, `version`, `status`, `error` and `failedRecipients` with guards.
+
+Deviations from the Gmail app:
+
+- Od is read-only (above); no "Zaplanuj wysyłanie", "Poufnie" or signature insertion.
+- No "Cofnij" after "Odrzuć" (above); a confirmation dialog instead.
+- The formatting toolbar stays above the keyboard; Gmail shows it only for a text selection.
+- The reply quote is part of the editor body (as in silo-web) rather than Gmail's folded "…"
+  block.
+- Contact suggestions come only from the server's learnt addresses, not the phone's contacts.
 
 ## Thread screen on mobile (slice 6)
 
@@ -277,20 +316,27 @@ Gaps found:
   (`#C5221F`, `#F28B82` dark) is the `brand` colour of the logotype and important accents
   rather than `primary`, so Paper's controls do not turn red.
 
-## Compose editor (recommendation for a later slice)
+## Compose editor (decision, slice 7)
 
-Recommendation: **`@10play/tentap-editor`** (TipTap in a WebView, 1.1.0, peer
-`react-native-webview`), not a plain `TextInput`.
+Decision: **`@10play/tentap-editor` 1.1.0** (TipTap 3 in the existing `react-native-webview`),
+as recommended; the plain `TextInput` fallback (plan B) was not needed.
 
-- silo-web's compose is TipTap and drafts store `bodyJson` as TipTap JSON; tentap runs the same
-  TipTap 3 extensions, so a draft started on the phone and finished in the browser (or the other
-  way round) keeps its formatting, quotes and links, and `PUT /drafts/{id}` stays the same
-  request on both clients.
-- Cost: one WebView per compose screen (memory, start-up of about a few hundred ms), the TipTap
-  bundle inside the app (on the order of 1 MB), a development build is needed for custom
-  extensions (the stock editor works in Expo Go through `react-native-webview`), keyboard and
-  toolbar integration has rough edges on Android. Estimated 3–5 days for compose with a basic
-  toolbar (bold, italic, lists, link) and draft autosave.
-- A plain `TextInput` is cheaper (about 1–2 days) and fully native, but loses formatting when it
-  edits a draft from the web and needs the `bodyJson`/`bodyHtml` rule from the contract gaps
-  above; acceptable only as a stop-gap (plain-text replies).
+- Why: silo-web's compose is TipTap and drafts store `bodyJson` as TipTap JSON, so a draft moves
+  between the phone and the browser with its formatting, quote and links, and `PUT /drafts/{id}`
+  is the same request on both clients (`bodyHtml` and `bodyJson` saved together).
+- Measured cost: `npx expo install` added 60 packages (TipTap 3, ProseMirror, lodash); the
+  prebuilt editor page (`editorHtml`) is about 600 KB of JavaScript inside the app bundle (the
+  Android Hermes bundle of `expo export` is 8.2 MB with it). It builds with `expo export` as is:
+  no config plugin, no Babel or Metro change. Its small native module (`TenTapKeyboard`, custom
+  keyboards only) is autolinked and optional: the editor itself works without it, a development
+  build picks it up on the next rebuild. Integration took well under the estimated 3–5 days, but
+  keyboard, caret and toolbar behaviour on a real Android device is still unverified (no device
+  or emulator in this environment).
+- Jest: the module is replaced by a fake bridge (`jest.setup.ts`) that keeps the content as HTML;
+  the WebView editor itself is not exercised by tests.
+- Typing: `useEditorBridge`'s `theme` (a `RecursivePartial<EditorTheme>`) exceeds TypeScript's
+  instantiation depth when given the library's own `darkEditorTheme`, so it is cast.
+- Schema risk: tentap's starter kit has more extensions than silo-web's editor (task list,
+  highlight, colour, code). The mobile toolbar exposes only what the web toolbar has (bold,
+  italic, underline, lists, link, quote), so drafts stay within the web's schema in practice;
+  pasted rich text could still bring marks the web editor drops.

@@ -40,10 +40,10 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
 | --------------------- | ------------------------------------------------------------------ |
 | start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first |
 | label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`  |
-| draft (Drafts view)   | `/compose?draftId=d_…` (placeholder, slice 7)                      |
+| draft (Drafts view)   | `/compose?draftId=d_…`                                             |
 | thread                | `/u/<n>/<label>/<threadId>`                                        |
 | search                | `/u/<n>/search` (placeholder)                                      |
-| compose (full screen) | `/compose` (placeholder, slice 7)                                  |
+| compose (full screen) | `/compose?accountId=…` (creates the draft) → `?draftId=d_…`        |
 | settings              | `/settings` (theme), `/settings/sessions`                          |
 
 - **Drawer** (`src/features/nav`): opened by a swipe from the left edge or the menu button.
@@ -189,6 +189,68 @@ mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentO
   `cacheDirectory`, progress bar in the chip) and opens the share sheet (`expo-sharing`); 503 →
   "Załącznik jeszcze niepobrany, spróbuj za chwilę".
 
+## Compose (slice 7)
+
+Full-screen compose of the Gmail app at `/compose` (`src/screens/ComposeScreen.tsx`, a
+`fullScreenModal` of the stack without the stack header).
+
+- **Opening.** The FAB pushes `/compose?accountId=<account of the list>`: the screen sends
+  `POST /drafts {accountId}` once and puts the id in the route (`router.setParams`). Reply, reply
+  all and forward (`openReply`) and a cancelled send seed the session with the draft the server
+  answered, so compose opens without a GET; a draft from the Drafts view or the "Nie udało się
+  wysłać · Otwórz" toast is loaded with `GET /drafts/{id}`.
+- **Top bar**: back arrow ("Zapisz i zamknij": closes and saves), paperclip, send (enabled with at
+  least one recipient) and ⋮ with "Zapisz wersję roboczą" (close and save) and "Odrzuć" (dialog,
+  then `DELETE /drafts/{id}`, "Odrzucono wersję roboczą"; no undo, the server has none).
+- **Fields**: Od (the draft's account, read-only), Do with chips, "∨" for DW and UDW, Temat, body,
+  attachment tiles. `RecipientInput` (`src/features/compose`): Enter, comma, semicolon, a space
+  after `…@…` or leaving the field make chips (avatar with the initial); a pasted list is split by
+  `src/lib/addresses.ts` (port of silo-web); suggestions from `GET /contacts/autocomplete?q=`
+  (150 ms debounce, `staleTime` 60 s) with avatar, name and address; a chip goes with its x or a
+  long press. A chip is red only for the address the server refused (`Problem.address/field` of a
+  400/422, or `lastSend.failedRecipients`): the app validates nothing but "≥ 1 recipient".
+- **Body**: `@10play/tentap-editor` (TipTap in a WebView, `src/features/compose/Editor.tsx`) with
+  TenTap's starter kit and a placeholder; every change hands `bodyHtml` and `bodyJson` (TipTap
+  JSON, the format of silo-web) to the session. The server's quote of a reply is part of the
+  body, as in silo-web. The editor grows inside the screen's ScrollView (`dynamicHeight`,
+  `useScrollToCaret`); the toolbar (B, I, U, lists, link, quote) sits on top of the keyboard
+  (`EditorKeyboardAvoidingView`).
+- **Draft session** (`src/features/compose/session.ts`, port of silo-web's `DraftSession`, a class
+  outside React read with `useSyncExternalStore`): the form, `version`/`syncedVersion`, `dirty`,
+  save state, `conflict` + `conflictCurrent`, `serverChanged`, `invalid`, uploads. Edits live only
+  in memory (plan 2.6: no local draft store). `PUT /drafts/{id}` with the edited `version` after
+  2 s idle (`composeConfig.autosaveMs`), when a recipient field or the subject loses focus, and
+  with `syncNow: true` when the screen is removed (navigation's `removed` event) and when the app
+  goes to the background (`AppState`). Closing a new draft nobody edited deletes it (as Gmail and
+  silo-web do); otherwise the last save and "Zapisano wersję roboczą".
+- **Conflicts**: a 409 `draft_version_conflict` keeps the local edits and shows "Wersja robocza
+  zmieniona w innym miejscu · Wczytaj / Nadpisz" (Wczytaj loads `Problem.current`, Nadpisz saves
+  again with its version); the same bar appears for a `draft.updated` event of a newer version
+  from another client (`useCompose.remoteVersions`; Wczytaj then fetches the draft).
+  `Draft.serverChanged` → "Zmieniono w innym programie · Wczytaj". A failed send
+  (`Draft.lastSend`, or the `outbound.status failed` event → `useCompose.setFailure` plus
+  invalidation of the draft) → red "Nie udało się wysłać: <error>" with the refused recipients.
+- **Attachments**: the paperclip opens a sheet "Załącz plik" (`expo-document-picker`, several
+  files) / "Wstaw z galerii" (`expo-image-picker`, the system photo picker). A file over
+  `GET /meta` `maxAttachmentBytes` is refused before the upload ("Plik X jest za duży (limit Y)").
+  `uploadFile` (`src/api/drafts.ts`) posts `multipart/form-data` (`file` as `{uri, name, type}`)
+  to `<server>/api/v1/uploads` through `XMLHttpRequest` for `upload.onprogress`, with
+  `Authorization: Bearer` and `X-Silo-Client`; at most 3 at once (`queueUpload`). The tile shows
+  a progress bar and its x aborts the request (`AbortSignal`); the returned id joins
+  `attachmentIds` (autosave). 413 `upload_too_large` → the tile states the server's `limit`.
+  Removing an attachment drops it from `attachmentIds` (the server detaches it).
+- **Send and undo send** (plan 3.9): "Wyślij" → the last PUT → `POST /drafts/{id}/send {}` →
+  compose closes and the list shows "Wysłano · Cofnij" until `undoUntil` (only the snackbar's
+  duration; no local timer delays the send). "Cofnij" → `POST /outbound/{id}/cancel` → compose
+  opens again with the returned `Draft`; 409 → "Za późno, wiadomość została wysłana". Refusals
+  keep compose open: 422 `no_recipients`, `invalid_address` (red chip), 413 `message_too_large`
+  (with `limit`), 502 `upstream_smtp_error` (with `detail`), 409 `send_in_progress`. The lists of
+  the account are invalidated after a save, a send and a cancel.
+- **Drafts and Scheduled views**: a row of Wersje robocze opens compose; a row of Zaplanowane has
+  the clock icon and opens the thread read-only, where the message shows "Wysyłanie…".
+- **Snackbar**: one toast store; the list renders its snackbar only while focused and compose has
+  its own above the toolbar, so "Wysłano · Cofnij" shown as compose closes appears on the list.
+
 ## Zdarzenia: SSE, polling, AppState
 
 Server events (plan 3.14, 5.4) keep the cache current without refetching:
@@ -295,7 +357,9 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
 - `jest.config.js` lets Babel transform msw and its ES-module-only dependencies (`.mjs` files and a
   few packages) like the React Native packages.
 
-`react-native-webview` is a View that keeps its props (tests read `source.html` and call
+`@10play/tentap-editor` is a fake bridge that keeps the content as HTML (`typeInEditor` in
+`src/test/editor.ts` fires its `onChange`); uploads go to a fake `XMLHttpRequest`
+(`src/test/xhr.ts`, through `uploadConfig.createXhr`). `react-native-webview` is a View that keeps its props (tests read `source.html` and call
 `onMessage`); `expo-file-system/legacy`, `expo-sharing`, `expo-web-browser` and `expo-linking`
 are mocked per test file. `expo-secure-store` and `expo-device` are replaced by in-memory fakes in `jest.setup.ts`, as are
 AsyncStorage, NetInfo, gesture-handler, worklets and the safe-area insets (the libraries' jest
@@ -330,7 +394,7 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Search, compose (the editor), label management (colours, rename, delete), account setup: later
+- Search, scheduled send (`sendAt`, phase 4), label management (colours, rename, delete), account setup: later
   slices.
 - Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 
