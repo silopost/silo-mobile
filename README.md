@@ -36,15 +36,15 @@ search bar, account switcher, compose FAB, theme); slice 1: API client and beare
 
 Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
 
-| Gmail app             | silo-mobile                                                        |
-| --------------------- | ------------------------------------------------------------------ |
-| start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first |
-| label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`  |
-| draft (Drafts view)   | `/compose?draftId=d_…`                                             |
-| thread                | `/u/<n>/<label>/<threadId>`                                        |
-| search                | `/u/<n>/search` (placeholder)                                      |
-| compose (full screen) | `/compose?accountId=…` (creates the draft) → `?draftId=d_…`        |
-| settings              | `/settings` (theme), `/settings/sessions`                          |
+| Gmail app             | silo-mobile                                                                 |
+| --------------------- | --------------------------------------------------------------------------- |
+| start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first          |
+| label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`           |
+| draft (Drafts view)   | `/compose?draftId=d_…`                                                      |
+| thread                | `/u/<n>/<label>/<threadId>`                                                 |
+| search                | `/u/<n>/search` (placeholder)                                               |
+| compose (full screen) | `/compose?accountId=…` (creates the draft) → `?draftId=d_…`                 |
+| settings              | `/settings` → `general`, `account/<id>`, `add-account`, `about`, `sessions` |
 
 - **Drawer** (`src/features/nav`): opened by a swipe from the left edge or the menu button.
   Logotype, system views in Gmail's order (`src/lib/labels.ts`, a port of silo-web's
@@ -58,7 +58,7 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
   hashed from the address). Outside the Inbox a section title names the label above the list.
 - **Accounts** (`src/features/accounts`): the avatar opens the account dialog – current account,
   "Zarządzaj kontami" (settings), the other accounts by position with unread Inbox counters (one
-  `GET /labels` each, fetched only while the dialog is open), "Dodaj konto" (slice 8), sign-out.
+  `GET /labels` each, fetched only while the dialog is open), "Dodaj konto" (`/settings/add-account`), sign-out.
   Choosing an account opens `/u/<position>/inbox`.
 - **FAB** (`src/features/shell`): extended "Utwórz" with a pencil, bottom right, opens
   `/compose`; folded to the pencil while the list scrolls down, extended again on scrolling up
@@ -143,6 +143,53 @@ mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentO
   primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
   actions, density) live in `src/state/ui.ts` (zustand + AsyncStorage).
+
+## Ustawienia (slice 8)
+
+The settings of the Gmail app for Android, as a Stack under `app/(app)/settings/`:
+
+| Gmail app                                   | silo-mobile                                                                                                                                                                                          | source                                                                             |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Ustawienia (list)                           | `/settings`: Ustawienia ogólne, accounts, Dodaj konto, O aplikacji                                                                                                                                   | `GET /session` (`accounts` by `position`)                                          |
+| Ustawienia ogólne                           | `/settings/general`                                                                                                                                                                                  | device (`useUi`, AsyncStorage)                                                     |
+| – Motyw                                     | radio dialog Systemowy/Jasny/Ciemny                                                                                                                                                                  | `theme`                                                                            |
+| – Gęstość listy rozmów                      | Domyślna/Kompaktowa                                                                                                                                                                                  | `density`                                                                          |
+| – Działania przy przesuwaniu                | W prawo / W lewo: Archiwizuj/Usuń/Brak, colour+icon preview                                                                                                                                          | `swipeRightAction`, `swipeLeftAction`                                              |
+| – Potwierdzaj przed usunięciem/archiwizacją | switches; `ThreadActionsRoot` asks before `trash`/`archive` from a row, the bar and a thread                                                                                                         | `confirmTrash`, `confirmArchive`                                                   |
+| – (thread opened → read)                    | switch; `ThreadScreen` skips the `read` modify when off                                                                                                                                              | `markReadOnOpen`                                                                   |
+| – Obrazy (Pytaj/Zawsze)                     | `MessageHtml` loads remote images without "Pokaż obrazy" when `always`                                                                                                                               | `showRemoteImages`                                                                 |
+| – Powiadomienia                             | inactive entry: the server has no push devices yet                                                                                                                                                   | –                                                                                  |
+| account (address)                           | `/settings/account/<id>`                                                                                                                                                                             | `GET /accounts/{id}/sync-status`, `PATCH`/`DELETE /accounts/{id}`, `POST …/resync` |
+| – Nazwa                                     | dialog → `PATCH {displayName}`                                                                                                                                                                       |                                                                                    |
+| – Synchronizacja                            | state line (live · time, initial sync progress, backoff host, auth_failed, disabled), pending/dead counters, "Synchronizuj teraz" (`incremental`), "Pełne porównanie" (`full`)                       |                                                                                    |
+| – (server)                                  | capabilities chips, keywords warning, folders (read only), IMAP/SMTP host:port (TLS), login, `sentAppend` switch, "Zmień hasło" (`PATCH {password}`)                                                 |                                                                                    |
+| – Usuń konto                                | "Usuń konto z Silo" → `DELETE`; the active or last account → `/`                                                                                                                                     |                                                                                    |
+| Dodaj konto → Inne                          | `/settings/add-account`: address, password, name, advanced (login; servers only with `Meta.allowCustomServers`), "Sprawdź połączenie" (`POST /accounts/test`), "Dodaj" (`POST /accounts`, 422 steps) |                                                                                    |
+| Informacje                                  | `/settings/about`: app version, `silo.serverRef`, server URL and `GET /meta`, AGPL-3.0 source link, sessions, sign-out                                                                               |                                                                                    |
+| (Konto Google → urządzenia)                 | `/settings/sessions`: revoke one, "Wyloguj się", "Wyloguj wszędzie"                                                                                                                                  | `GET /sessions`, `DELETE /sessions/{id}`                                           |
+
+Decisions:
+
+- **Device preferences only.** API 0.3.0 has no `GET/PATCH /settings`, so everything in
+  "Ustawienia ogólne" lives in `useUi` on this device. They decide only how the app looks and
+  which request it sends (a confirmation before `trash`, no `read` modify, images in the
+  WebView); nothing the server does depends on them (plan 2.6). After phase 4 `density`,
+  `undoSendSeconds` and `signature` move to `PATCH /settings` (`Settings` of `GET /session`
+  already carries them).
+- **Removing an account** goes back to `/` when it was the active account (`settings.
+activeAccountId`, else the first) or the last one: the start screen opens the next account, or
+  offers "Dodaj konto" when none is left. The user stays signed in (a Silo session is not tied to
+  one mailbox).
+- **Errors of account requests** show a Polish sentence for the stable `code` and the server's
+  `detail` (limit, refused host, what the mail server said); request fields, the password above
+  all, never reach a snackbar or a log.
+- **Snackbars on settings screens** (`SettingsSnackbar`): the mail shell's snackbar is not
+  mounted there.
+
+Deviations from the Gmail app: one form for "Dodaj konto" instead of Gmail's step-by-step
+wizard (and no provider list – Silo is IMAP/SMTP only); no per-account notifications, signature,
+vacation responder or "Synchronizuj Gmaila" switch (no contract for them); "Pełne porównanie" and
+the folder list are Silo-specific; sessions replace Google's device list.
 
 ## Widok wątku (slice 6)
 
@@ -394,7 +441,7 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Search, scheduled send (`sendAt`, phase 4), label management (colours, rename, delete), account setup: later
+- Search, scheduled send (`sendAt`, phase 4), label management (colours, rename, delete): later
   slices.
 - Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 

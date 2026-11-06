@@ -128,6 +128,48 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
 
+## Settings on mobile (slice 8)
+
+silo-web has no settings or account screens yet (no use of `/accounts/test`, `PATCH` or
+`DELETE /accounts/{id}`), so mobile goes first; the gaps below are what the port found.
+
+- **No `/settings` in 0.3.0.** `GET /session` returns `Settings` (`density`, `undoSendSeconds`,
+  `signature`, ...) but nothing can change them, so mobile keeps theme, density, swipe actions,
+  confirmations, mark-read-on-open and remote images on the device (`useUi`). After phase 4
+  `density`, `undoSendSeconds` and `signature` should move to `PATCH /settings`; `Settings.density`
+  has `comfortable`, which mobile does not offer (Gmail has two densities on Android).
+- **No `DELETE /sessions` (all but the current).** "Wyloguj wszędzie" lists `GET /sessions` and
+  sends one `DELETE /sessions/{id}` per other session, then `DELETE /session`. Not atomic: a
+  session created meanwhile survives. Proposal: `DELETE /sessions?except=current` or `POST
+/sessions/revoke-all` (plan 3.15 "wyloguj wszędzie").
+- **Dead operations are only a counter.** `SyncStatus.deadOps` tells how many jobs failed for
+  good, but there is no endpoint to list them (kind, threads, error) or to retry/discard them
+  (plan 5.7 "Nieudane operacje"). The account screen shows "Nieudane operacje: N" without a list.
+- **`rebuild` answers 501.** `Resync.mode` lists `rebuild`; mobile offers only `incremental`
+  ("Synchronizuj teraz") and `full` ("Pełne porównanie") until it is implemented.
+- **No default mail server in `Meta`.** Without `allowCustomServers` the add-account form can only
+  say "the default server of this instance"; `Meta.defaultImapHost`/`defaultSmtpHost` (or a
+  display name) would let the user see where the account will live. Also the email domain could
+  be validated against it before the test.
+- **`PATCH /accounts/{id}` cannot change `email`, `username` or hosts.** A user whose provider
+  renamed the IMAP host must remove and re-add the account (losing the cache). Also `PATCH` with
+  a new `password` stores it without testing; a wrong password is noticed only when the sync
+  fails again (`auth_failed`). Proposal: test the IMAP login on password change and answer 422
+  `account_test_failed` as `POST /accounts` does.
+- **`PATCH /accounts/{id}` does not declare 502** (`upstream_imap_error`/`upstream_smtp_error`,
+  plan 5.3) and `DELETE /accounts/{id}` declares 422 without saying when; mobile handles any
+  `Problem` the same way.
+- **`Account.position` after a delete.** Positions are not renumbered, so `/u/<n>` URLs of the
+  remaining accounts keep working, but a gap appears (0, 2). Worth stating in the contract, since
+  both clients map `/u/<n>` to `position`.
+- **No push devices.** "Powiadomienia" is an inactive entry until `POST /devices` (phase 6).
+- **Limit of accounts is not in `Meta`.** `SILO_MAX_ACCOUNTS_PER_USER` is only seen as 409
+  `account_limit_reached` after the connection test ran; `Meta.maxAccountsPerUser` would let the
+  client hide "Dodaj konto" at the limit.
+- **Folder settings (`GET/PUT /accounts/{id}/folders`) not ported.** The account screen lists the
+  folders of `SyncStatus.folders` read only; mapping roles and `syncMode` is left for a later
+  slice (the same data, a role picker per folder).
+
 ## Compose on mobile (slice 7)
 
 Contract gaps and open questions found while porting compose:
