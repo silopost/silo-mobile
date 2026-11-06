@@ -66,10 +66,9 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   Proposal: `Account.inboxUnread` in `GET /session`/`GET /accounts`, or a
   `GET /labels/summary` with the INBOX counters of all accounts; the `label.counts` events of
   plan 5.4 could then keep it fresh for every account, not just the open one.
-- **`settings.activeAccountId` is not written by the clients.** The start route opens it, but
-  neither silo-web nor silo-mobile updates it when the user switches accounts, so "the account
-  shown by default" never follows the last choice. Either the clients `PATCH /settings` on a
-  switch, or the field should be documented as set only from settings.
+- **`settings.activeAccountId` was not written by the clients.** Since slice 9b silo-mobile
+  sends `PATCH /settings {activeAccountId}` when the user switches accounts (server 0.4.0); the
+  contract could say that clients are expected to.
 - **System view order is client-side.** `Label.position` orders user labels, but the Gmail
   order of the system views (Inbox, Starred, Snoozed, Important, Sent, Scheduled, Drafts, All
   mail, Spam, Trash) is hard-coded in both clients (`SYSTEM_VIEWS`); plan 5.5 could state it.
@@ -116,8 +115,9 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   the clients mirror it optimistically by dropping every location label (Inbox, Spam, Trash,
   folders) themselves.
 - **No label colour palette in the contract.** `CreateLabelBody` has `colorBg`/`colorText`, but
-  the allowed colours are not in the contract (silo-web hard-codes Gmail's); the mobile dialog
-  and sheet create labels without a colour until the palette is shared (e.g. in `Meta`).
+  the allowed colours are not in the contract (silo-web hard-codes Gmail's); mobile now offers the
+  same 20 pairs on server 0.4.0 (see slice 9b below); the palette should be shared (e.g. in
+  `Meta`).
 - **Undo of flag-only changes.** `OperationResult.undoUntil` is null for flag-only changes, yet
   they carry an `operationId` and `POST /operations/{id}/undo` accepts them (plan 5.2). Both
   clients show "Cofnij" whenever there is an `operationId` (for the default 4 s when
@@ -127,6 +127,65 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
 - **No event for created labels.** `POST /labels` answers the label and the client refetches
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
+
+## Phase 4 on mobile (slice 9b: settings, filters, labels, thumbnails, inline pictures)
+
+Findings while porting silo-web's phase 4 panels:
+
+- **No label colour palette in the contract (still).** Mobile now offers Gmail's 20 pairs, the
+  same as silo-web's `lib/labelColors.ts`, hard-coded in both clients. The server stores any pair;
+  a shared palette (`Meta.labelColors` or an enum in `CreateLabelBody`/`UpdateLabelBody`) would
+  keep the clients in step and let the server refuse unreadable pairs.
+- **`desktopNotifications` has no mobile counterpart.** It is a browser setting; a phone needs
+  push, which phase 6 brings. Proposal: `Settings.pushNotifications` (per user) and per-device
+  state in `POST/DELETE /devices` (plan 5.1), so "Powiadomienia" can become an active entry. Mobile
+  shows `desktopNotifications` read only, as an inactive entry.
+- **The signature is not inserted by the server.** `POST /drafts` prefills recipients, subject and
+  quote, but not `Settings.signature`; silo-web inserts it on the client (`withSignature`, a
+  `div.silo-signature`), mobile does not (plan 2.6: the server owns the body). A new draft from the
+  phone therefore has no signature, one from the browser has. Proposal: `POST /drafts` puts the
+  signature in `bodyHtml` (above the quote, in the same `div.silo-signature`) so every client gets
+  the same text, or a documented rule that clients do it.
+- **The signature is HTML only.** A phone edits plain text; there is no `signatureText` (or a
+  documented minimal HTML subset), so a signature saved from the phone loses silo-web's formatting.
+- **`conversationView` is not honoured by any client view on mobile.** The app always shows
+  threads (the API lists threads); the setting is not offered. Either the API gains a message list
+  or the field could be documented as web-only.
+- **Thumbnails need the bearer header.** `GET /attachments/{id}/thumbnail` cannot be put in an
+  `<img>`/`Image` URL without a header (ADR 0007), so mobile uses React Native `Image` with
+  `source.headers`; its native image cache may keep the pictures after sign-out. A signed,
+  short-lived thumbnail URL (`thumbnailUrl` with an expiring signature, no session token) would let
+  any image component and cache be used safely and make the preview cheaper.
+- **Inline pictures in drafts:** `bodyJson` is free (TipTap JSON "stored as given"), so the form of
+  an inline picture there is a convention of silo-web (`src` = the upload URL, `cid` attribute).
+  Mobile follows it; the contract should state it (or say `bodyHtml` with `cid:` wins).
+- **`settings.updated` payload:** `{updatedAt, origin}` only, so every other session refetches the
+  whole object; fine, but the changed field names would let clients skip the request.
+- **Filter list has no counts.** `Filter` has no "last applied" or "matched N" (only the
+  `matchedEstimate` of an apply), so the list cannot show how active a filter is.
+- **`FilterActionsInput.forwardTo` is `string` but `FilterActions.forwardTo` is `string | null`.**
+  Clearing a forward means omitting the field in a PUT (a full replacement), which works but is
+  only implied.
+- **Label errors:** `PATCH /labels/{id}` declares 409 without a code in the schema (mobile reads it
+  as "name taken") and `invalid_parent` only in prose.
+- **`showInList` has three values but Gmail's app shows a switch.** Mobile's switch toggles
+  `show`/`hide`; `show_if_unread` (set in silo-web) is shown as on, with "Gdy są nieprzeczytane"
+  under the counters.
+
+Deviations from silo-web (slice 9b):
+
+- No "keyboard shortcuts" setting (`keyboardShortcutsEnabled`; no keyboard on a phone) and no
+  `conversationView` switch (see above).
+- The filter editor has no "advanced fields" form (silo-web's `AdvancedFieldsForm` with separate
+  From/To/Subject/Has the words/Doesn't have fields); the criteria are one text field with the
+  search chips that add `from:`, `to:`, `subject:`, `label:`, `has:attachment`. "Nie zawiera" and
+  size criteria are typed.
+- No drag to reorder filters (↑/↓ only), as in silo-web.
+- The labels screen manages user labels only; server folders (create/delete a folder,
+  `type: folder`) are not managed from the phone.
+- No signature insertion in compose (see above; silo-web inserts it).
+- Thumbnails: no thumbnails in the thread list rows (neither client; the row has no attachment
+  list).
 
 ## Phase 4 on mobile (slice 9a: search, snooze, scheduled send)
 

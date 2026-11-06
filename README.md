@@ -8,8 +8,10 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 9a – phase 4 of the server (search with suggestions and filter chips, snooze,
-scheduled send; needs silo-server ≥ 0.4.0, see "Faza 4" below). Slice 8: settings. Slice 7:
+Status: slice 9b – the rest of phase 4 (settings synchronised through the server, filters,
+label management, attachment thumbnails, inline pictures in compose; needs silo-server ≥ 0.4.0,
+see "Faza 4" below). Slice 9a: search with suggestions and filter chips, snooze, scheduled send.
+Slice 8: settings. Slice 7:
 compose. Slice 6: the thread screen (message cards, HTML in a WebView, attachments, reply →
 draft). Slice 5: server events (SSE over fetch with a polling fallback, AppState lifecycle,
 offline banner). Slice 4: thread actions with optimistic update and "Cofnij" (swipes, star,
@@ -190,6 +192,53 @@ Deviations from the Gmail app: no row long-press menu exists in the app, so snoo
 the swipe, the selection bar and the thread menu; the send presets are computed on the device
 (Gmail's come from Google); the "Data" chip offers relative ranges and after/before a day instead of
 Gmail's date-range dialog; the "Od"/"Do" chips take typed text, without contact suggestions.
+
+## Faza 4 – ustawienia, filtry, etykiety, miniatury (slice 9b)
+
+Also behind `hasServerFeature` (`settings`, `filters`, `labels`, `thumbnails`, `inlineImages`, all
+0.4.0): against a 0.3.0 server none of it is shown and the device preferences of slice 8 work as
+before. Settings, filter matching and applying, label keywords and thumbnails are the server's
+(plan 2.6); the app sends one field per request, updates optimistically and only glues text.
+
+| Gmail app / silo-web                    | silo-mobile                                                                                                                                                                                                                                                          | API                                                                           |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Ustawienia ogólne → synced section      | "Konto Silo (synchronizowane)": Gęstość (Domyślna/Wygodna/Kompaktowa), Czas na cofnięcie wysyłki (5/10/20/30 s), Podpis (multi-line text dialog), Strefa czasowa (IANA list with search, "Ustaw strefę urządzenia"), desktop notifications as an inactive entry      | `GET /settings`, `PATCH /settings` (one field each)                           |
+| – errors                                | optimistic `setQueryData`; 422 `invalid_setting`/`invalid_timezone` → snackbar and the previous value back                                                                                                                                                           |                                                                               |
+| – other devices                         | `settings.updated` with a foreign `origin` refetches `GET /settings`                                                                                                                                                                                                 | SSE                                                                           |
+| account switcher                        | the chosen account is stored as the default account                                                                                                                                                                                                                  | `PATCH /settings {activeAccountId}`                                           |
+| Filtry (silo-web `FiltersPanel`)        | `/settings/filters?accountId=` from the account settings: name/criteria, actions as chips, switch (PUT of the whole filter, `filterBody()`), ↑/↓ (PUT with the new `position`), FAB "Utwórz filtr"                                                                   | `GET /filters?accountId=`, `PUT /filters/{id}`                                |
+| – editor (`FilterEditor`)               | `/settings/filter`: name, criteria as text with the search chips (Od, Do, Temat, Etykiety, Załącznik; text only), "Testuj wyszukiwanie", five action switches, "Nadaj etykietę" sheet, "Przekaż do", "Zastosuj też do istniejących wiadomości", delete with a dialog | `POST /filters`, `PUT`, `DELETE /filters/{id}`, `POST /filters/{id}/apply`    |
+| – errors and apply                      | 422 `invalid_query` under the criteria, `invalid_label` under the labels, `invalid_filter` below the form; "Stosowanie filtra… (ok. N wątków)" from `matchedEstimate`, "Filtr zastosowano do N wątków" on `filter.applied` (lists and labels refetched)              | SSE `filter.applied`                                                          |
+| search results ⋮                        | "Utwórz filtr z tego wyszukiwania" → the editor with `criteria = q`                                                                                                                                                                                                  |                                                                               |
+| Etykiety (silo-web `LabelsPanel`)       | `/settings/labels?accountId=`: tree of user labels with colour dot, counters, `keywordState` warnings (`local_only`, `partial` with folder names), switch "Pokaż w menu nawigacji"                                                                                   | `GET /labels`, `PATCH /labels/{id} {showInList}`                              |
+| – edit / delete                         | dialog: name, palette of 20 Gmail colours, "Umieść pod etykietą" (no own subtree); only changed fields are sent; delete with a dialog; "Nowa etykieta" gets colour and parent too; the drawer indents child labels                                                   | `PATCH /labels/{id}`, `DELETE /labels/{id}`, `POST /labels`                   |
+| attachment thumbnails                   | chips of a thread and tiles of compose show the server thumbnail (`thumbnail: true`), 415/error → the type icon; a picture opens a full-screen preview with "Udostępnij lub zapisz"                                                                                  | `GET /attachments/{id}/thumbnail?size=s\|m`, `GET /attachments/{id}?inline=1` |
+| inline picture (compose 📎)             | "Wstaw obraz w treści": upload with `inline=true`, picture in the editor, `<img src="cid:…">` saved; drafts with `cid:` pictures show them                                                                                                                           | `POST /uploads` (`inline` field first), `PUT /drafts/{id}`                    |
+| forward with the original's attachments | the server copies them; `Draft.warnings` are shown in a snackbar                                                                                                                                                                                                     | `POST /drafts {mode: forward}`                                                |
+
+Decisions:
+
+- **Density: the server is the source of truth on 0.4.0.** `useDensity()` takes `Settings.density`
+  and copies it to the device preference (`useUi.density`), which stays the value of a 0.3.0
+  server and the first frame before `GET /settings` answers. Migration: the device value is not
+  sent to the server (another device may have set it); a user who had "Kompaktowa" only locally
+  sees the server's value after the upgrade. `comfortable` is a 64 dp row (72 default, 56 compact).
+- **Signature as text.** The server stores sanitised HTML; the phone edits it as lines of text
+  (`src/lib/signature.ts`: `<br>`/block ends ↔ new lines, escaped on save). Formatting made in
+  silo-web is lost when the signature is saved from the phone. It is not inserted into new
+  drafts: `POST /drafts` does not add it, and the client does not either (plan 2.6; see notes).
+- **Time zone list:** `Intl.supportedValuesOf("timeZone")` where the engine has it (Node,
+  recent Hermes), with a search field and at most 40 rows shown; otherwise a text field, and the
+  server validates (422 `invalid_timezone`).
+- **Thumbnails: React Native `Image` with `source.headers`** (Authorization, X-Silo-Client), no new
+  native module (`expo-image` was not needed). The token never goes into a URL; the native image
+  cache may keep thumbnails after sign-out (no public API to clear it on Android).
+- **Inline pictures:** TenTap's `ImageBridge` (`editor.setImage`) shows a data URI read from the
+  device (`expo-file-system`); `src/lib/inlineImages.ts` turns it into `cid:` for `bodyHtml` and
+  into silo-web's form (`/api/v1/attachments/{u_…}?inline=1` + `cid`) for `bodyJson`. Loaded drafts
+  fetch their inline uploads with the bearer header and show them unless the user already typed.
+- **Filters by account.** Filters belong to an account (`Filter.accountId`), so "Filtry" and
+  "Etykiety" are entries of the account settings, not of "Ustawienia ogólne".
 
 ## Ustawienia (slice 8)
 
@@ -493,9 +542,9 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Label management (colours, rename, delete), filters and server settings (`/settings`,
-  `/filters`, phase 4 contract, gated as `settings`/`filters` in `src/lib/features.ts`): later
-  slices.
+- Folder management (create/delete server folders, folder roles and `syncMode`), push
+  notifications (`desktopNotifications` has no mobile counterpart yet) and inserting the
+  signature into new drafts (the server does not, see docs/NOTES-FOR-SILO.md).
 - Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 
 ## License

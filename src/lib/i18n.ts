@@ -422,8 +422,6 @@ export const t = {
   timezoneDevice: (zone: string) => `Ustaw strefę urządzenia (${zone})`,
   timezoneDiffers: (zone: string) => `Inna niż strefa urządzenia (${zone})`,
   timezoneSearch: "Szukaj strefy",
-  conversationViewTitle: "Widok wątków",
-  conversationViewNote: "Aplikacja zawsze grupuje wiadomości w wątki.",
   desktopNotificationsTitle: "Powiadomienia na komputerze",
   desktopNotificationsNote:
     "Ustawienie przeglądarki; powiadomienia w telefonie wymagają obsługi push na serwerze.",
