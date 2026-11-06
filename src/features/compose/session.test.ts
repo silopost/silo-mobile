@@ -6,7 +6,9 @@ import type { Draft } from "../../api/types";
 import { useAuth } from "../../state/auth";
 import { useCompose } from "../../state/compose";
 import { useToasts } from "../../state/toasts";
+import { uploadConfig } from "../../api/drafts";
 import { draft } from "../../test/fixtures";
+import { FakeXhr } from "../../test/xhr";
 import { API, SERVER_URL, server, setupMsw } from "../../test/server";
 import { composeConfig, getSession, openLoaded, resetSessions, type DraftSession } from "./session";
 
@@ -356,5 +358,48 @@ describe("DraftSession uploads", () => {
     s.addFiles([{ uri: "file:///big.bin", name: "big.bin", type: "x/y", size: 4096 }]);
     expect(s.getState().uploads).toEqual([]);
     expect(useToasts.getState().current?.message).toBe("Plik big.bin jest za duży (limit 1 KB)");
+  });
+
+  it("uploads a picked file, shows progress and saves its id in attachmentIds", async () => {
+    const createXhr = uploadConfig.createXhr;
+    uploadConfig.createXhr = () => new FakeXhr() as unknown as XMLHttpRequest;
+    FakeXhr.last = undefined;
+    const bodies: Record<string, unknown>[] = [];
+    acceptSaves(bodies);
+    try {
+      const s = open();
+      s.addFiles([{ uri: "file:///a.pdf", name: "a.pdf", type: "application/pdf", size: 10 }]);
+      expect(s.getState().uploads).toMatchObject([{ name: "a.pdf", progress: 0 }]);
+      const last = (): FakeXhr | undefined => FakeXhr.last;
+      await until(() => Boolean(last()?.method));
+      last()!.progress(5, 10);
+      expect(s.getState().uploads[0]!.progress).toBe(0.5);
+
+      const info = { id: "up_1", filename: "a.pdf", contentType: "application/pdf", size: 10 };
+      last()!.respond(201, info);
+      await until(() => s.getState().form.attachments.length === 1);
+      expect(s.getState().uploads).toEqual([]);
+      await until(() => bodies.length === 1);
+      expect(bodies[0]!.attachmentIds).toEqual(["up_1"]);
+    } finally {
+      uploadConfig.createXhr = createXhr;
+    }
+  });
+
+  it("a 413 from the server marks the tile with the limit", async () => {
+    const createXhr = uploadConfig.createXhr;
+    uploadConfig.createXhr = () => new FakeXhr() as unknown as XMLHttpRequest;
+    FakeXhr.last = undefined;
+    try {
+      const s = open();
+      s.addFiles([{ uri: "file:///a.bin", name: "a.bin", type: "x/y", size: 0 }]);
+      const last = (): FakeXhr | undefined => FakeXhr.last;
+      await until(() => Boolean(last()?.method));
+      last()!.respond(413, { status: 413, code: "upload_too_large", limit: 2048, size: 4096 });
+      await until(() => Boolean(s.getState().uploads[0]?.error));
+      expect(s.getState().uploads[0]!.error).toBe("Plik a.bin jest za duży (limit 2 KB)");
+    } finally {
+      uploadConfig.createXhr = createXhr;
+    }
   });
 });
