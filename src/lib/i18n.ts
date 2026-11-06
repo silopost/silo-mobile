@@ -349,7 +349,7 @@ export const t = {
   accountSettings: "Ustawienia konta",
   settingsSection: (name: string) => `${name}, otwórz`,
   densityTitle: "Gęstość listy wiadomości",
-  densities: { default: "Domyślna", compact: "Kompaktowa" },
+  densities: { default: "Domyślna", comfortable: "Wygodna", compact: "Kompaktowa" },
   swipeTitle: "Działania przy przesuwaniu",
   swipeRight: "Przesunięcie w prawo",
   swipeLeft: "Przesunięcie w lewo",
@@ -372,6 +372,31 @@ export const t = {
   generalSectionDisplay: "Wyświetlanie",
   generalSectionActions: "Działania",
   generalSectionMessages: "Wiadomości",
+
+  // server settings (phase 4: GET/PATCH /settings)
+  syncedSection: "Konto Silo (synchronizowane)",
+  syncedNote:
+    "Te ustawienia są zapisywane na serwerze Silo i obowiązują na wszystkich urządzeniach i w przeglądarce.",
+  localSection: "To urządzenie",
+  densityLocalNote: "Na tym serwerze gęstość dotyczy tylko tego urządzenia.",
+  undoSendTitle: "Czas na cofnięcie wysyłki",
+  undoSendSeconds: (n: number) => `${n} s`,
+  signatureTitle: "Podpis",
+  signatureNone: "Brak podpisu",
+  signatureHint:
+    "Podpis jest zapisywany na serwerze (HTML jest oczyszczany). Ta wersja nie wstawia go jeszcze do nowych wiadomości.",
+  timezoneTitle: "Strefa czasowa",
+  timezoneHint: "Nazwa strefy IANA, np. Europe/Warsaw",
+  timezoneDevice: (zone: string) => `Ustaw strefę urządzenia (${zone})`,
+  timezoneDiffers: (zone: string) => `Inna niż strefa urządzenia (${zone})`,
+  timezoneSearch: "Szukaj strefy",
+  conversationViewTitle: "Widok wątków",
+  conversationViewNote: "Aplikacja zawsze grupuje wiadomości w wątki.",
+  desktopNotificationsTitle: "Powiadomienia na komputerze",
+  desktopNotificationsNote:
+    "Ustawienie przeglądarki; powiadomienia w telefonie wymagają obsługi push na serwerze.",
+  invalidSetting: "Serwer odrzucił tę wartość ustawienia.",
+  invalidTimezone: "Nieznana strefa czasowa.",
 
   // account settings
   displayName: "Nazwa wyświetlana",

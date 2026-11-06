@@ -5,7 +5,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 export type ThemePreference = "system" | "light" | "dark";
 /** What a swipe on a thread row does (the list of slice 3), as in Gmail's swipe actions. */
 export type SwipeAction = "archive" | "trash" | "snooze" | "none";
-export type Density = "default" | "compact";
+/** Row density of the thread list; the server's `Settings.density` on 0.4.0 (comfortable only there). */
+export type Density = "default" | "comfortable" | "compact";
 /** Remote images of a message: behind "Pokaż obrazy" (ask) or loaded at once (always). */
 export type RemoteImages = "ask" | "always";
 
@@ -35,7 +36,7 @@ export const defaultUi: UiState = {
 };
 
 /**
- * Preferences of this device (not server settings, GET/PATCH /settings is not in API 0.3.0): kept
+ * Preferences of this device (API 0.3.0 has no GET/PATCH /settings): kept
  * in AsyncStorage. They only change how the app looks and which local gesture or confirmation
  * leads to which API call. Keys added later get their defaults from persist's shallow merge of the
  * stored state over the initial one, so they need no migration.

@@ -30,6 +30,7 @@ export const EVENT_TYPES = [
   "label.changed",
   "draft.updated",
   "operation.failed",
+  "settings.updated",
   "outbound.status",
   "account.status",
   "account.sync_progress",
@@ -135,6 +136,11 @@ export function applyEvent(
     }
     case "label.changed":
       if (accountId) void qc.invalidateQueries({ queryKey: keys.labels(accountId) });
+      return;
+    case "settings.updated":
+      // Another device or session changed the settings: GET /settings again (our own PATCH
+      // answer is already in the cache).
+      if (!own) void qc.invalidateQueries({ queryKey: keys.settings });
       return;
     case "operation.failed":
       handleOperationFailed(qc, {

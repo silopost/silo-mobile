@@ -27,4 +27,8 @@ export const keys = {
   searchSuggestAll: (accountId: string) => ["searchSuggest", accountId] as const,
   /** GET /snooze/presets (per user: the time zone is the user's). */
   snoozePresets: ["snoozePresets"] as const,
+  /** GET /settings (server 0.4.0; GET /session carries the same object). */
+  settings: ["settings"] as const,
+  /** GET /filters of an account (server 0.4.0). */
+  filters: (accountId: string) => ["filters", accountId] as const,
 };

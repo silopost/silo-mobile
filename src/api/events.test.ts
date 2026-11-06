@@ -158,6 +158,14 @@ describe("applyEvent", () => {
     expect(invalid(keys.labels("acc_1"))).toBe(true);
   });
 
+  it("settings.updated of another session refetches the settings, its own does not", () => {
+    qc.setQueryData(keys.settings, { density: "default" });
+    applyEvent(qc, "settings.updated", { updatedAt: "2026-11-06T10:00:00Z", origin: ME }, ME);
+    expect(invalid(keys.settings)).toBe(false);
+    applyEvent(qc, "settings.updated", { updatedAt: "2026-11-06T10:00:01Z", origin: "web" }, ME);
+    expect(invalid(keys.settings)).toBe(true);
+  });
+
   it("operation.failed restores the server state and explains it", () => {
     applyEvent(qc, "operation.failed", {
       accountId: "acc_1",
