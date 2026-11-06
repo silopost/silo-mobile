@@ -210,3 +210,28 @@ export function draft(over: Partial<Schemas["Draft"]>): Schemas["Draft"] {
     ...over,
   };
 }
+
+/** Filter f_1 of acc_1 (server 0.4.0): archive and label Praca for a sender unless overridden. */
+export function filter(over: Partial<Schemas["Filter"]>): Schemas["Filter"] {
+  return {
+    id: "f_1",
+    accountId: "acc_1",
+    name: "",
+    criteria: "from:sklep@example.com",
+    criteriaNormalized: "from:sklep@example.com",
+    enabled: true,
+    position: 0,
+    createdAt: "2026-11-01T10:00:00Z",
+    updatedAt: "2026-11-01T10:00:00Z",
+    actions: {
+      archive: true,
+      markRead: false,
+      star: false,
+      important: false,
+      trash: false,
+      addLabelIds: ["l_1"],
+      forwardTo: null,
+    },
+    ...over,
+  };
+}

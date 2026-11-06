@@ -23,6 +23,7 @@ import { SectionTitle, SettingsItem, SwitchItem } from "../features/settings/ite
 import { TextDialog } from "../features/settings/TextDialog";
 import { SettingsSnackbar } from "../features/settings/SettingsSnackbar";
 import { isInitialSync, progressPercent, SYNC_POLL_MS } from "../features/sync/useSync";
+import { useServerFeature } from "../lib/features";
 import { formatNumber } from "../lib/format";
 import { formatDateTime, t } from "../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../lib/theme";
@@ -84,6 +85,7 @@ export function AccountSettingsScreen() {
   const update = useUpdateAccount(id);
   const remove = useDeleteAccount();
   const resync = useAccountResync(id);
+  const filtersFeature = useServerFeature("filters");
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const close = () => {
     update.reset();
@@ -166,6 +168,18 @@ export function AccountSettingsScreen() {
           testID="account-name"
           onPress={() => setDialog("name")}
         />
+        {filtersFeature && (
+          <SettingsItem
+            title={t.filtersTitle}
+            description={t.filtersHint}
+            icon="filter-variant"
+            role="link"
+            testID="account-filters"
+            onPress={() =>
+              router.push({ pathname: "/settings/filters", params: { accountId: account.id } })
+            }
+          />
+        )}
         <Divider />
 
         <SectionTitle>{t.syncTitle}</SectionTitle>

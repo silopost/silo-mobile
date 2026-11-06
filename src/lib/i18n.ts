@@ -584,6 +584,7 @@ export const t = {
     labels: "Etykiety",
     from: "Od",
     to: "Do",
+    subject: "Temat",
     date: "Data",
     attachment: "Załącznik",
     unread: "Nieprzeczytane",
@@ -592,6 +593,8 @@ export const t = {
   chipFromTitle: "Od",
   chipToTitle: "Do",
   chipAddressHint: "Adres lub nazwa",
+  chipSubjectTitle: "Temat",
+  chipSubjectHint: "Słowa z tematu",
   chipApply: "Zastosuj",
   dateChipTitle: "Data",
   dateOptions: {

@@ -16,13 +16,14 @@ import {
 } from "../../lib/searchText";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
 
-type SheetKind = "labels" | "from" | "to" | "date";
+type SheetKind = "labels" | "from" | "to" | "subject" | "date";
 
 /** The prefixes of the text a sheet chip writes; a chip is active while the query has one. */
 const PREFIXES: Record<SheetKind, string[]> = {
   labels: ["label:"],
   from: ["from:"],
   to: ["to:"],
+  subject: ["subject:"],
   date: ["after:", "before:", "older_than:", "newer_than:"],
 };
 
@@ -49,6 +50,11 @@ type Props = {
   query: string;
   /** The query with the chip's text added or removed (the screen searches it). */
   onChange: (query: string) => void;
+  /**
+   * The chips of the filter editor: "Temat" is added, "Nieprzeczytane" and "Oznaczone gwiazdką"
+   * are left out (a filter sees new mail, plan 3.11).
+   */
+  variant?: "search" | "filter";
 };
 
 /**
@@ -57,7 +63,8 @@ type Props = {
  * a piece of the query text (label:, from:, to:, after:/before:/older_than:, has:attachment,
  * is:unread, is:starred); the server interprets it (plan 2.6, 3.12).
  */
-export function SearchChips({ accountId, query, onChange }: Props) {
+export function SearchChips({ accountId, query, onChange, variant = "search" }: Props) {
+  const toggles = variant === "filter" ? TOGGLES.filter((c) => c.key === "attachment") : TOGGLES;
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const close = () => setSheet(null);
   /** Replaces the sheet's parts of the query by `part` (none: just removes them). */
@@ -99,8 +106,9 @@ export function SearchChips({ accountId, query, onChange }: Props) {
         {sheetChip("labels")}
         {sheetChip("from")}
         {sheetChip("to")}
-        {sheetChip("date")}
-        {TOGGLES.map((c) => {
+        {variant === "filter" && sheetChip("subject")}
+        {variant === "search" && sheetChip("date")}
+        {toggles.map((c) => {
           const active = hasPart(query, c.part);
           return (
             <Chip
@@ -127,7 +135,7 @@ export function SearchChips({ accountId, query, onChange }: Props) {
           onPick={(part) => replace("labels", part)}
         />
       )}
-      {(sheet === "from" || sheet === "to") && (
+      {(sheet === "from" || sheet === "to" || sheet === "subject") && (
         <AddressChipSheet
           kind={sheet}
           active={hasPrefix(query, PREFIXES[sheet])}
@@ -203,7 +211,7 @@ function AddressChipSheet({
   active,
   onDismiss,
   onPick,
-}: SheetProps & { kind: "from" | "to" }) {
+}: SheetProps & { kind: "from" | "to" | "subject" }) {
   const theme = useAppTheme();
   const [value, setValue] = useState("");
   const apply = () => (value.trim() ? onPick(`${kind}:${quoteValue(value)}`) : onDismiss());
@@ -211,7 +219,7 @@ function AddressChipSheet({
     <BottomSheet
       visible
       onDismiss={onDismiss}
-      title={kind === "from" ? t.chipFromTitle : t.chipToTitle}
+      title={kind === "from" ? t.chipFromTitle : kind === "to" ? t.chipToTitle : t.chipSubjectTitle}
       testID={`search-${kind}-sheet`}
       footer={
         <View style={styles.footer}>
@@ -230,10 +238,10 @@ function AddressChipSheet({
         autoFocus
         autoCapitalize="none"
         autoCorrect={false}
-        keyboardType="email-address"
-        placeholder={t.chipAddressHint}
+        keyboardType={kind === "subject" ? "default" : "email-address"}
+        placeholder={kind === "subject" ? t.chipSubjectHint : t.chipAddressHint}
         placeholderTextColor={theme.colors.onSurfaceVariant}
-        accessibilityLabel={t.chipAddressHint}
+        accessibilityLabel={kind === "subject" ? t.chipSubjectHint : t.chipAddressHint}
         style={[styles.input, { color: theme.colors.onSurface, borderColor: theme.colors.outline }]}
       />
     </BottomSheet>
