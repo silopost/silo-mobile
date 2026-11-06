@@ -8,7 +8,9 @@ optimistic updates (plan 2.6). It signs in with an opaque bearer token (ADR 0007
 Android Keystore / iOS Keychain through `expo-secure-store`. The target look is the Gmail app for
 Android (Material 3).
 
-Status: slice 6 – the thread screen (message cards, HTML in a WebView, attachments, reply →
+Status: slice 9a – phase 4 of the server (search with suggestions and filter chips, snooze,
+scheduled send; needs silo-server ≥ 0.4.0, see "Faza 4" below). Slice 8: settings. Slice 7:
+compose. Slice 6: the thread screen (message cards, HTML in a WebView, attachments, reply →
 draft). Slice 5: server events (SSE over fetch with a polling fallback, AppState lifecycle,
 offline banner). Slice 4: thread actions with optimistic update and "Cofnij" (swipes, star,
 selection bar, "Etykiety" and "Przenieś do" sheets, creating labels). Slice 3: the Gmail thread list (rows,
@@ -42,7 +44,7 @@ Routes mirror silo-web's URLs (plan 6.2); `<n>` is `Account.position`.
 | label list            | `/u/<n>/<label>`: system slug (`inbox`, `starred`, …) or `l_<id>`           |
 | draft (Drafts view)   | `/compose?draftId=d_…`                                                      |
 | thread                | `/u/<n>/<label>/<threadId>`                                                 |
-| search                | `/u/<n>/search` (placeholder)                                               |
+| search                | `/u/<n>/search?q=`, a thread found: `/u/<n>/search/<threadId>?q=`           |
 | compose (full screen) | `/compose?accountId=…` (creates the draft) → `?draftId=d_…`                 |
 | settings              | `/settings` → `general`, `account/<id>`, `add-account`, `about`, `sessions` |
 
@@ -143,6 +145,51 @@ mutation `scope`). `handleOperationFailed` (snapshot from the in-memory `recentO
   primary, white or `#131314` list background, light-blue pill and FAB, Gmail red for the
   logotype); system colour scheme unless overridden in settings. Device preferences (theme, swipe
   actions, density) live in `src/state/ui.ts` (zustand + AsyncStorage).
+
+## Faza 4 – wymaga serwera ≥ 0.4.0
+
+Search with suggestions, snooze and scheduled send use API 0.4.0 (`silo.serverRef` = `v0.4.0`).
+`GET /meta` has no feature flags, so `src/lib/features.ts` (`hasServerFeature`,
+`useServerFeature`) compares `Meta.serverVersion` with 0.4.0 (MAJOR.MINOR.PATCH, a pre-release
+counts as its release, `dev`/empty = newest, unknown = oldest). Against a 0.3.0 server the search
+field searches the text only (no suggestions, history or chips) and snooze and "Zaplanuj wysyłkę"
+are not offered. The rule of plan 2.6 holds: the query is sent as `q` as typed and parsed by the
+server, suggestions and history are the server's, snooze presets come from the server, send times
+are only proposed; no local parser, no local wake or send timer.
+
+| Gmail app                    | silo-mobile                                                                                                                                                         | API                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| tap on "Szukaj w poczcie"    | `/u/<n>/search`: field in the top bar (autofocus, "x", back)                                                                                                        |                                                                                 |
+| – recent searches            | "Ostatnie wyszukiwania" with "x" and "Wyczyść wszystko"; tapping one searches it                                                                                    | `GET /search/suggest?q=` (empty q: 5 latest), `DELETE /search/history[?query=]` |
+| – suggestions while typing   | 150 ms debounce; icons by `kind` (clock, contact, label, code); tapping puts the server's `text` in the field                                                       | `GET /search/suggest?q=&accountId=`                                             |
+| – filter chips               | Etykiety, Od, Do, Data (sheets), Załącznik, Nieprzeczytane, Oznaczone gwiazdką (switches); each adds/removes text (`src/lib/searchText.ts`) and searches again      | –                                                                               |
+| – results                    | thread list of `{q}` with swipes and selection, "Około N wyników", notes for `approximate` and `indexing.done < 1`, 422 → "Nieprawidłowe zapytanie"                 | `GET /threads?q=`                                                               |
+| – a result                   | `/u/<n>/search/<id>?q=` (the thread screen in search mode: acts as in "Wszystkie", ↑/↓ page through the results)                                                    | `GET /threads/{id}`                                                             |
+| Odłóż (snooze)               | sheet "Odłóż do…" (`src/features/snooze/SnoozeSheet.tsx`): server presets in Polish by `key`, time in the zone answered; "Wybierz datę i godzinę" (date, then time) | `GET /snooze/presets`, `POST /threads/{id}/snooze {until}` per thread           |
+| – from                       | swipe (preference "Odłóż"), clock in the selection bar, thread menu                                                                                                 |                                                                                 |
+| – snackbar                   | "Odłożono do <czas> · Cofnij" until `undoUntil`; 422 `invalid_snooze`, 409 `not_in_inbox` explained                                                                 | `POST /operations/{id}/undo` (each thread)                                      |
+| Odłożone                     | rows show "Odłożono do <czas>"; "Anuluj odłożenie" in the selection bar and the thread menu (no undo, 409 `not_snoozed`); `thread.updated.snoozedUntil` followed    | `DELETE /threads/{id}/snooze`                                                   |
+| Zaplanuj wysyłkę (compose ⋮) | sheet: Jutro rano 8:00, Jutro po południu 13:00, Poniedziałek rano 8:00 (device clock, proposals), "Wybierz datę i godzinę"                                         | `POST /drafts/{id}/send {sendAt}`                                               |
+| – snackbar                   | "Zaplanowano na <czas> · Cofnij" (shown at most 10 s; the message stays cancellable)                                                                                | `POST /outbound/{id}/cancel`                                                    |
+| Zaplanowane                  | rows with the clock and "Zaplanowano: <czas>"; the thread says "Zaplanowano na <czas>" with "Anuluj wysyłkę" → the draft opens in compose (409 `send_in_progress`)  | `POST /outbound/{outboundId}/cancel`                                            |
+
+Decisions:
+
+- **Route of results:** search is its own stack (`app/(app)/u/[account]/search/`), so a thread
+  opened from the results returns to them and pages through them, instead of jumping to the
+  `all` label route.
+- **History for an empty `q`:** the server answers `GET /search/suggest?q=` with the five most
+  recent queries (silo-server `mailview.Suggest`), so no local history is kept.
+- **Picker:** `@react-native-community/datetimepicker` (`npx expo install`, in Expo Go), through
+  `DateTimePickerAndroid.open` (`src/lib/pickDateTime.ts`): the date dialog, then the time dialog,
+  as in Gmail. Android only for now (iOS needs the inline component).
+- **Snooze is per thread:** the contract has no batch snooze, so N selected threads are N
+  requests and one "Cofnij" undoes N operations (`runThreadAction` with "snooze"/"unsnooze").
+
+Deviations from the Gmail app: no row long-press menu exists in the app, so snooze is offered from
+the swipe, the selection bar and the thread menu; the send presets are computed on the device
+(Gmail's come from Google); the "Data" chip offers relative ranges and after/before a day instead of
+Gmail's date-range dialog; the "Od"/"Do" chips take typed text, without contact suggestions.
 
 ## Ustawienia (slice 8)
 
@@ -382,13 +429,18 @@ the CI checks: `npm run typecheck`, `npm run lint`, `npm test` and `npm run expo
 release the app is built against is declared in `package.json` as `"silo": {"serverRef": ...}`.
 
 ```sh
-npm run gen:api                          # fetch openapi.yaml of silo.serverRef from GitHub
+npm run gen:api                          # fetch openapi.yaml of silo.serverRef (v0.4.0) from GitHub
 npm run gen:api -- --server-ref v0.3.0   # another git ref
 npm run gen:api -- --local [path]        # a local file (default ../silo-server/api/openapi.yaml)
 ```
 
 The `api-contract` CI job checks out silo-server at `silo.serverRef`, regenerates the schema and
 fails when it differs from the committed one.
+
+The committed schema is contract 0.4.0: `../silo-server/api/openapi.yaml` at the tag `v0.4.0`
+(identical to the phase 4 worktree it was first generated from). The phase 4 features need a
+server ≥ 0.4.0; the `api-contract` job passes once the tag `v0.4.0` is published in the
+silo-server repository on GitHub.
 
 ## Tests
 
@@ -441,7 +493,8 @@ workers and finishes. Add `--forceExit` when running one file.
 
 - Push notifications: hook point for a later slice – register the device for the current bearer
   session with `POST /devices` (plan 5.1, phase 6) after sign-in, and unregister on sign-out.
-- Search, scheduled send (`sendAt`, phase 4), label management (colours, rename, delete): later
+- Label management (colours, rename, delete), filters and server settings (`/settings`,
+  `/filters`, phase 4 contract, gated as `settings`/`filters` in `src/lib/features.ts`): later
   slices.
 - Local notifications for `message.new` (hook point in `applyEvent`); system push is phase 6.
 

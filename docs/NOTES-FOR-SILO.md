@@ -128,6 +128,49 @@ Expo (SDK 58, new architecture, expo-router). Reasons:
   `GET /labels`; other devices learn of it only from `label.counts` refetches. A
   `label.created` event (plan 5.4) would refresh their drawers.
 
+## Phase 4 on mobile (slice 9a: search, snooze, scheduled send)
+
+Schema: contract 0.4.0 (`../silo-server/api/openapi.yaml` at the tag `v0.4.0`; `npm run gen:api`
+without arguments reads `silo.serverRef` = `v0.4.0`). Findings:
+
+- **No feature flags in `GET /meta`.** Plan 5.1 mentions capabilities of the instance, but `Meta`
+  has only versions and limits; a client that must also work with an older server decides by
+  `serverVersion` (mobile: `hasServerFeature` against 0.4.0, `dev` = newest). Proposal:
+  `Meta.features: ["search", "snooze", "schedule", "settings", "filters", ...]`.
+- **No batch snooze.** `POST/DELETE /threads/{id}/snooze` take one thread; snoozing a selection is
+  N requests, N operations and N undos, and a partial failure has to be stitched together by the
+  client. Proposal: `POST /threads/snooze {ids, until}` with one `OperationResult`, like
+  `/threads/modify`.
+- **`SnoozePreset.label` is English.** The clients translate by `key`
+  (`later_today|tomorrow|this_weekend|next_week`); the label could follow the user's language or
+  be dropped from the contract.
+- **`/search/suggest` with an empty `q`** answers the five most recent queries (`kind: history`,
+  documented in the operation description only); mobile shows them as "Ostatnie wyszukiwania" and
+  keeps no local history. The limit (5 of the 50 kept) is not a parameter.
+- **Time zone of the device vs `settings.timezone`.** Presets are computed in
+  `settings.timezone` (UTC when unset) and `SnoozePresets.timezone` says which; mobile shows the
+  preset times in that zone but rows, snackbars and the thread screen in the device's zone, and
+  the custom date and time pickers use the device's clock. With the two zones apart the user
+  sees two clocks; the session has no hint that they differ.
+- **No send presets.** Plan 3.9 lists Gmail's "Jutro rano 8:00 / Jutro po południu 13:00 /
+  Poniedziałek rano 8:00"; the contract has no endpoint for them (silo-web reuses the snooze
+  presets, which lack the afternoon one). Mobile computes them on the device as proposals. The
+  coordinator's proposal `GET /snooze/presets?scope=send` (or `/send/presets`) would put them on
+  the server in `settings.timezone`.
+- **`SendResult.undoUntil` of a scheduled send is the send time.** A snackbar shown until
+  `undoUntil` would stay for days; mobile shows "Zaplanowano na … · Cofnij" for at most 10 s
+  (the message stays cancellable from Zaplanowane). A separate `scheduledAt` in `SendResult`
+  would make the difference explicit.
+- **`thread.updated` carries `snoozedUntil` but not `scheduledAt`/`outboundId`.** A scheduled
+  send changed elsewhere reaches the list only through `outbound.status` and a refetch.
+- **`Indexing.done` is a fraction, not a flag**, and `ThreadList.approximate`/`indexing` are
+  optional: the clients show the notes only when present (`done < 1`).
+- **Error codes of phase 4** (`invalid_query`, `invalid_snooze`, `not_in_inbox`,
+  `not_snoozed`, `send_in_progress`) are again only in prose (see "Error codes are not
+  enumerated" above).
+- **`DELETE /threads/{id}/snooze` returns `SnoozeResult` with `operationId: null`.** Fine, but
+  the response type could be its own (no undo fields) so clients need not branch on nulls.
+
 ## Settings on mobile (slice 8)
 
 silo-web has no settings or account screens yet (no use of `/accounts/test`, `PATCH` or
@@ -177,7 +220,7 @@ Contract gaps and open questions found while porting compose:
 - **No undo for discarding a draft.** `DELETE /drafts/{id}` is final; the Gmail app offers
   "Cofnij" after "Odrzuć". Mobile asks for confirmation instead. Proposal: a soft delete with
   `undoUntil` (as thread operations have) or `POST /drafts/{id}/restore`.
-- **No scheduled send in 0.3.0.** `SendDraftBody.sendAt` exists in the schema but is phase 4; the
+- **No scheduled send in 0.3.0** (done in slice 9a with contract 0.4.0). `SendDraftBody.sendAt` exists in the schema but is phase 4; the
   app always sends `{}` and the Scheduled view is read-only.
 - **"Od" cannot change on an existing draft.** `Draft.accountId` is fixed at `POST /drafts` and
   `UpdateDraftBody` has no account; the Gmail app lets the sender change at any time. Mobile
