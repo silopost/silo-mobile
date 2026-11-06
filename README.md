@@ -558,7 +558,44 @@ Testy rozmawiają z API przez [msw](https://mswjs.io) (`setupServer` z `msw/node
   sterowany w jest (gesture-handler nie uruchamia natywnych panów); mapowanie preferencji na akcje
   (`swipeActionFor`) ma testy jednostkowe, gest i zwijanie FAB – do sprawdzenia na urządzeniu.
 
-Znane:
+### Smoke-test na żywym API
+
+`npm run smoke:api` (`scripts/smoke-api.mjs`, czysty `fetch` Node) sprawdza warstwę klienta na
+działającym serwerze bez urządzenia: sesja bearer jak w aplikacji, `X-Silo-Client:
+silo-mobile/<wersja>#smoke`, odczyty ekranu startowego, wątku, jego HTML (bez `<script`) i
+zdarzeń, a na serwerze ≥ 0.4.0 (lub `dev`) także wyszukiwania, presetów snooze, ustawień i filtrów.
+**Tylko odczyt** – jedyne zmiany to utworzenie i usunięcie własnej sesji. Parametry z env:
+`SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD`, `SILO_DEVICE` (nazwa sesji, domyślnie `smoke`). Wypisuje
+krok → status → ms i same liczności (bez treści poczty i haseł); kod wyjścia 1 przy błędzie.
+
+```sh
+SILO_URL=http://localhost:8090 SILO_EMAIL=dev3@silo.test SILO_PASSWORD=devpass3 npm run smoke:api
+```
+
+**Smoke-test na dev compose 2026-11-06** (silo-server `dev`, konto `dev3@silo.test`): wszystkie
+kroki OK.
+
+| Krok                                            | Status | ms   | Wynik                      |
+| ----------------------------------------------- | ------ | ---- | -------------------------- |
+| `GET /meta`                                     | 200    | 78   | `serverVersion` dev, API 1 |
+| `POST /session` (`client.kind: bearer`)         | 200    | 1014 | token bearer               |
+| `GET /session`                                  | 200    | 7    | 1 konto                    |
+| `GET /accounts`                                 | 200    | 4    | 1 konto                    |
+| `GET /labels?accountId=`                        | 200    | 46   | 11 etykiet                 |
+| `GET /threads?accountId=&labelId=INBOX&limit=5` | 200    | 15   | 5 wątków, ~5000 w widoku   |
+| `GET /threads/{id}`                             | 200    | 12   | 1 wiadomość                |
+| `GET /messages/{id}/html`                       | 200    | 8    | 146 znaków, bez `<script`  |
+| `GET /events/poll?after=0&limit=1`              | 200    | 9    | 1 zdarzenie                |
+| `GET /search/suggest?q=te&accountId=`           | 200    | 9    | 0 podpowiedzi              |
+| `GET /snooze/presets`                           | 200    | 3    | 3 presety, strefa UTC      |
+| `GET /settings`                                 | 200    | 3    | gęstość `default`          |
+| `GET /filters?accountId=`                       | 200    | 4    | 0 filtrów                  |
+| `DELETE /session`                               | 204    | 10   | sesja usunięta             |
+
+Czas `POST /session` obejmuje logowanie IMAP na serwerze poczty. Smoke-test nie sprawdza mutacji,
+SSE (`/events`) ani renderowania – to robią testy jednostkowe i ekranów.
+
+### Znane problemy testów
 
 - Pojedynczy plik uruchomiony w jednym procesie (`npx jest <plik>`) przechodzi, ale jest nie kończy
   się (otwarty uchwyt); dodaj `--forceExit`. `npm test` uruchamia pliki w workerach i kończy się.
