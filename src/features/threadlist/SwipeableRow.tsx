@@ -23,13 +23,16 @@ const DRAWER_EDGE = 32;
 const ACTIVE_X = 16;
 const FAIL_Y = 12;
 
-/** Background of a swipe as in the Gmail app: green archive, red delete. */
+/** Background of a swipe as in the Gmail app: green archive, red delete, blue snooze. */
 export function swipeLook(action: ThreadAction): { color: string; icon: string } {
   switch (action) {
     case "archive":
       return { color: "#188038", icon: "archive-outline" };
     case "trash":
       return { color: "#d93025", icon: "delete-outline" };
+    case "snooze":
+    case "unsnooze":
+      return { color: "#1a73e8", icon: "clock-outline" };
     default:
       return { color: "#5f6368", icon: "email-outline" };
   }

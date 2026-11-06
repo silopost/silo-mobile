@@ -16,6 +16,8 @@ import { MessageCard } from "../features/thread/MessageCard";
 import { useThreadActions, type ThreadAction } from "../features/threadlist/actions";
 import { primaryActions, type BarAction } from "../features/threadlist/SelectionBar";
 import { STAR_COLOR } from "../features/threadlist/ThreadRow";
+import { useServerFeature } from "../lib/features";
+import { formatWhen } from "../lib/format";
 import { t } from "../lib/i18n";
 import { INBOX_SLUG, resolveLabelSlug } from "../lib/labels";
 import { MIN_TOUCH, useAppTheme } from "../lib/theme";
@@ -44,6 +46,8 @@ const LEAVES: ThreadAction[] = [
   "deleteForever",
   "moveTo",
   "unread",
+  "snooze",
+  "unsnooze",
 ];
 
 /**
@@ -105,6 +109,7 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   const labels = useLabels(accountId);
   const { run } = useThreadActions();
   const [menu, setMenu] = useState(false);
+  const snoozeEnabled = useServerFeature("snooze");
 
   const resolved = resolveLabelSlug(label);
   // Search results are no view of a label: actions there act as in "Wszystkie".
@@ -208,6 +213,8 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   const starred = labelIds.includes("STARRED");
   const inTrash = labelIds.includes("TRASH");
   const inSpam = labelIds.includes("SPAM");
+  const snoozed = labelIds.includes("SNOOZED");
+  const canSnooze = snoozeEnabled && (snoozed || labelIds.includes("INBOX"));
   const chips = headerChips(labelIds, labels);
   const muted = theme.colors.onSurfaceVariant;
 
@@ -249,6 +256,10 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
         {detail &&
           (menu ? (
             <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
+              {canSnooze && <Menu.Item title={t.snooze} onPress={() => act("snooze")} />}
+              {snoozeEnabled && snoozed && (
+                <Menu.Item title={t.unsnooze} onPress={() => act("unsnooze")} />
+              )}
               <Menu.Item title={t.moveTo} onPress={() => act("moveTo")} />
               <Menu.Item title={t.labels} onPress={() => act("labels")} />
               <Menu.Item
@@ -330,6 +341,18 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
               </View>
             )}
           </View>
+
+          {detail.snoozedUntil && (
+            <View
+              testID="thread-snoozed"
+              style={[styles.note, { backgroundColor: theme.colors.surfaceContainerHigh }]}
+            >
+              <Icon source="clock-outline" size={20} color={muted} />
+              <Text variant="bodyMedium" style={[styles.grow, { color: theme.colors.onSurface }]}>
+                {t.snoozedUntil(formatWhen(detail.snoozedUntil))}
+              </Text>
+            </View>
+          )}
 
           {thread.isPlaceholderData && (
             <Text variant="bodyMedium" style={[styles.pad, { color: muted }]}>
@@ -434,6 +457,15 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
   chip: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: "hidden" },
   pad: { paddingHorizontal: 16, paddingVertical: 8 },
+  note: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+  },
   fold: {
     flexDirection: "row",
     alignItems: "center",

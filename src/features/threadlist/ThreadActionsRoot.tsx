@@ -12,6 +12,7 @@ import { useUi } from "../../state/ui";
 import { useActiveAccount } from "../account";
 import { LabelsSheet } from "../labels/LabelsSheet";
 import { MoveToSheet } from "../labels/MoveToSheet";
+import { SnoozeSheet } from "../snooze/SnoozeSheet";
 import {
   ThreadActionsProvider,
   type RunOptions,
@@ -22,7 +23,7 @@ import {
 /** An action waiting for the user: a confirmation or the choice in a sheet. */
 type Pending = {
   /** archive / trash: the confirmation of the device preference (confirmArchive, confirmTrash). */
-  kind: "deleteForever" | "labels" | "moveTo" | "archive" | "trash";
+  kind: "deleteForever" | "labels" | "moveTo" | "archive" | "trash" | "snooze";
   ids: string[];
   opts: RunOptions;
   /** Resolves the run() that opened it. */
@@ -50,6 +51,7 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
       add: opts.add,
       remove: opts.remove,
       target: opts.target,
+      until: opts.until,
       viewLabelId: opts.labelId,
       silent: opts.silent,
       onUndo: opts.onUndo,
@@ -81,6 +83,7 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
       if (action === "archive" && ui.confirmArchive) return ask(action, ids, opts);
       if (action === "labels" && !opts.add && !opts.remove) return ask(action, ids, opts);
       if (action === "moveTo" && !opts.target) return ask(action, ids, opts);
+      if (action === "snooze" && !opts.until) return ask(action, ids, opts);
       return execute(action, ids, opts);
     },
   };
@@ -118,6 +121,9 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
           currentLabelId={pending.opts.labelId}
           onSelect={(target) => finish({ target })}
         />
+      )}
+      {pending?.kind === "snooze" && (
+        <SnoozeSheet visible onDismiss={close} onSelect={(until) => finish({ until })} />
       )}
       {pending?.kind === "deleteForever" && (
         <Portal>

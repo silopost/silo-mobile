@@ -15,6 +15,7 @@ import { keys, type ListFilter } from "../../api/keys";
 import { useLabels } from "../../api/queries/labels";
 import { threadsQuery } from "../../api/queries/threads";
 import type { Thread } from "../../api/types";
+import { useServerFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { useSelection } from "../../state/selection";
@@ -61,6 +62,7 @@ export function ThreadList({
   const swipeRightAction = useUi((s) => s.swipeRightAction);
   const compact = useUi((s) => s.density) === "compact";
   const { run } = useThreadActions();
+  const snooze = useServerFeature("snooze");
   const [refreshing, setRefreshing] = useState(false);
   const lastY = useRef(0);
   const fabExtended = useRef(true);
@@ -72,8 +74,8 @@ export function ThreadList({
   );
   const selecting = selected.size > 0;
   const swipe = {
-    left: swipeActionFor("left", labelId, { swipeLeftAction, swipeRightAction }),
-    right: swipeActionFor("right", labelId, { swipeLeftAction, swipeRightAction }),
+    left: swipeActionFor("left", labelId, { swipeLeftAction, swipeRightAction }, snooze),
+    right: swipeActionFor("right", labelId, { swipeLeftAction, swipeRightAction }, snooze),
   };
 
   const onOpen = useCallback(

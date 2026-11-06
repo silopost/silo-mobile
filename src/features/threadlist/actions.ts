@@ -14,6 +14,8 @@ export type RunOptions = {
   remove?: string[];
   /** For "moveTo": the place chosen in the Przenieś do sheet. */
   target?: string;
+  /** For "snooze": the wake time chosen in the Odłóż do sheet. */
+  until?: string;
   /** No snackbar (marking read on opening a thread). */
   silent?: boolean;
   /** Called on "Cofnij", e.g. to reopen the thread the action was taken in. */
@@ -60,8 +62,11 @@ export function swipeActionFor(
   side: SwipeSide,
   labelId: string | undefined,
   ui: { swipeLeftAction: SwipeAction; swipeRightAction: SwipeAction },
+  snooze = true,
 ): ThreadAction | null {
   if (labelId && NO_SWIPE.has(labelId)) return null;
   const pref = side === "left" ? ui.swipeLeftAction : ui.swipeRightAction;
+  // Snoozing needs server 0.4.0; snoozed threads are unsnoozed by the same swipe.
+  if (pref === "snooze") return !snooze ? null : labelId === "SNOOZED" ? "unsnooze" : "snooze";
   return pref === "none" ? null : pref;
 }

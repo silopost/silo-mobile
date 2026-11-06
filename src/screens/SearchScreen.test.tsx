@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import type { components } from "../api/schema";
 import { labels, sessionBody, thread, threadPage } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
-import { API, server, setupMsw } from "../test/server";
+import { API, server, serveMeta, setupMsw } from "../test/server";
 import { resetAuth } from "../test/utils";
 
 type Suggestion = components["schemas"]["SearchSuggestion"];
@@ -18,21 +18,6 @@ const history: Suggestion[] = [
   { kind: "history", text: "faktura", label: "faktura" },
   { kind: "history", text: "from:jan", label: "from:jan" },
 ];
-
-function serveMeta(serverVersion: string) {
-  server.use(
-    http.get(`${API}/meta`, () =>
-      HttpResponse.json({
-        serverVersion,
-        apiVersion: "v1",
-        authMode: "imap",
-        allowCustomServers: true,
-        maxAttachmentBytes: 1,
-        minWebVersion: "0.3.0",
-      }),
-    ),
-  );
-}
 
 beforeEach(() => {
   resetAuth();

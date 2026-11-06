@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { Divider, Icon, Text } from "react-native-paper";
 import { ChoiceDialog, SectionTitle, SettingsItem, SwitchItem } from "../features/settings/items";
 import { swipeLook } from "../features/threadlist/SwipeableRow";
+import { useServerFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { useAppTheme } from "../lib/theme";
 import {
@@ -24,7 +25,7 @@ type DialogKind = "theme" | "density" | "swipeRight" | "swipeLeft" | "images";
 
 const themes: ThemePreference[] = ["system", "light", "dark"];
 const densities: Density[] = ["default", "compact"];
-const swipeActions: SwipeAction[] = ["archive", "trash", "none"];
+const swipeActions: SwipeAction[] = ["archive", "trash", "snooze", "none"];
 const imageModes: RemoteImages[] = ["ask", "always"];
 
 /** The coloured circle of a swipe action: what the row reveals (Gmail's swipe settings). */
@@ -63,11 +64,15 @@ export function GeneralSettingsScreen() {
       close();
     };
 
-  const swipeChoices = swipeActions.map((value) => ({
-    value,
-    label: t.swipeActions[value],
-    left: <SwipePreview action={value} />,
-  }));
+  // Odłóż needs server 0.4.0 (snooze).
+  const snooze = useServerFeature("snooze");
+  const swipeChoices = swipeActions
+    .filter((value) => value !== "snooze" || snooze)
+    .map((value) => ({
+      value,
+      label: t.swipeActions[value],
+      left: <SwipePreview action={value} />,
+    }));
 
   return (
     <>

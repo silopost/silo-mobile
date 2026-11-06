@@ -4,6 +4,7 @@ import { BackHandler, StyleSheet, View } from "react-native";
 import { IconButton, Menu, Text } from "react-native-paper";
 import { keys, type ListFilter } from "../../api/keys";
 import type { ThreadPage } from "../../api/types";
+import { useServerFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
 import { useSelection } from "../../state/selection";
@@ -37,6 +38,21 @@ export function primaryActions(labelId: string | undefined): BarAction[] {
   ];
 }
 
+/** Views whose threads cannot be snoozed (not in the Inbox, or not threads of mail). */
+const NO_SNOOZE = new Set(["TRASH", "SPAM", "DRAFT", "SCHEDULED", "SENT"]);
+
+/**
+ * The clock of the bar (server 0.4.0): "Odłóż" where threads can be snoozed, plus "Anuluj
+ * odłożenie" in Odłożone.
+ */
+export function snoozeActions(labelId: string | undefined, enabled: boolean): BarAction[] {
+  if (!enabled || (labelId && NO_SNOOZE.has(labelId))) return [];
+  const snooze: BarAction = { action: "snooze", icon: "clock-outline", label: t.snooze };
+  return labelId === "SNOOZED"
+    ? [{ action: "unsnooze", icon: "clock-remove-outline", label: t.unsnooze }, snooze]
+    : [snooze];
+}
+
 /**
  * The contextual bar of multi-select, in place of the search bar as in the Gmail app: close and
  * the count on the left, archive, delete and read/unread on the right, more in the ⋮ menu. The
@@ -48,6 +64,7 @@ export function SelectionBar({ accountId, filter }: Props) {
   const ids = useSelection((s) => s.ids);
   const { run } = useThreadActions();
   const [menu, setMenu] = useState(false);
+  const snooze = useServerFeature("snooze");
   const labelId = filter.labelId;
 
   useEffect(() => {
@@ -89,6 +106,7 @@ export function SelectionBar({ accountId, filter }: Props) {
     anyUnread
       ? { action: "read", icon: "email-open-outline", label: t.markRead }
       : { action: "unread", icon: "email-outline", label: t.markUnread },
+    ...snoozeActions(labelId, snooze),
   ];
 
   return (

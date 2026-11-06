@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 export type ThemePreference = "system" | "light" | "dark";
 /** What a swipe on a thread row does (the list of slice 3), as in Gmail's swipe actions. */
-export type SwipeAction = "archive" | "trash" | "none";
+export type SwipeAction = "archive" | "trash" | "snooze" | "none";
 export type Density = "default" | "compact";
 /** Remote images of a message: behind "Pokaż obrazy" (ask) or loaded at once (always). */
 export type RemoteImages = "ask" | "always";

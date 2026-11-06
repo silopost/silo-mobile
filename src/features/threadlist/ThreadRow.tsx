@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Icon, IconButton, Text } from "react-native-paper";
 import type { Label, Thread } from "../../api/types";
 import { Avatar } from "../../components/Avatar";
-import { avatarAddress, formatListDate, participantNames } from "../../lib/format";
+import { avatarAddress, formatListDate, formatWhen, participantNames } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { PendingIcon } from "../sync/PendingIcon";
@@ -34,6 +34,22 @@ type Props = {
 export const isUnread = (th: Thread) =>
   th.unreadCount > 0 || (th.labelIds ?? []).includes("UNREAD");
 
+/** Gmail's colour of a snooze or send time in a row. */
+const WHEN_COLOR = "#e37400";
+
+/**
+ * "Odłożono do <czas>" of a snoozed thread, "Zaplanowano: <czas>" of a scheduled message, else
+ * undefined (the row shows its date). Times as the server keeps them, in the device time zone.
+ */
+export function rowWhen(th: Thread): string | undefined {
+  const labelIds = th.labelIds ?? [];
+  if (th.snoozedUntil && labelIds.includes("SNOOZED"))
+    return t.snoozedUntil(formatWhen(th.snoozedUntil));
+  if (th.scheduledAt && labelIds.includes("SCHEDULED"))
+    return t.scheduledAt(formatWhen(th.scheduledAt));
+  return undefined;
+}
+
 /** Spoken label of a row: state, senders, subject, date and markers, as in silo-web. */
 export function rowLabel(th: Thread, names: string, date: string): string {
   const labelIds = th.labelIds ?? [];
@@ -58,7 +74,9 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
   const names = participantNames(th.participants ?? [])
     .map((n) => n.name)
     .join(", ");
-  const date = formatListDate(th.lastMessageAt);
+  // Odłożone and Zaplanowane show when the thread comes back or leaves instead of its date.
+  const special = rowWhen(th);
+  const date = special ?? formatListDate(th.lastMessageAt);
   const chips = labelIds
     .filter((id) => id !== p.viewLabelId)
     .map((id) => p.labels.find((l) => l.id === id))
@@ -134,7 +152,12 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
           </Text>
           <PendingIcon pending={th.pendingSync} />
           {th.hasAttachments && <Icon source="paperclip" size={16} color={muted} />}
-          <Text variant="labelMedium" style={[strong, { color: unread ? ink : muted }]}>
+          <Text
+            testID={`thread-date-${th.id}`}
+            variant="labelMedium"
+            numberOfLines={1}
+            style={[strong, { color: special ? WHEN_COLOR : unread ? ink : muted }]}
+          >
             {date}
           </Text>
         </View>
