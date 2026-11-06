@@ -119,6 +119,9 @@ export function ThreadScreen() {
             subject: row.subject,
             labelIds: row.labelIds,
             messages: null,
+            outboundId: row.outboundId,
+            scheduledAt: row.scheduledAt,
+            snoozedUntil: row.snoozedUntil,
           } satisfies ThreadDetail)
         : undefined;
     },

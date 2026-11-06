@@ -13,7 +13,15 @@ describe("AttachmentList", () => {
     await renderScreen(
       <AttachmentList
         attachments={[
-          { id: "up_1", filename: "a.pdf", contentType: "application/pdf", size: 2048 },
+          {
+            id: "up_1",
+            filename: "a.pdf",
+            contentType: "application/pdf",
+            size: 2048,
+            cid: null,
+            inline: false,
+            thumbnail: false,
+          },
         ]}
         uploads={[
           { key: 7, name: "b.png", size: 10, progress: 0.4 },

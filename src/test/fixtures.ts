@@ -33,6 +33,8 @@ export const sessionBody: Schemas["SessionBody"] = {
     keyboardShortcutsEnabled: true,
     conversationView: true,
     activeAccountId: null,
+    desktopNotifications: false,
+    updatedAt: null,
   },
   accounts: [account],
 };
@@ -79,8 +81,10 @@ export function thread(over: Partial<Schemas["Thread"]>): Schemas["Thread"] {
     labelIds: ["INBOX"],
     lastMessageAt: "2025-11-04T08:00:00Z",
     messageCount: 1,
+    outboundId: null,
     participants: [{ email: "jan@example.com", name: "Jan Kowalski", unread: false }],
     pendingSync: false,
+    scheduledAt: null,
     snippet: "Przesyłam ofertę",
     snoozedUntil: null,
     subject: "Oferta na Q4",
@@ -160,6 +164,9 @@ export function threadDetail(
     labelIds: ["INBOX"],
     subject: "Oferta na Q4",
     messages,
+    outboundId: null,
+    scheduledAt: null,
+    snoozedUntil: null,
     ...over,
   };
 }
@@ -175,6 +182,7 @@ export function attachment(
     id: "a_1",
     inline: false,
     size: 18 * 1024,
+    thumbnail: false,
     ...over,
   };
 }

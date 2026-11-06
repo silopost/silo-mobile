@@ -74,6 +74,7 @@ describe("fetchInlineImages", () => {
         inline: true,
         filename: "x.png",
         downloaded: true,
+        thumbnail: false,
       },
     ]);
 
@@ -98,6 +99,7 @@ describe("fetchInlineImages", () => {
         inline: true,
         filename: "big.png",
         downloaded: true,
+        thumbnail: false,
       },
     ]);
     expect(out).toEqual({});
