@@ -80,6 +80,8 @@ export function applyEvent(
       const last = str(data.lastMessageAt);
       if (last) patch.lastMessageAt = last;
       if (typeof data.snippet === "string") patch.snippet = data.snippet;
+      // Server 0.4.0: the wake time of a snoozed thread (null once it is awake or unsnoozed).
+      if ("snoozedUntil" in data) patch.snoozedUntil = str(data.snoozedUntil) ?? null;
       let seen = false;
       let moved = false;
       updateLists(qc, accountId, (row) => {
@@ -88,7 +90,15 @@ export function applyEvent(
         moved ||= patch.lastMessageAt !== undefined && patch.lastMessageAt !== row.lastMessageAt;
         return { ...row, ...patch };
       });
-      qc.setQueryData<ThreadDetail>(keys.thread(id), (d) => (d ? { ...d, labelIds } : d));
+      qc.setQueryData<ThreadDetail>(keys.thread(id), (d) =>
+        d
+          ? {
+              ...d,
+              labelIds,
+              ...(patch.snoozedUntil !== undefined ? { snoozedUntil: patch.snoozedUntil } : {}),
+            }
+          : d,
+      );
       // A thread new to a list (or moved within it) needs the server's row and order.
       if (!seen || moved) void qc.invalidateQueries({ queryKey: keys.threadsAll(accountId) });
       if (patch.messageCount !== undefined)

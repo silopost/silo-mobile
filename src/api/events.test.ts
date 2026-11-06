@@ -57,6 +57,43 @@ describe("applyEvent", () => {
     expect(invalid(keys.threads("acc_1", {}))).toBe(false);
   });
 
+  it("thread.updated carries the wake time of a snoozed thread and clears it", () => {
+    qc.setQueryData(
+      keys.threads("acc_1", { labelId: "SNOOZED" }),
+      lists([thread({ id: "t_5", labelIds: ["SNOOZED"], snoozedUntil: "2026-11-07T07:00:00Z" })]),
+    );
+    qc.setQueryData(keys.thread("t_5"), { id: "t_5", labelIds: ["SNOOZED"] } as ThreadDetail);
+    applyEvent(qc, "thread.updated", {
+      accountId: "acc_1",
+      threadId: "t_5",
+      labelIds: ["SNOOZED"],
+      snoozedUntil: "2026-11-09T07:00:00Z",
+    });
+    expect(rows({ labelId: "SNOOZED" })[0]!.snoozedUntil).toBe("2026-11-09T07:00:00Z");
+    expect(qc.getQueryData<ThreadDetail>(keys.thread("t_5"))!.snoozedUntil).toBe(
+      "2026-11-09T07:00:00Z",
+    );
+
+    // Woken up: back in the Inbox, no wake time; the row leaves Odłożone.
+    applyEvent(qc, "thread.updated", {
+      accountId: "acc_1",
+      threadId: "t_5",
+      labelIds: ["INBOX", "UNREAD"],
+      snoozedUntil: null,
+    });
+    expect(rows({ labelId: "SNOOZED" })).toEqual([]);
+    expect(qc.getQueryData<ThreadDetail>(keys.thread("t_5"))!.snoozedUntil).toBeNull();
+  });
+
+  it("thread.updated without snoozedUntil (server 0.3.0) leaves it as it is", () => {
+    qc.setQueryData(
+      keys.threads("acc_1", {}),
+      lists([thread({ snoozedUntil: "2026-11-07T07:00:00Z" })]),
+    );
+    applyEvent(qc, "thread.updated", { accountId: "acc_1", threadId: "t_1", labelIds: ["INBOX"] });
+    expect(rows()[0]!.snoozedUntil).toBe("2026-11-07T07:00:00Z");
+  });
+
   it("thread.updated drops a row that left the list and refetches for new ones", () => {
     applyEvent(qc, "thread.updated", { accountId: "acc_1", threadId: "t_1", labelIds: [] });
     expect(rows({ labelId: "INBOX" })).toEqual([]);
