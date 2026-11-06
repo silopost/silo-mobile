@@ -60,7 +60,10 @@ function AccountErrorBanner() {
         background={theme.colors.errorContainer}
         color={theme.colors.onErrorContainer}
         // Updating the password (PATCH /accounts/{id}) is in the account settings.
-        action={{ label: t.updatePassword, onPress: () => router.push("/settings") }}
+        action={{
+          label: t.updatePassword,
+          onPress: () => router.push(account ? `/settings/account/${account.id}` : "/settings"),
+        }}
       />
     );
   }

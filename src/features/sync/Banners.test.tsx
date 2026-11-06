@@ -57,7 +57,7 @@ describe("sync banners", () => {
     expect(await screen.findByText("Hasło do skrzynki przestało działać")).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText("Zaktualizuj hasło"));
-    await waitFor(() => expect(app.getPathname()).toBe("/settings"));
+    await waitFor(() => expect(app.getPathname()).toBe("/settings/account/acc_1"));
   });
 
   it("names the offline mail server, the pending changes and retries", async () => {
