@@ -93,3 +93,39 @@ export function avatarAddress(
   }
   return me ?? { email: "?", name: "?" };
 }
+
+/** Intl formatter in a time zone, or in the device's when the zone is unknown to the runtime. */
+function zoned(options: Intl.DateTimeFormatOptions, locale: string, timeZone?: string) {
+  try {
+    return new Intl.DateTimeFormat(locale, { ...options, timeZone });
+  } catch {
+    return new Intl.DateTimeFormat(locale, options);
+  }
+}
+
+/**
+ * When a snoozed thread comes back or a scheduled message leaves, as Gmail writes it: "dziś,
+ * 18:00", "jutro, 08:00", "pon., 10 lis, 08:00" (with the year when it is not this one). In
+ * `timeZone` (the zone of GET /snooze/presets), else in the device's. Display only: the server
+ * keeps the time.
+ */
+export function formatWhen(iso: string, opts: { now?: Date; timeZone?: string } = {}): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const now = opts.now ?? new Date();
+  const tz = opts.timeZone;
+  const day = zoned({ year: "numeric", month: "2-digit", day: "2-digit" }, "en-CA", tz);
+  const time = zoned({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, "pl-PL", tz).format(
+    d,
+  );
+  const key = day.format(d);
+  if (key === day.format(now)) return `${t.today}, ${time}`;
+  if (key === day.format(new Date(now.getTime() + 86_400_000))) return `${t.tomorrow}, ${time}`;
+  const sameYear = key.slice(0, 4) === day.format(now).slice(0, 4);
+  const date = zoned(
+    { weekday: "short", day: "numeric", month: "short", year: sameYear ? undefined : "numeric" },
+    "pl-PL",
+    tz,
+  ).format(d);
+  return `${date}, ${time}`;
+}

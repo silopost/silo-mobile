@@ -21,4 +21,10 @@ export const keys = {
   draft: (id: string) => ["draft", id] as const,
   /** Address suggestions for the text typed in a recipient field. */
   contacts: (q: string) => ["contacts", q] as const,
+  /** GET /search/suggest of an account for the text typed so far. */
+  searchSuggest: (accountId: string, q: string) => ["searchSuggest", accountId, q] as const,
+  /** Prefix of every suggestion list of an account (after deleting history). */
+  searchSuggestAll: (accountId: string) => ["searchSuggest", accountId] as const,
+  /** GET /snooze/presets (per user: the time zone is the user's). */
+  snoozePresets: ["snoozePresets"] as const,
 };

@@ -203,6 +203,12 @@ export const t = {
       n === 1
         ? "Wątek usunięty trwale"
         : `${n3(n, "wątek usunięty", "wątki usunięte", "wątków usuniętych")} trwale`,
+    snooze: (n: number, when: string) =>
+      n === 1 ? `Odłożono do ${when}` : `Odłożono ${n3(n, "wątek", "wątki", "wątków")} do ${when}`,
+    unsnooze: (n: number) =>
+      n === 1
+        ? "Wątek wrócił do Odebranych"
+        : `${n3(n, "wątek wrócił", "wątki wróciły", "wątków wróciło")} do Odebranych`,
   },
   undoExpired: "Tej operacji nie można już cofnąć.",
 
@@ -348,7 +354,7 @@ export const t = {
   swipeTitle: "Działania przy przesuwaniu",
   swipeRight: "Przesunięcie w prawo",
   swipeLeft: "Przesunięcie w lewo",
-  swipeActions: { archive: "Archiwizuj", trash: "Usuń", none: "Brak" },
+  swipeActions: { archive: "Archiwizuj", trash: "Usuń", snooze: "Odłóż", none: "Brak" },
   swipeHint: "Wybierz, co ma się dziać po przesunięciu wiadomości na liście",
   confirmTitle: "Potwierdzanie działań",
   confirmBeforeTrash: "Potwierdzaj przed usunięciem",
@@ -487,4 +493,79 @@ export const t = {
   signOutEverywhereTitle: "Wylogować wszystkie urządzenia?",
   signOutEverywhereBody:
     "Wszystkie przeglądarki i urządzenia, łącznie z tym, stracą dostęp do poczty do czasu ponownego logowania.",
+
+  // search (phase 4; the query is parsed by the server, plan 3.12)
+  searchBack: "Wróć",
+  clearSearch: "Wyczyść",
+  searchSubmit: "Szukaj",
+  recentSearches: "Ostatnie wyszukiwania",
+  clearAllHistory: "Wyczyść wszystko",
+  removeFromHistory: (q: string) => `Usuń z historii: ${q}`,
+  suggestionKinds: {
+    history: "Ostatnie wyszukiwanie",
+    contact: "Kontakt",
+    label: "Etykieta",
+    operator: "Operator",
+  } as Record<string, string>,
+  searchFilters: "Filtry wyszukiwania",
+  searchChips: {
+    labels: "Etykiety",
+    from: "Od",
+    to: "Do",
+    date: "Data",
+    attachment: "Załącznik",
+    unread: "Nieprzeczytane",
+    starred: "Oznaczone gwiazdką",
+  },
+  chipFromTitle: "Od",
+  chipToTitle: "Do",
+  chipAddressHint: "Adres lub nazwa",
+  chipApply: "Zastosuj",
+  dateChipTitle: "Data",
+  dateOptions: {
+    older_than_1w: "Starsze niż tydzień",
+    older_than_1m: "Starsze niż miesiąc",
+    older_than_6m: "Starsze niż 6 miesięcy",
+    older_than_1y: "Starsze niż rok",
+    newer_than_7d: "Z ostatnich 7 dni",
+    newer_than_30d: "Z ostatnich 30 dni",
+  } as Record<string, string>,
+  dateAfter: "Po dniu…",
+  dateBefore: "Przed dniem…",
+  resultCount: (n: number) =>
+    n === 0 ? "Brak wyników" : `Około ${n3(n, "wynik", "wyniki", "wyników")}`,
+  emptySearch: "Brak wyników wyszukiwania",
+  approximate: "Wyniki przybliżone – wyszukiwanie trwało za długo",
+  indexing: (pct: number) => `Indeksowanie w toku (${pct}%) – wyniki mogą być niepełne`,
+  invalidQuery: "Nieprawidłowe zapytanie",
+
+  // snooze (plan 3.10)
+  today: "dziś",
+  tomorrow: "jutro",
+  snooze: "Odłóż",
+  snoozeTitle: "Odłóż do…",
+  snoozePresets: {
+    later_today: "Dziś później",
+    tomorrow: "Jutro",
+    this_weekend: "W ten weekend",
+    next_week: "W przyszłym tygodniu",
+  } as Record<string, string>,
+  pickDateTime: "Wybierz datę i godzinę",
+  unsnooze: "Anuluj odłożenie",
+  snoozedUntil: (when: string) => `Odłożono do ${when}`,
+  snoozeNotInInbox: "Odłożyć można tylko wątki z Odebranych.",
+  snoozeInvalid: "Wybierz termin od 30 sekund do roku od teraz.",
+  notSnoozed: "Ten wątek nie jest już odłożony.",
+
+  // scheduled send (plan 3.9)
+  scheduleSend: "Zaplanuj wysyłkę",
+  schedulePresets: {
+    tomorrowMorning: "Jutro rano",
+    tomorrowAfternoon: "Jutro po południu",
+    mondayMorning: "Poniedziałek rano",
+  },
+  scheduledFor: (when: string) => `Zaplanowano na ${when}`,
+  scheduledAt: (when: string) => `Zaplanowano: ${when}`,
+  cancelSend: "Anuluj wysyłkę",
+  sendCancelled: "Wysyłka anulowana – wiadomość wróciła do wersji roboczych",
 };

@@ -1,4 +1,4 @@
-import { avatarAddress, formatListDate, participantNames } from "./format";
+import { avatarAddress, formatListDate, formatWhen, participantNames } from "./format";
 
 const p = (email: string, name = "", unread = false) => ({ email, name, unread });
 
@@ -61,5 +61,32 @@ describe("avatarAddress", () => {
 
   it("falls back to the user's account", () => {
     expect(avatarAddress([p("me")], me)).toBe(me);
+  });
+});
+
+describe("formatWhen", () => {
+  const now = new Date("2026-11-06T10:00:00Z");
+
+  it("says today and tomorrow in the given time zone", () => {
+    expect(formatWhen("2026-11-06T17:00:00Z", { now, timeZone: "Europe/Warsaw" })).toBe(
+      "dziś, 18:00",
+    );
+    expect(formatWhen("2026-11-07T07:00:00Z", { now, timeZone: "Europe/Warsaw" })).toBe(
+      "jutro, 08:00",
+    );
+  });
+
+  it("names the weekday and date further ahead, with the year in another year", () => {
+    expect(formatWhen("2026-11-09T07:00:00Z", { now, timeZone: "Europe/Warsaw" })).toMatch(
+      /^pon\.?, 9 lis\.?, 08:00$/,
+    );
+    expect(formatWhen("2027-01-04T07:00:00Z", { now, timeZone: "Europe/Warsaw" })).toMatch(
+      /2027.*08:00$/,
+    );
+  });
+
+  it("falls back to the raw value or the device zone", () => {
+    expect(formatWhen("x")).toBe("x");
+    expect(formatWhen("2026-11-07T07:00:00Z", { now, timeZone: "Nie/Strefa" })).toMatch(/^jutro, /);
   });
 });

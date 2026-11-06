@@ -1,14 +1,16 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { formatWhen } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { hideToast, show, toast } from "../../state/toasts";
 import { api } from "../client";
 import { call, isApiError } from "../errors";
 import { keys } from "../keys";
-import type { OperationResult } from "../types";
+import type { OperationResult, SnoozeResult, Thread } from "../types";
 import {
   applyOptimistic,
   locationLabelIds,
   mergeServerThreads,
+  patchSnoozedUntil,
   removeFromLists,
   restoreSnapshot,
   takeSnapshot,
@@ -30,14 +32,19 @@ export type ThreadAction =
   | "unstar"
   | "labels"
   | "moveTo"
-  | "deleteForever";
+  | "deleteForever"
+  | "snooze"
+  | "unsnooze";
 
 /** Targets of "Przenieś do" that are not a label id: archive (leave the Inbox). */
 export const ARCHIVE = "ARCHIVE";
 
 export type Spec = {
-  /** Endpoint: modify with add/remove, or one of the batch endpoints. */
-  endpoint: "modify" | "trash" | "untrash" | "delete";
+  /**
+   * Endpoint: modify with add/remove, one of the batch endpoints, or the per-thread snooze
+   * endpoints (POST / DELETE /threads/{id}/snooze, one request per thread: there is no batch).
+   */
+  endpoint: "modify" | "trash" | "untrash" | "delete" | "snooze" | "unsnooze";
   /** Label changes sent to modify. */
   add: string[];
   remove: string[];
@@ -48,6 +55,10 @@ export type Spec = {
   leave?: string[];
   /** Snackbar text with "Cofnij"; silent actions (star) have none. */
   message?: (n: number) => string;
+  /** Snooze: the wake time sent (and shown in the row at once); unsnooze: null. */
+  snoozedUntil?: string | null;
+  /** Snackbar text of a refused request by its code; "Nie udało się" otherwise. */
+  error?: (err: unknown) => string;
 };
 
 export type ThreadActionInput = {
@@ -59,6 +70,8 @@ export type ThreadActionInput = {
   remove?: string[];
   /** For "moveTo": INBOX, SPAM, TRASH, ARCHIVE, a folder or a user label. */
   target?: string;
+  /** For "snooze": the wake time (a preset's `until` or the picked date), RFC 3339. */
+  until?: string;
   /** Label of the view the action was taken in: archive there leaves that label too. */
   viewLabelId?: string;
   /** No snackbar (e.g. marking read on open). */
@@ -138,6 +151,43 @@ export function specFor(qc: QueryClient, input: ThreadActionInput): Spec {
       return { endpoint: "delete", add: [], remove: [], message: t.done.deleted };
     case "moveTo":
       return moveToSpec(qc, input);
+    case "snooze": {
+      const until = input.until;
+      if (!until) throw new Error("snooze needs a time");
+      // The thread leaves the Inbox for Odłożone (plan 3.10); the server moves it.
+      return {
+        endpoint: "snooze",
+        add: ["SNOOZED"],
+        remove: ["INBOX"],
+        snoozedUntil: until,
+        message: (n) => t.done.snooze(n, formatWhen(until)),
+        error: snoozeError,
+      };
+    }
+    case "unsnooze":
+      return {
+        endpoint: "unsnooze",
+        add: ["INBOX"],
+        remove: ["SNOOZED"],
+        snoozedUntil: null,
+        message: t.done.unsnooze,
+        error: snoozeError,
+      };
+  }
+}
+
+/** Text of a refused snooze or unsnooze: 422 invalid_snooze, 409 not_in_inbox / not_snoozed. */
+export function snoozeError(err: unknown): string {
+  if (!isApiError(err)) return t.genericError;
+  switch (err.code) {
+    case "not_in_inbox":
+      return t.snoozeNotInInbox;
+    case "invalid_snooze":
+      return t.snoozeInvalid;
+    case "not_snoozed":
+      return t.notSnoozed;
+    default:
+      return t.genericError;
   }
 }
 
@@ -171,19 +221,72 @@ function scopeOf(ids: string[]): string {
   return ids.length === 1 ? `thread:${ids[0]}` : `threads:${[...ids].sort().join(",")}`;
 }
 
-function request(spec: Spec, ids: string[]): Promise<OperationResult> {
+/**
+ * What a request answered, the same for the batch endpoints (one operation) and the per-thread
+ * snooze endpoints (one operation per thread).
+ */
+type Outcome = {
+  threads: Thread[];
+  /** Operations to undo with "Cofnij" (none for delete forever and unsnooze). */
+  operationIds: string[];
+  /** The earliest end of their undo windows. */
+  undoUntil: string | null;
+  /** Some threads of a per-thread request were refused: the first error. */
+  partialError?: unknown;
+};
+
+const fromOperation = (res: OperationResult): Outcome => ({
+  threads: res.threads ?? [],
+  operationIds: res.operationId ? [res.operationId] : [],
+  undoUntil: res.undoUntil ?? null,
+});
+
+/**
+ * One request per thread (snooze has no batch endpoint): the answers of those that succeeded;
+ * rejected only when every thread was refused.
+ */
+async function perThread(
+  ids: string[],
+  one: (id: string) => Promise<SnoozeResult>,
+): Promise<Outcome> {
+  const results = await Promise.allSettled(ids.map(one));
+  const done = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const failed = results.flatMap((r) => (r.status === "rejected" ? [r.reason as unknown] : []));
+  if (done.length === 0) throw failed[0];
+  const ends = done.flatMap((r) => (r.undoUntil ? [r.undoUntil] : []));
+  return {
+    threads: done.map((r) => r.thread),
+    operationIds: done.flatMap((r) => (r.operationId ? [r.operationId] : [])),
+    undoUntil: ends.sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null,
+    ...(failed.length > 0 ? { partialError: failed[0] } : {}),
+  };
+}
+
+async function request(spec: Spec, ids: string[]): Promise<Outcome> {
   switch (spec.endpoint) {
     case "trash":
-      return call(api().POST("/threads/trash", { body: { ids } }));
+      return fromOperation(await call(api().POST("/threads/trash", { body: { ids } })));
     case "untrash":
-      return call(api().POST("/threads/untrash", { body: { ids } }));
+      return fromOperation(await call(api().POST("/threads/untrash", { body: { ids } })));
     case "delete":
-      return call(api().POST("/threads/delete", { body: { ids } }));
+      return fromOperation(await call(api().POST("/threads/delete", { body: { ids } })));
     case "modify":
-      return call(
-        api().POST("/threads/modify", {
-          body: { ids, addLabelIds: spec.add, removeLabelIds: spec.remove },
-        }),
+      return fromOperation(
+        await call(
+          api().POST("/threads/modify", {
+            body: { ids, addLabelIds: spec.add, removeLabelIds: spec.remove },
+          }),
+        ),
+      );
+    case "snooze": {
+      const until = spec.snoozedUntil ?? "";
+      return perThread(ids, (id) =>
+        call(api().POST("/threads/{id}/snooze", { params: { path: { id } }, body: { until } })),
+      );
+    }
+    case "unsnooze":
+      return perThread(ids, (id) =>
+        call(api().DELETE("/threads/{id}/snooze", { params: { path: { id } } })),
       );
   }
 }
@@ -209,6 +312,7 @@ export function runThreadAction(qc: QueryClient, input: ThreadActionInput): Prom
     const snapshot = takeSnapshot(qc, accountId, ids);
     if (spec.endpoint === "delete") removeFromLists(qc, accountId, ids);
     else applyOptimistic(qc, accountId, ids, spec.add, [...spec.remove, ...(spec.leave ?? [])]);
+    if (spec.snoozedUntil !== undefined) patchSnoozedUntil(qc, accountId, ids, spec.snoozedUntil);
     return snapshot;
   };
   // With no list refetch in flight the local change is made right here, in the gesture that
@@ -225,13 +329,18 @@ export function runThreadAction(qc: QueryClient, input: ThreadActionInput): Prom
       await qc.cancelQueries({ queryKey: keys.threadsAll(accountId) });
       return optimistic();
     },
-    onSuccess: (res: OperationResult, _vars, snapshot) => {
-      mergeServerThreads(qc, accountId, res.threads ?? []);
-      const opId = res.operationId;
-      if (opId && snapshot) remember(opId, accountId, snapshot);
+    onSuccess: (res: Outcome, _vars, snapshot) => {
+      mergeServerThreads(qc, accountId, res.threads);
+      const opIds = res.operationIds;
+      if (snapshot) for (const opId of opIds) remember(opId, accountId, snapshot);
       if (input.silent || !spec.message) return;
-      const message = spec.message(ids.length);
-      if (!opId || !snapshot || spec.endpoint === "delete") {
+      // A per-thread request names the threads it changed and why the others were refused.
+      const partial = "partialError" in res;
+      const text = spec.message(partial ? res.threads.length : ids.length);
+      const message = partial
+        ? `${text}. ${(spec.error ?? (() => t.genericError))(res.partialError)}`
+        : text;
+      if (opIds.length === 0 || !snapshot || spec.endpoint === "delete") {
         show({ message });
         return;
       }
@@ -243,7 +352,7 @@ export function runThreadAction(qc: QueryClient, input: ThreadActionInput): Prom
           label: t.undo,
           onPress: () =>
             void undoOperation(qc, {
-              operationId: opId,
+              operationIds: opIds,
               accountId,
               ids,
               snapshot,
@@ -253,9 +362,9 @@ export function runThreadAction(qc: QueryClient, input: ThreadActionInput): Prom
         hideAt: res.undoUntil ? Date.parse(res.undoUntil) : undefined,
       });
     },
-    onError: (_err, _vars, snapshot) => {
+    onError: (err, _vars, snapshot) => {
       if (snapshot) restoreSnapshot(qc, snapshot);
-      toast(t.genericError);
+      toast(spec.error ? spec.error(err) : t.genericError);
     },
     onSettled: () => settle(qc, accountId, ids),
   });
@@ -266,7 +375,8 @@ export function runThreadAction(qc: QueryClient, input: ThreadActionInput): Prom
 }
 
 export type UndoInput = {
-  operationId: string;
+  /** One operation, or one per thread of a snooze. */
+  operationIds: string[];
   accountId: string;
   ids: string[];
   snapshot: Snapshot;
@@ -279,18 +389,24 @@ export type UndoInput = {
  * press is answered 409 undo_expired by the server, never decided here.
  */
 export function undoOperation(qc: QueryClient, input: UndoInput): Promise<void> {
-  const { operationId, accountId, ids, snapshot } = input;
+  const { operationIds, accountId, ids, snapshot } = input;
   hideToast();
-  recentOps.delete(operationId);
+  for (const id of operationIds) recentOps.delete(id);
   restoreSnapshot(qc, snapshot);
   input.onUndo?.();
 
   const mutation = qc.getMutationCache().build(qc, {
     mutationKey: MUTATION_KEY,
     scope: { id: scopeOf(ids) },
-    mutationFn: () =>
-      call(api().POST("/operations/{id}/undo", { params: { path: { id: operationId } } })),
-    onSuccess: (res: OperationResult) => mergeServerThreads(qc, accountId, res.threads ?? []),
+    mutationFn: async () => {
+      const threads: Thread[] = [];
+      for (const id of operationIds) {
+        const res = await call(api().POST("/operations/{id}/undo", { params: { path: { id } } }));
+        threads.push(...(res.threads ?? []));
+      }
+      return threads;
+    },
+    onSuccess: (threads: Thread[]) => mergeServerThreads(qc, accountId, threads),
     onError: (err) => {
       toast(isApiError(err, 409) ? t.undoExpired : t.genericError);
     },

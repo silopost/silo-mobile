@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { waitFor } from "@testing-library/react-native";
 import { http, HttpResponse } from "msw";
 import { label, labels, thread, threadPage } from "../../test/fixtures";
 import { API, SERVER_URL, server, setupMsw } from "../../test/server";
@@ -220,5 +221,110 @@ describe("specFor moveTo", () => {
   it("names the target in the snackbar", () => {
     expect(spec("l_1").message?.(1)).toBe("Wątek przeniesiony do: Praca");
     expect(spec("INBOX").message?.(2)).toBe("2 wątki przeniesione do: Odebrane");
+  });
+});
+
+describe("snooze", () => {
+  const until = "2026-11-07T07:00:00Z";
+  let snoozes: { id: string; body: unknown }[];
+  let undos: string[];
+
+  beforeEach(() => {
+    snoozes = [];
+    undos = [];
+    server.use(
+      http.post(`${API}/threads/:id/snooze`, async ({ params, request }) => {
+        const id = params.id as string;
+        snoozes.push({ id, body: await request.json() });
+        if (id === "t_2")
+          return HttpResponse.json(
+            { code: "not_in_inbox", status: 409, title: "Conflict" },
+            { status: 409 },
+          );
+        return HttpResponse.json({
+          thread: thread({ id, labelIds: ["SNOOZED"], snoozedUntil: until }),
+          operationId: `op_${id}`,
+          undoUntil: UNDO_UNTIL,
+        });
+      }),
+      http.post(`${API}/operations/:id/undo`, ({ params }) => {
+        undos.push(params.id as string);
+        return HttpResponse.json({ threads: [thread({ id: "t_1" })], operationId: null });
+      }),
+    );
+  });
+
+  it("posts the wake time per thread, leaves the Inbox at once and offers Cofnij", async () => {
+    const done = runThreadAction(qc, input({ action: "snooze", until }));
+    expect(rows("INBOX")).toEqual([]);
+    await done;
+
+    expect(snoozes).toEqual([{ id: "t_1", body: { until } }]);
+    const current = useToasts.getState().current!;
+    expect(current.message).toMatch(/^Odłożono do /);
+    expect(current.hideAt).toBe(Date.parse(UNDO_UNTIL));
+
+    current.action!.onPress();
+    expect(rows("INBOX").map((th) => th.id)).toEqual(["t_1"]);
+    await waitFor(() => expect(undos).toEqual(["op_t_1"]));
+  });
+
+  it("undoes every snoozed thread and names the refused ones", async () => {
+    qc.setQueryData(
+      keys.threads("acc_1", { labelId: "INBOX" }),
+      lists([thread({ id: "t_1" }), thread({ id: "t_2" }), thread({ id: "t_3" })]),
+    );
+    await runThreadAction(qc, input({ action: "snooze", ids: ["t_1", "t_2", "t_3"], until }));
+
+    const current = useToasts.getState().current!;
+    expect(current.message).toMatch(
+      /^Odłożono 2 wątki do .*\. Odłożyć można tylko wątki z Odebranych\.$/,
+    );
+    current.action!.onPress();
+    await waitFor(() => expect(undos.sort()).toEqual(["op_t_1", "op_t_3"]));
+  });
+
+  it("rolls back with the server's reason when every thread is refused", async () => {
+    qc.setQueryData(keys.threads("acc_1", { labelId: "INBOX" }), lists([thread({ id: "t_2" })]));
+    await runThreadAction(qc, input({ action: "snooze", ids: ["t_2"], until }));
+
+    expect(rows("INBOX").map((th) => th.id)).toEqual(["t_2"]);
+    expect(useToasts.getState().current?.message).toBe("Odłożyć można tylko wątki z Odebranych.");
+  });
+
+  it("unsnooze deletes the snooze of each thread, without Cofnij", async () => {
+    let deleted: string[] = [];
+    server.use(
+      http.delete(`${API}/threads/:id/snooze`, ({ params }) => {
+        deleted = [...deleted, params.id as string];
+        return HttpResponse.json({
+          thread: thread({ id: params.id as string }),
+          operationId: null,
+          undoUntil: null,
+        });
+      }),
+    );
+    qc.setQueryData(
+      keys.threads("acc_1", { labelId: "SNOOZED" }),
+      lists([thread({ id: "t_5", labelIds: ["SNOOZED"], snoozedUntil: until })]),
+    );
+    const done = runThreadAction(qc, input({ action: "unsnooze", ids: ["t_5"] }));
+    expect(rows("SNOOZED")).toEqual([]);
+    await done;
+
+    expect(deleted).toEqual(["t_5"]);
+    const current = useToasts.getState().current!;
+    expect(current.message).toBe("Wątek wrócił do Odebranych");
+    expect(current.action).toBeUndefined();
+  });
+
+  it("unsnooze answered 409 not_snoozed says so", async () => {
+    server.use(
+      http.delete(`${API}/threads/:id/snooze`, () =>
+        HttpResponse.json({ code: "not_snoozed", status: 409 }, { status: 409 }),
+      ),
+    );
+    await runThreadAction(qc, input({ action: "unsnooze" }));
+    expect(useToasts.getState().current?.message).toBe("Ten wątek nie jest już odłożony.");
   });
 });

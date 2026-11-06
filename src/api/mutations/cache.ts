@@ -161,8 +161,30 @@ export function mergeServerThreads(qc: QueryClient, accountId: string, threads: 
   updateLists(qc, accountId, (t) => byId.get(t.id) ?? t);
   for (const t of threads) {
     qc.setQueryData<ThreadDetail>(keys.thread(t.id), (d) =>
-      d ? { ...d, labelIds: t.labelIds } : d,
+      d
+        ? {
+            ...d,
+            labelIds: t.labelIds,
+            snoozedUntil: t.snoozedUntil,
+            scheduledAt: t.scheduledAt,
+            outboundId: t.outboundId,
+          }
+        : d,
     );
+  }
+}
+
+/** Sets the wake time of cached rows and open threads (optimistic snooze; null: unsnoozed). */
+export function patchSnoozedUntil(
+  qc: QueryClient,
+  accountId: string,
+  ids: string[],
+  until: string | null,
+): void {
+  const set = new Set(ids);
+  updateLists(qc, accountId, (t) => (set.has(t.id) ? { ...t, snoozedUntil: until } : t));
+  for (const id of ids) {
+    qc.setQueryData<ThreadDetail>(keys.thread(id), (d) => (d ? { ...d, snoozedUntil: until } : d));
   }
 }
 
