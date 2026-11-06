@@ -42,3 +42,6 @@ yarn-error.*
 
 # test output
 coverage/
+
+# Hermes bytecode
+*.hbc
