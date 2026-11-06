@@ -20,6 +20,7 @@ import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { useSelection } from "../../state/selection";
 import { useUi } from "../../state/ui";
+import { useDensity } from "../../api/queries/settings";
 import { swipeActionFor, useThreadActions, type ThreadAction } from "./actions";
 import { SwipeableRow } from "./SwipeableRow";
 import { ThreadRow } from "./ThreadRow";
@@ -60,7 +61,7 @@ export function ThreadList({
   const selected = useSelection((s) => s.ids);
   const swipeLeftAction = useUi((s) => s.swipeLeftAction);
   const swipeRightAction = useUi((s) => s.swipeRightAction);
-  const compact = useUi((s) => s.density) === "compact";
+  const density = useDensity();
   const { run } = useThreadActions();
   const snooze = useServerFeature("snooze");
   const [refreshing, setRefreshing] = useState(false);
@@ -174,7 +175,7 @@ export function ThreadList({
             labels={labels}
             viewLabelId={labelId}
             me={me}
-            compact={compact}
+            density={density}
             onOpen={onOpen}
             onToggleSelect={onToggleSelect}
             onAction={onAction}

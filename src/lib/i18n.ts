@@ -377,8 +377,7 @@ export const t = {
   syncedSection: "Konto Silo (synchronizowane)",
   syncedNote:
     "Te ustawienia są zapisywane na serwerze Silo i obowiązują na wszystkich urządzeniach i w przeglądarce.",
-  localSection: "To urządzenie",
-  densityLocalNote: "Na tym serwerze gęstość dotyczy tylko tego urządzenia.",
+  deviceSettingsNote: "Ustawienia poza sekcją „Konto Silo” dotyczą tylko tego urządzenia.",
   undoSendTitle: "Czas na cofnięcie wysyłki",
   undoSendSeconds: (n: number) => `${n} s`,
   signatureTitle: "Podpis",

@@ -14,7 +14,7 @@ function renderRow(over: Partial<Parameters<typeof ThreadRow>[0]> = {}) {
     labels,
     viewLabelId: "INBOX",
     me,
-    compact: false,
+    density: "default" as const,
     onOpen: jest.fn(),
     onToggleSelect: jest.fn(),
     onAction: jest.fn(),
@@ -60,7 +60,7 @@ test("shows the message count, user label chips but not the view's, and '(bez te
 });
 
 test("the compact density hides the snippet", async () => {
-  await renderRow({ compact: true }).view;
+  await renderRow({ density: "compact" }).view;
   expect(screen.queryByText("Przesyłam ofertę")).toBeNull();
 });
 

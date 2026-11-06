@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Divider, Icon, Text } from "react-native-paper";
+import { usePatchSettings, useSettings } from "../api/queries/settings";
 import { ChoiceDialog, SectionTitle, SettingsItem, SwitchItem } from "../features/settings/items";
+import { SettingsSnackbar } from "../features/settings/SettingsSnackbar";
+import { TextDialog } from "../features/settings/TextDialog";
+import { deviceTimeZone, TimezoneDialog } from "../features/settings/TimezoneDialog";
 import { swipeLook } from "../features/threadlist/SwipeableRow";
 import { useServerFeature } from "../lib/features";
 import { t } from "../lib/i18n";
+import { signatureToText, textToSignatureHtml } from "../lib/signature";
 import { useAppTheme } from "../lib/theme";
 import {
   setConfirmArchive,
@@ -21,10 +26,22 @@ import {
   type ThemePreference,
 } from "../state/ui";
 
-type DialogKind = "theme" | "density" | "swipeRight" | "swipeLeft" | "images";
+type DialogKind =
+  | "theme"
+  | "density"
+  | "swipeRight"
+  | "swipeLeft"
+  | "images"
+  | "undoSend"
+  | "signature"
+  | "timezone";
 
 const themes: ThemePreference[] = ["system", "light", "dark"];
-const densities: Density[] = ["default", "compact"];
+/** The densities of a 0.3.0 server (device only) and of /settings (Gmail web's three). */
+const localDensities: Density[] = ["default", "compact"];
+const serverDensities: Density[] = ["default", "comfortable", "compact"];
+/** The values PATCH /settings accepts for undoSendSeconds. */
+const undoSendChoices = ["5", "10", "20", "30"] as const;
 const swipeActions: SwipeAction[] = ["archive", "trash", "snooze", "none"];
 const imageModes: RemoteImages[] = ["ask", "always"];
 
@@ -48,13 +65,18 @@ function SwipePreview({ action }: { action: SwipeAction }) {
 }
 
 /**
- * "Ustawienia ogólne" of the Gmail app, kept on this device (useUi): API 0.3.0 has no /settings,
- * so nothing here is shared with other clients. Every entry shows its current value under the
- * title; choices open a radio dialog, booleans are switches.
+ * "Ustawienia ogólne" of the Gmail app. With server 0.4.0 the section "Konto Silo
+ * (synchronizowane)" edits GET/PATCH /settings (density, undo-send time, signature, time zone),
+ * shared by every device; the rest stays on this device (useUi), as all of it does with 0.3.0.
+ * Every entry shows its current value under the title; choices open a radio dialog, booleans are
+ * switches.
  */
 export function GeneralSettingsScreen() {
   const theme = useAppTheme();
   const ui = useUi();
+  const synced = useServerFeature("settings");
+  const settings = useSettings();
+  const patch = usePatchSettings();
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const close = () => setDialog(null);
   const pick =
@@ -80,6 +102,58 @@ export function GeneralSettingsScreen() {
         style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={styles.content}
       >
+        {synced && settings && (
+          <>
+            <SectionTitle>{t.syncedSection}</SectionTitle>
+            <Text
+              variant="bodySmall"
+              style={[styles.hint, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t.syncedNote}
+            </Text>
+            <SettingsItem
+              title={t.densityTitle}
+              description={t.densities[settings.density]}
+              icon="format-line-spacing"
+              testID="setting-density"
+              onPress={() => setDialog("density")}
+            />
+            <SettingsItem
+              title={t.undoSendTitle}
+              description={t.undoSendSeconds(settings.undoSendSeconds)}
+              icon="undo-variant"
+              testID="setting-undo-send"
+              onPress={() => setDialog("undoSend")}
+            />
+            <SettingsItem
+              title={t.signatureTitle}
+              description={signatureToText(settings.signature) || t.signatureNone}
+              icon="draw-pen"
+              testID="setting-signature"
+              onPress={() => setDialog("signature")}
+            />
+            <SettingsItem
+              title={t.timezoneTitle}
+              description={
+                settings.timezone === deviceTimeZone()
+                  ? settings.timezone
+                  : `${settings.timezone || "UTC"} · ${t.timezoneDiffers(deviceTimeZone())}`
+              }
+              icon="earth"
+              testID="setting-timezone"
+              onPress={() => setDialog("timezone")}
+            />
+            <SettingsItem
+              title={t.desktopNotificationsTitle}
+              description={`${settings.desktopNotifications ? t.on : t.off} · ${t.desktopNotificationsNote}`}
+              icon="monitor"
+              disabled
+              testID="setting-desktop-notifications"
+            />
+            <Divider />
+          </>
+        )}
+
         <SectionTitle>{t.generalSectionDisplay}</SectionTitle>
         <SettingsItem
           title={t.themeTitle}
@@ -88,13 +162,15 @@ export function GeneralSettingsScreen() {
           testID="setting-theme"
           onPress={() => setDialog("theme")}
         />
-        <SettingsItem
-          title={t.densityTitle}
-          description={t.densities[ui.density]}
-          icon="format-line-spacing"
-          testID="setting-density"
-          onPress={() => setDialog("density")}
-        />
+        {!synced && (
+          <SettingsItem
+            title={t.densityTitle}
+            description={t.densities[ui.density]}
+            icon="format-line-spacing"
+            testID="setting-density"
+            onPress={() => setDialog("density")}
+          />
+        )}
         <Divider />
 
         <SectionTitle>{t.swipeTitle}</SectionTitle>
@@ -163,9 +239,10 @@ export function GeneralSettingsScreen() {
           testID="setting-push"
         />
         <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
-          {t.localSettingsNote}
+          {synced ? t.deviceSettingsNote : t.localSettingsNote}
         </Text>
       </ScrollView>
+      <SettingsSnackbar />
 
       <ChoiceDialog
         visible={dialog === "theme"}
@@ -178,11 +255,49 @@ export function GeneralSettingsScreen() {
       <ChoiceDialog
         visible={dialog === "density"}
         title={t.densityTitle}
-        value={ui.density}
-        choices={densities.map((value) => ({ value, label: t.densities[value] }))}
-        onSelect={pick(setDensity)}
+        value={synced && settings ? settings.density : ui.density}
+        choices={(synced ? serverDensities : localDensities).map((value) => ({
+          value,
+          label: t.densities[value],
+        }))}
+        onSelect={pick((density: Density) =>
+          synced ? patch.mutate({ density }) : setDensity(density),
+        )}
         onDismiss={close}
       />
+      {settings && (
+        <ChoiceDialog
+          visible={dialog === "undoSend"}
+          title={t.undoSendTitle}
+          value={String(settings.undoSendSeconds)}
+          choices={undoSendChoices.map((value) => ({
+            value,
+            label: t.undoSendSeconds(Number(value)),
+          }))}
+          onSelect={pick((v: string) => patch.mutate({ undoSendSeconds: Number(v) }))}
+          onDismiss={close}
+        />
+      )}
+      {settings && dialog === "signature" && (
+        <TextDialog
+          testID="signature-dialog"
+          title={t.signatureTitle}
+          description={t.signatureHint}
+          label={t.signatureTitle}
+          initial={signatureToText(settings.signature)}
+          multiline
+          allowEmpty
+          onSubmit={pick((text: string) => patch.mutate({ signature: textToSignatureHtml(text) }))}
+          onDismiss={close}
+        />
+      )}
+      {settings && dialog === "timezone" && (
+        <TimezoneDialog
+          value={settings.timezone}
+          onSelect={pick((timezone: string) => patch.mutate({ timezone }))}
+          onDismiss={close}
+        />
+      )}
       <ChoiceDialog
         visible={dialog === "swipeRight"}
         title={t.swipeRight}

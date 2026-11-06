@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import { account, label, labels, sessionBody } from "../../test/fixtures";
 import { renderApp, signIn } from "../../test/router";
-import { API, server, setupMsw } from "../../test/server";
+import { API, serveMeta, server, setupMsw } from "../../test/server";
 import { resetAuth } from "../../test/utils";
 
 setupMsw();
@@ -97,5 +97,45 @@ describe("account switcher", () => {
 
     await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
     expect(await screen.findByRole("button", { name: /^Konto dom@example.com/ })).toBeOnTheScreen();
+  });
+});
+
+describe("account switcher on server 0.4.0", () => {
+  it("stores the chosen account as settings.activeAccountId", async () => {
+    serveMeta("0.4.0");
+    const patches: unknown[] = [];
+    server.use(
+      http.get(`${API}/settings`, () => HttpResponse.json(sessionBody.settings)),
+      http.patch(`${API}/settings`, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        patches.push(body);
+        return HttpResponse.json({
+          ...sessionBody.settings,
+          ...body,
+          updatedAt: "2026-11-06T10:00:00Z",
+        });
+      }),
+    );
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(await screen.findByRole("button", { name: /^Przełącz na dom@/ }));
+
+    await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
+    await waitFor(() => expect(patches).toEqual([{ activeAccountId: "acc_3" }]));
+  });
+
+  it("sends nothing to a 0.3.0 server", async () => {
+    let patched = false;
+    server.use(
+      http.patch(`${API}/settings`, () => {
+        patched = true;
+        return HttpResponse.json(sessionBody.settings);
+      }),
+    );
+    const app = await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(await screen.findByRole("button", { name: /^Przełącz na dom@/ }));
+    await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
+    expect(patched).toBe(false);
   });
 });

@@ -12,6 +12,8 @@ type Props = {
   initial?: string;
   /** A password: hidden, never prefilled. */
   secure?: boolean;
+  /** Several lines (a signature); Enter adds a line instead of submitting. */
+  multiline?: boolean;
   /** Allows saving an empty value (clearing a display name). */
   allowEmpty?: boolean;
   submitLabel?: string;
@@ -30,6 +32,7 @@ export function TextDialog({
   description,
   initial = "",
   secure,
+  multiline,
   allowEmpty,
   submitLabel = t.save,
   busy,
@@ -59,7 +62,11 @@ export function TextDialog({
             secureTextEntry={secure && hidden}
             autoComplete={secure ? "password" : "off"}
             textContentType={secure ? "password" : undefined}
-            onSubmitEditing={() => (allowEmpty || !empty) && !busy && onSubmit(value)}
+            multiline={multiline}
+            numberOfLines={multiline ? 5 : undefined}
+            onSubmitEditing={
+              multiline ? undefined : () => (allowEmpty || !empty) && !busy && onSubmit(value)
+            }
             right={
               secure ? (
                 <TextInput.Icon

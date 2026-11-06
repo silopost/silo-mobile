@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Icon, IconButton, Text } from "react-native-paper";
 import type { Label, Thread } from "../../api/types";
+import type { Density } from "../../state/ui";
 import { Avatar } from "../../components/Avatar";
 import { avatarAddress, formatListDate, formatWhen, participantNames } from "../../lib/format";
 import { t } from "../../lib/i18n";
@@ -11,8 +12,11 @@ import type { ThreadAction } from "./actions";
 
 /** Gmail's star colour. */
 export const STAR_COLOR = "#f4b400";
-/** Minimum row heights in dp: three lines with the avatar, or two in the compact density. */
-export const ROW_HEIGHT = { default: 72, compact: 56 } as const;
+/**
+ * Minimum row heights in dp: three lines with the avatar (default), the same lines closer together
+ * (comfortable, server 0.4.0), or two lines in the compact density.
+ */
+export const ROW_HEIGHT = { default: 72, comfortable: 64, compact: 56 } as const;
 
 type Props = {
   thread: Thread;
@@ -25,7 +29,7 @@ type Props = {
   viewLabelId: string | undefined;
   /** The account, for the avatar of a thread of the user's own messages. */
   me: { email: string; name?: string | null } | undefined;
-  compact: boolean;
+  density: Density;
   onOpen: (thread: Thread) => void;
   onToggleSelect: (id: string) => void;
   onAction: (action: ThreadAction, id: string) => void;
@@ -89,7 +93,8 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
     : unread
       ? theme.colors.surface
       : theme.colors.surfaceContainerLow;
-  const avatarSize = p.compact ? 32 : 40;
+  const compact = p.density === "compact";
+  const avatarSize = compact ? 32 : p.density === "comfortable" ? 36 : 40;
 
   return (
     <Pressable
@@ -104,8 +109,8 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
         styles.row,
         {
           backgroundColor: background,
-          minHeight: p.compact ? ROW_HEIGHT.compact : ROW_HEIGHT.default,
-          paddingVertical: p.compact ? 8 : 12,
+          minHeight: ROW_HEIGHT[p.density],
+          paddingVertical: p.density === "default" ? 12 : 8,
         },
       ]}
     >
@@ -174,10 +179,10 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
           >
             {th.subject || t.noSubject}
           </Text>
-          {p.compact && <Star starred={starred} id={th.id} onAction={p.onAction} />}
+          {compact && <Star starred={starred} id={th.id} onAction={p.onAction} />}
         </View>
 
-        {!p.compact && (
+        {!compact && (
           <View style={styles.line}>
             <View style={[styles.grow, styles.line]}>
               {chips.map((l) => (

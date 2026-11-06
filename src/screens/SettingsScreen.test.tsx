@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { defaultUi, useUi } from "../state/ui";
 import { account, sessionBody } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
-import { API, server, setupMsw } from "../test/server";
+import { API, serveMeta, server, setupMsw } from "../test/server";
 import { resetAuth } from "../test/utils";
 
 setupMsw();
@@ -120,5 +120,89 @@ describe("general settings", () => {
     expect(useUi.getState().showRemoteImages).toBe("always");
 
     expect(screen.getByTestId("setting-push")).toBeDisabled();
+  });
+});
+
+describe("synced settings (server 0.4.0)", () => {
+  let patches: Record<string, unknown>[];
+  let current: typeof sessionBody.settings;
+
+  beforeEach(() => {
+    serveMeta("0.4.0");
+    patches = [];
+    current = { ...sessionBody.settings };
+    server.use(
+      http.get(`${API}/settings`, () => HttpResponse.json(current)),
+      http.patch(`${API}/settings`, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        patches.push(body);
+        if (body.timezone === "Asia/Tokyo")
+          return HttpResponse.json(
+            { status: 422, code: "invalid_timezone", title: "Unprocessable Entity" },
+            { status: 422 },
+          );
+        current = { ...current, ...body, updatedAt: "2026-11-06T10:00:00Z" } as typeof current;
+        return HttpResponse.json(current);
+      }),
+    );
+  });
+
+  it("changes the density on the server and keeps a copy on the device", async () => {
+    await renderApp("/settings/general");
+
+    await screen.findByTestId("setting-undo-send");
+    const item = screen.getByTestId("setting-density");
+    expect(within(item).getByText("Domyślna")).toBeOnTheScreen();
+    expect(screen.getByText("Konto Silo (synchronizowane)")).toBeOnTheScreen();
+    await fireEvent.press(item);
+    await fireEvent.press(await screen.findByTestId("choice-comfortable"));
+
+    await waitFor(() => expect(patches).toEqual([{ density: "comfortable" }]));
+    await waitFor(() =>
+      expect(within(screen.getByTestId("setting-density")).getByText("Wygodna")).toBeOnTheScreen(),
+    );
+    expect(useUi.getState().density).toBe("comfortable");
+  });
+
+  it("sets the undo-send time and the signature, one field per PATCH", async () => {
+    await renderApp("/settings/general");
+
+    await fireEvent.press(await screen.findByTestId("setting-undo-send"));
+    await fireEvent.press(await screen.findByTestId("choice-20"));
+    await waitFor(() => expect(patches).toEqual([{ undoSendSeconds: 20 }]));
+    expect(within(screen.getByTestId("setting-undo-send")).getByText("20 s")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId("setting-signature"));
+    await fireEvent.changeText(
+      within(await screen.findByTestId("signature-dialog")).getByLabelText("Podpis"),
+      "Pozdrawiam,\nAla",
+    );
+    await fireEvent.press(screen.getByText("Zapisz"));
+    await waitFor(() => expect(patches[1]).toEqual({ signature: "Pozdrawiam,<br>Ala" }));
+  });
+
+  it("puts the old time zone back when the server refuses the new one", async () => {
+    await renderApp("/settings/general");
+
+    const item = await screen.findByTestId("setting-timezone");
+    expect(within(item).getByText(/Europe.Warsaw/)).toBeOnTheScreen();
+    await fireEvent.press(item);
+    const dialog = await screen.findByTestId("timezone-dialog");
+    await fireEvent.changeText(within(dialog).getByLabelText("Szukaj strefy"), "tokyo");
+    await fireEvent.press(await screen.findByTestId("timezone-Asia/Tokyo"));
+
+    await waitFor(() => expect(patches).toEqual([{ timezone: "Asia/Tokyo" }]));
+    expect(await screen.findByText("Nieznana strefa czasowa.")).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId("setting-timezone")).getByText(/Europe.Warsaw/),
+    ).toBeOnTheScreen();
+  });
+
+  it("hides the synced section on a 0.3.0 server", async () => {
+    serveMeta("0.3.0");
+    await renderApp("/settings/general");
+    expect(await screen.findByTestId("setting-density")).toBeOnTheScreen();
+    expect(screen.queryByTestId("setting-undo-send")).toBeNull();
+    expect(screen.queryByText("Konto Silo (synchronizowane)")).toBeNull();
   });
 });
