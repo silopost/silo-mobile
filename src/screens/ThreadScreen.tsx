@@ -19,6 +19,7 @@ import { STAR_COLOR } from "../features/threadlist/ThreadRow";
 import { t } from "../lib/i18n";
 import { INBOX_SLUG, resolveLabelSlug } from "../lib/labels";
 import { MIN_TOUCH, useAppTheme } from "../lib/theme";
+import { useUi } from "../state/ui";
 
 /** Collapsed read messages, expanded unread ones and the last one (plan 5.2). */
 export function initiallyExpanded(messages: Message[]): Set<string> {
@@ -138,15 +139,17 @@ export function ThreadScreen() {
 
   const back = () => (router.canGoBack() ? router.back() : router.navigate(listHref));
 
-  // Opening marks the thread read: the server does not do it by itself (plan 5.2).
+  // Opening marks the thread read: the server does not do it by itself (plan 5.2). The device
+  // preference markReadOnOpen (settings) turns it off.
+  const markReadOnOpen = useUi((s) => s.markReadOnOpen);
   const marked = useRef<string | null>(null);
   const unread = labelIds.includes("UNREAD");
   const loaded = thread.isSuccess && !thread.isPlaceholderData;
   useEffect(() => {
-    if (!loaded || !unread || marked.current === threadId) return;
+    if (!markReadOnOpen || !loaded || !unread || marked.current === threadId) return;
     marked.current = threadId;
     void run("read", [threadId], { silent: true, labelId: viewLabelId });
-  }, [loaded, unread, threadId, run, viewLabelId]);
+  }, [markReadOnOpen, loaded, unread, threadId, run, viewLabelId]);
 
   const act = (action: ThreadAction) => {
     setMenu(false);

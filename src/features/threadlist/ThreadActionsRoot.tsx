@@ -1,11 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { StyleSheet } from "react-native";
 import { Button, Dialog, Portal, Text } from "react-native-paper";
 import { findCachedThread } from "../../api/mutations/cache";
 import { runThreadAction } from "../../api/mutations/threads";
 import { keys } from "../../api/keys";
 import type { ThreadDetail } from "../../api/types";
 import { t } from "../../lib/i18n";
+import { MIN_TOUCH } from "../../lib/theme";
+import { useUi } from "../../state/ui";
 import { useActiveAccount } from "../account";
 import { LabelsSheet } from "../labels/LabelsSheet";
 import { MoveToSheet } from "../labels/MoveToSheet";
@@ -18,7 +21,8 @@ import {
 
 /** An action waiting for the user: a confirmation or the choice in a sheet. */
 type Pending = {
-  kind: "deleteForever" | "labels" | "moveTo";
+  /** archive / trash: the confirmation of the device preference (confirmArchive, confirmTrash). */
+  kind: "deleteForever" | "labels" | "moveTo" | "archive" | "trash";
   ids: string[];
   opts: RunOptions;
   /** Resolves the run() that opened it. */
@@ -71,6 +75,10 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
   const actions: ThreadActions = {
     run: (action, ids, opts = {}) => {
       if (action === "deleteForever") return ask(action, ids, opts);
+      // Read at the time of the action: the preference may change while the list is shown.
+      const ui = useUi.getState();
+      if (action === "trash" && ui.confirmTrash) return ask(action, ids, opts);
+      if (action === "archive" && ui.confirmArchive) return ask(action, ids, opts);
       if (action === "labels" && !opts.add && !opts.remove) return ask(action, ids, opts);
       if (action === "moveTo" && !opts.target) return ask(action, ids, opts);
       return execute(action, ids, opts);
@@ -125,6 +133,25 @@ export function ThreadActionsRoot({ children }: { children: ReactNode }) {
           </Dialog>
         </Portal>
       )}
+      {(pending?.kind === "trash" || pending?.kind === "archive") && (
+        <Portal>
+          <Dialog visible onDismiss={close} testID="confirm-action-dialog">
+            <Dialog.Title>{t.confirmAction[pending.kind](pending.ids.length)}</Dialog.Title>
+            <Dialog.Actions>
+              <Button onPress={close} contentStyle={styles.touch}>
+                {t.cancel}
+              </Button>
+              <Button onPress={() => finish()} contentStyle={styles.touch}>
+                {pending.kind === "trash" ? t.trash : t.archive}
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      )}
     </ThreadActionsProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  touch: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH },
+});

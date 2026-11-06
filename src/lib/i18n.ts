@@ -206,6 +206,16 @@ export const t = {
   },
   undoExpired: "Tej operacji nie można już cofnąć.",
 
+  /** Titles of the confirmations of the device preferences (Gmail: "Usunąć tę wiadomość?"). */
+  confirmAction: {
+    trash: (n: number) =>
+      n === 1
+        ? "Przenieść wątek do kosza?"
+        : `Przenieść do kosza ${n3(n, "wątek", "wątki", "wątków")}?`,
+    archive: (n: number) =>
+      n === 1 ? "Zarchiwizować wątek?" : `Zarchiwizować ${n3(n, "wątek", "wątki", "wątków")}?`,
+  },
+
   // thread screen (slice 6)
   back: "Wróć",
   threadNotFound: "Nie znaleziono wątku",

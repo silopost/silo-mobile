@@ -4,6 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import { http, HttpResponse } from "msw";
 import { queryClient } from "../../api/cache";
 import { useAuth } from "../../state/auth";
+import { defaultUi, useUi } from "../../state/ui";
 import { attachment, message } from "../../test/fixtures";
 import { renderScreen } from "../../test/render";
 import { API, SERVER_URL, server, setupMsw } from "../../test/server";
@@ -17,6 +18,7 @@ setupMsw();
 beforeEach(() => {
   queryClient.clear();
   useAuth.setState({ status: "signedIn", serverUrl: SERVER_URL, token: "tok_1" });
+  useUi.setState({ ...defaultUi });
 });
 
 const html = (body: string) =>
@@ -50,6 +52,21 @@ describe("MessageHtml", () => {
     expect(screen.queryByText("Pokaż obrazy")).toBeNull();
   });
 
+  it("loads remote images at once with 'Pokazuj obrazy zewnętrzne: zawsze'", async () => {
+    useUi.setState({ showRemoteImages: "always" });
+    server.use(
+      http.get(`${API}/messages/m_9/html`, () =>
+        HttpResponse.text('<img src="https://example.com/a.png">', {
+          headers: { "Content-Type": "text/html" },
+        }),
+      ),
+    );
+    await renderScreen(<MessageHtml message={message({ id: "m_9" })} />);
+    await screen.findByTestId("message-html-m_9");
+
+    expect(doc("m_9")).toContain("img-src data: blob: https: http:");
+    expect(screen.queryByText("Pokaż obrazy")).toBeNull();
+  });
   it("swaps inline images for data URIs fetched with the bearer header", async () => {
     let auth: string | null = null;
     server.use(

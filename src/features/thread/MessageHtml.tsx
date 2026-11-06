@@ -10,6 +10,7 @@ import type { Message } from "../../api/types";
 import { t } from "../../lib/i18n";
 import { hasRemoteImages, MEASURE_SCRIPT, prepareHtml } from "../../lib/messageHtml";
 import { useAppTheme } from "../../lib/theme";
+import { useUi } from "../../state/ui";
 
 /** Messages whose remote images the user chose to show (until the app restarts). */
 const imagesShown = new Set<string>();
@@ -38,7 +39,10 @@ export function MessageHtml({ message }: { message: Message }) {
   const theme = useAppTheme();
   const html = useQuery(messageHtmlQuery(message.id));
   const inline = useQuery(inlineImagesQuery(message.id, html.data, message.attachments ?? []));
-  const [showImages, setShowImages] = useState(() => imagesShown.has(message.id));
+  const always = useUi((s) => s.showRemoteImages === "always");
+  const [shownHere, setShowImages] = useState(() => imagesShown.has(message.id));
+  // "Pokazuj obrazy zewnętrzne: zawsze" (settings) needs no tap per message.
+  const showImages = always || shownHere;
   const [height, setHeight] = useState(MIN_HEIGHT);
 
   const remote = useMemo(() => (html.data ? hasRemoteImages(html.data) : false), [html.data]);

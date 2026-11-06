@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { fireEvent, screen, waitFor, within } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import type { components } from "../api/schema";
 import { labels, message, sessionBody, thread, threadDetail, threadPage } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
 import { API, server, setupMsw } from "../test/server";
 import { resetAuth } from "../test/utils";
+import { defaultUi, useUi } from "../state/ui";
 
 type Detail = components["schemas"]["ThreadDetail"];
 
@@ -25,6 +26,7 @@ function serve(detail: Detail | null) {
 
 beforeEach(() => {
   resetAuth();
+  useUi.setState({ ...defaultUi });
   signIn();
   modifies = [];
   drafts = [];
@@ -126,6 +128,53 @@ describe("ThreadScreen", () => {
     await renderApp("/u/0/inbox/t_1");
     await screen.findByTestId("message-html-m_3");
     expect(modifies).toHaveLength(0);
+  });
+
+  it("does not mark an unread thread read with markReadOnOpen off", async () => {
+    useUi.setState({ markReadOnOpen: false });
+    serve({ ...three(), labelIds: ["INBOX", "UNREAD"] });
+    await renderApp("/u/0/inbox/t_1");
+    await screen.findByTestId("message-html-m_3");
+    expect(modifies).toHaveLength(0);
+  });
+
+  it("asks before moving to Trash with confirmTrash on", async () => {
+    useUi.setState({ confirmTrash: true });
+    const trashed: unknown[] = [];
+    server.use(
+      http.post(`${API}/threads/trash`, async ({ request }) => {
+        trashed.push(await request.json());
+        return HttpResponse.json({
+          operationId: "op_2",
+          threads: [],
+          undoUntil: new Date(Date.now() + 10_000).toISOString(),
+        });
+      }),
+    );
+    serve(three());
+    const app = await renderApp("/u/0/inbox/t_1");
+
+    await fireEvent.press(await screen.findByLabelText("Usuń"));
+    expect(await screen.findByText("Przenieść wątek do kosza?")).toBeOnTheScreen();
+    expect(app.getPathname()).toBe("/u/0/inbox/t_1");
+    expect(trashed).toEqual([]);
+
+    await fireEvent.press(within(screen.getByTestId("confirm-action-dialog")).getByText("Usuń"));
+
+    await waitFor(() => expect(app.getPathname()).toBe("/u/0/inbox"));
+    await waitFor(() => expect(trashed).toEqual([{ ids: ["t_1"] }]));
+  });
+
+  it("does not move to Trash when the confirmation is cancelled", async () => {
+    useUi.setState({ confirmTrash: true });
+    serve(three());
+    const app = await renderApp("/u/0/inbox/t_1");
+
+    await fireEvent.press(await screen.findByLabelText("Usuń"));
+    await fireEvent.press(await screen.findByText("Anuluj"));
+
+    await waitFor(() => expect(screen.queryByTestId("confirm-action-dialog")).toBeNull());
+    expect(app.getPathname()).toBe("/u/0/inbox/t_1");
   });
 
   it("archives from the bar and returns to the list", async () => {
