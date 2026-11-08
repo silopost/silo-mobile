@@ -1,699 +1,754 @@
 # silo-mobile
 
-Aplikacja mobilna [Silopost](https://github.com/silopost/silo) – self-hosted klienta poczty
-IMAP/SMTP w stylu Gmaila. Wzorem wyglądu i zachowania jest aplikacja Gmail na Androida
-(Material 3).
+**Android client of Silopost**, the open-source, self-hosted Gmail alternative: a React Native /
+Expo app modelled on the Gmail app for Android (Material 3), talking to
+[`silo-server`](https://github.com/silopost/silo-server) with bearer tokens.
 
-## Cel i status
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0%20(unreleased)-orange.svg)](package.json)
+[![Expo SDK](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)](package.json)
+[![CI](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml/badge.svg)](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml)
 
-silo-mobile ma **parytet funkcji pocztowych z [silo-web](https://github.com/silopost/silo-web)
-0.3.0** (Fazy 3 i 4 planu) i z aplikacją Gmail na telefon: szuflada z etykietami, wiele kont,
-lista wątków ze swipe i zaznaczaniem, akcje z „Cofnij”, widok wątku, compose z załącznikami i
-obrazami w treści, undo send, wyszukiwanie z podpowiedziami, snooze, zaplanowana wysyłka,
-ustawienia, filtry, zarządzanie etykietami, miniatury załączników, zdarzenia na żywo. Odstępstwa
-są zebrane w [„Odstępstwa od parytetu”](#odstępstwa-od-parytetu), braki – w
-[„Poza zakresem”](#poza-zakresem).
+> **Status: unreleased, never run on a device.** Version 0.1.0 has mail feature parity with
+> silo-web 0.3.0, but it has been verified only by type checking, lint, 405 unit and screen tests,
+> an Android JavaScript bundle and a read-only smoke test against a live API – **not on a phone or
+> an emulator**. The UI is in Polish only for now. See [Status and roadmap](#status-and-roadmap).
 
-Wymagany serwer [silo-server](https://github.com/silopost/silo-server):
+## Contents
 
-| Serwer          | Co działa                                                                                                                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0.3.0 (minimum) | logowanie bearer, lista, wątek, akcje i „Cofnij”, compose i undo send, załączniki, konta, sesje, zdarzenia; ustawienia tylko na urządzeniu; wyszukiwanie tylko tekstu (bez podpowiedzi, historii i chipów)                            |
-| ≥ 0.4.0         | do tego wyszukiwanie z operatorami i podpowiedziami, snooze, zaplanowana wysyłka, ustawienia synchronizowane (`/settings`), filtry, zarządzanie etykietami (kolory, rodzic, `showInList`, `keywordState`), miniatury, obrazy w treści |
+- [What is Silopost?](#what-is-silopost)
+- [Features](#features)
+- [Repositories](#repositories)
+- [Server compatibility](#server-compatibility)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Scripts](#scripts)
+- [Building for production](#building-for-production)
+- [Architecture](#architecture)
+- [Screens and endpoints](#screens-and-endpoints)
+- [Development](#development)
+- [Testing](#testing)
+- [Differences from the Gmail app](#differences-from-the-gmail-app)
+- [Status and roadmap](#status-and-roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
-`GET /meta` nie ma flag funkcji, więc o dostępności decyduje `src/lib/features.ts`
-(`hasServerFeature`, `useServerFeature`): porównuje `Meta.serverVersion` z wersją, od której
-funkcja istnieje (`search`, `snooze`, `schedule`, `settings`, `filters`, `labels`, `thumbnails`,
-`inlineImages` – wszystkie 0.4.0). Porównanie po MAJOR.MINOR.PATCH, pre-release liczy się jak
-wydanie, wersja nieparsowalna (`dev`, pusta, commit) jest najnowsza, a dopóki `/meta` nie jest
-znane – żadna funkcja 0.4.0 nie jest dostępna. Funkcje niedostępne na serwerze nie są pokazywane.
+## What is Silopost?
 
-Kontrakt: schemat wygenerowany z OpenAPI silo-server `v0.4.0` (`silo.serverRef` w
-`package.json`). Wersja aplikacji: `0.1.0` (jeszcze niewydana).
+Silopost gives you the Gmail experience on your own server and **without Gmail's limits**: no
+15 GB cap shared with Drive and Photos, no ads, several mailboxes from any providers side by side,
+and nobody who can lock you out. It is a **mail client**, not a mail server: it connects to any
+IMAP/SMTP server, and storage is bounded only by that server's disk. The overview, the Gmail
+comparison and the deployment stack are in the [`silo`](https://github.com/silopost/silo)
+repository; the decision to use React Native is
+[ADR 0010](https://github.com/silopost/silo/blob/main/docs/adr/0010-react-native-for-silo-mobile.md).
 
-## Architektura
+## Features
 
-### Cienki klient (plan 2.6)
+Mail feature parity with [silo-web](https://github.com/silopost/silo-web) 0.3.0 and the Gmail app
+for Android:
 
-Cała logika domenowa żyje w silo-server; aplikacja renderuje stan, cache'uje go i robi
-optimistic update. Nie podejmuje decyzji, których silo-web nie mógłby powtórzyć: okno „Cofnij”
-to `undoUntil` serwera (żadnego lokalnego timera ani odwrotnego modify), autosave draftów to
-`PUT /drafts/{id}` z `version`, zapytanie wyszukiwania idzie jako `q` tak, jak je wpisano (parser,
-podpowiedzi i historia są serwera), presety snooze są serwera, wybudzanie i wysyłka zaplanowana
-dzieją się na serwerze, filtry dopasowuje i stosuje serwer. Lokalnie zostaje tylko prezentacja,
-gesty, preferencje urządzenia i bufor edytowanego draftu w pamięci.
+- Drawer with system views, labels and server folders; several accounts with a switcher and unread
+  counts.
+- Thread list with infinite scroll, pull-to-refresh, swipe actions, multi-select and actions with
+  Undo.
+- Thread view: messages as cards, HTML in a locked-down WebView, `cid:` images, attachments with
+  thumbnails, full-screen image preview.
+- Compose: TipTap editor (drafts move between phone and browser), attachments, inline images,
+  autosave, undo send, scheduled send.
+- Search with suggestions, history and filter chips; snooze; settings (device and server-side),
+  filters, label management, sessions.
+- Live updates over SSE (streaming `fetch`) with a polling fallback, in the foreground only.
+- Light and dark Material 3 themes tuned to the Gmail app.
 
-Warstwy (zależności tylko w dół):
+Deviations from parity are listed in [Differences from the Gmail app](#differences-from-the-gmail-app).
 
-| Warstwa                       | Katalog                                                                                            | Rola                                                                                                                                                               |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| trasy                         | `app/`                                                                                             | expo-router (pliki = URL-e jak w silo-web, plan 6.2); cienkie, renderują ekrany                                                                                    |
-| ekrany                        | `src/screens/`                                                                                     | ekran = jedna trasa (lista etykiety, wątek, compose, wyszukiwanie, ustawienia)                                                                                     |
-| funkcje                       | `src/features/`                                                                                    | komponenty i hooki per obszar: `nav`, `topbar`, `accounts`, `shell`, `threadlist`, `thread`, `compose`, `labels`, `snooze`, `search`, `settings`, `sync`, `toasts` |
-| zapytania, mutacje, zdarzenia | `src/api/queries`, `src/api/mutations`, `src/api/events.ts`, `src/api/sse.ts`, `src/api/drafts.ts` | TanStack Query (`keys.ts`), optimistic update i cofanie, strumień zdarzeń i ich mapowanie na cache, uploady                                                        |
-| klient API                    | `src/api/client.ts`, `auth.ts`, `errors.ts`, `schema.d.ts`                                         | `openapi-fetch` z typami z OpenAPI, nagłówki, 401 → wylogowanie, `ApiError` nad RFC 9457                                                                           |
-| stan i biblioteki             | `src/state/`, `src/lib/`                                                                           | zustand (auth, preferencje, zaznaczenie, toasty, połączenie, compose), czyste funkcje (formatowanie, adresy, HTML, motyw)                                          |
+## Repositories
 
-### Stan: co lokalne, a co serwerowe
+| Repository | License | Contents |
+|---|---|---|
+| [`silo`](https://github.com/silopost/silo) | MIT | Orchestration (Docker Compose, Caddy, scripts), documentation, ADRs |
+| [`silo-server`](https://github.com/silopost/silo-server) | AGPL-3.0 | Go backend: API, SSE, IMAP sync, SMTP, workers |
+| [`silo-web`](https://github.com/silopost/silo-web) | AGPL-3.0 | React/TypeScript web client and PWA |
+| [`silo-mobile`](https://github.com/silopost/silo-mobile) (this one) | AGPL-3.0 | React Native/Expo Android client |
 
-| Dane                                                                                                                           | Gdzie                                                     | Uwagi                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| wątki, etykiety, drafty, konta, sesje, ustawienia, filtry, `sync-status`, `/meta`                                              | serwer; w aplikacji cache TanStack Query                  | aktualizowany zdarzeniami; `/meta` i HTML wiadomości `staleTime: Infinity`                                  |
-| token bearer, adres serwera, id instalacji                                                                                     | `expo-secure-store` (Android Keystore / iOS Keychain)     | token także w pamięci (zustand `src/state/auth.ts`); nigdy w URL-u ani w cache zapytań                      |
-| preferencje urządzenia: motyw, akcje swipe, gęstość (0.3.0), potwierdzenia, oznacz jako przeczytane po otwarciu, obrazy zdalne | AsyncStorage przez `persist` zustanda (`src/state/ui.ts`) | nie są tajne i nie zmieniają zachowania serwera – decydują tylko o wyglądzie i o tym, jakie żądanie pójdzie |
-| gęstość, czas cofania wysyłki, podpis, strefa czasowa, aktywne konto (0.4.0)                                                   | serwer (`GET/PATCH /settings`)                            | `density` kopiowana do preferencji urządzenia jako wartość pierwszej klatki i serwera 0.3.0                 |
-| edytowany draft                                                                                                                | pamięć (`DraftSession`)                                   | brak lokalnego magazynu draftów; zapis na serwer po 2 s bezczynności, przy blur, zamknięciu i wyjściu w tło |
-| zaznaczenie, toasty, stan połączenia, zdalne wersje draftów                                                                    | zustand w pamięci                                         | `selection.ts`, `toasts.ts`, `connection.ts`, `compose.ts`                                                  |
+## Server compatibility
 
-### Uwierzytelnienie i nagłówki
+| silo-server | What works |
+| --- | --- |
+| 0.3.0 (minimum) | bearer sign-in, list, thread, actions with Undo, compose and undo send, attachments, accounts, sessions, events; settings on the device only; plain-text search (no suggestions, history or chips) |
+| 0.4.0 | everything above plus search with operators and suggestions, snooze, scheduled send, synced settings (`/settings`), filters, label management (colours, parent, `showInList`, `keywordState`), thumbnails, inline images |
+| 0.5.0 | expected to work as with 0.4.0 (the 0.5.0 contract is additive; not verified). Not supported yet: sign-in with TOTP (`401 totp_required`, no code field), adding OAuth2 accounts (needs a native-client variant on the server), the admin panel, changing "From" in a draft, `DELETE /sessions?others=true`. OAuth2 accounts added in silo-web sync normally |
+| ≤ 0.2.0 | not supported (no bearer sign-in) |
 
-- Logowanie (`src/api/auth.ts`): `POST /session` z
-  `client: {kind: "bearer", name: <nazwa urządzenia>}` (ADR 0007; nazwa z `expo-device`, do 100
-  znaków). Token z odpowiedzi trafia do secure store; ciało sesji służy jako `GET /session` w
-  cache (bez tokenu).
-- Każde żądanie (`src/api/client.ts`) niesie `Authorization: Bearer <token>` i
-  `X-Silo-Client: silo-mobile/<wersja>#<id instalacji>`: serwer zwraca tę wartość jako `origin`
-  zdarzeń, po którym aplikacja rozpoznaje własne zmiany. `fetch` jest rozwiązywany przy każdym
-  wywołaniu (msw w testach).
-- 401 (poza nieudanym `POST /session`) oznacza koniec sesji: aplikacja czyści token i cache i
-  pokazuje logowanie; spóźnione odpowiedzi na żądania ze starym tokenem są ignorowane.
-- Wylogowanie: `DELETE /session`, a przy błędzie innym niż 401 (np. offline) i tak lokalnie
-  (sesję można potem unieważnić z innego urządzenia). „Wyloguj wszędzie”: `DELETE /sessions/{id}`
-  dla każdej innej sesji z `GET /sessions` (404 = już wygasła), potem `DELETE /session`; gdy
-  którejś nie udało się unieważnić, urządzenie zostaje zalogowane i pokazuje błąd.
-- Błędy: `ApiError` (`src/api/errors.ts`) ze `status`, `code` (stabilne pole do rozgałęzień),
-  `retryAfter` (sekundy z `Retry-After` na 429/503) i całym `Problem` (`limit`, `current`,
-  `address`/`field`). Komunikaty po polsku według `code` plus `detail` serwera; pola żądania (hasło)
-  nigdy nie trafiają do snackbara ani logu.
+`GET /meta` has no feature flags, so `src/lib/features.ts` (`hasServerFeature`,
+`useServerFeature`) compares `Meta.serverVersion` with the version each feature appeared in
+(`search`, `snooze`, `schedule`, `settings`, `filters`, `labels`, `thumbnails`, `inlineImages` – all
+0.4.0). Versions compare by MAJOR.MINOR.PATCH, a pre-release counts as the release, an unparsable
+version (`dev`, empty, a commit) is treated as the newest, and until `/meta` is known no 0.4.0
+feature is available. Features the server lacks are hidden.
 
-### Zdarzenia: SSE, polling, AppState (plan 3.14, 5.4)
+The API schema is generated from the OpenAPI document of silo-server `v0.4.0` (`silo.serverRef` in
+`package.json`). Full table: [compatibility matrix](https://github.com/silopost/silo/blob/main/docs/compat-matrix.md#silo-mobile).
 
-- **Strumień** (`src/api/sse.ts`): `GET /api/v1/events` przez `fetch` z przyrostowym parserem
-  `text/event-stream`. React Native nie ma `EventSource`; globalny `fetch` Expo SDK 58 to
-  `expo/fetch`, którego `Response.body` jest `ReadableStream` zasilanym na bieżąco (OkHttp na
-  Androidzie, URLSession na iOS). Każda próba wysyła `Authorization`, `X-Silo-Client` i przy
-  wznowieniu `Last-Event-ID` jako nagłówek; token nigdy w URL-u. Strumień cichy przez 60 s
-  (serwer pinguje co 25 s) uznaje się za martwy i otwiera ponownie.
-- **Reconnect i fallback** (`connectEvents` w `src/api/events.ts`, nastawy w `eventsConfig`):
-  ponowienie po 1 s, 2 s, … (do 30 s); po 3 porażkach z rzędu polling
-  `GET /events/poll?after=<lastId>` co **15 s** (silo-web: 5 s; telefon oszczędza baterię) i co
-  5 min próba powrotu do SSE. Pierwszy poll bez pozycji pomija zaległości i odświeża wszystko. Po
-  nieudanym strumieniu sonda `GET /meta`: gdy Silo nie odpowiada, stan `offline`. 401 ze strumienia
-  nie zapętla się – kończy sesję jak REST.
-- **Mapowanie** (`applyEvent`, port z silo-web): `thread.updated` łata wiersze i otwarty wątek
-  (listy odświeżane, gdy wątek jest nowy lub przeniesiony; `snoozedUntil` też), `label.counts`
-  zapisuje liczniki w `/labels`, `operation.failed` cofa zmianę przez `handleOperationFailed`
-  (migawka z `recentOps` w pamięci, komunikat według `kind`), `draft.updated` zapisuje zdalną
-  wersję dla compose (`src/state/compose.ts`), `outbound.status: failed` pokazuje „Nie udało się
-  wysłać · Otwórz” (`/compose?draftId=`), `settings.updated` z obcym `origin` odświeża
-  `GET /settings`, `filter.applied` pokazuje wynik i odświeża listy i etykiety, zdarzenia kont
-  odświeżają `sync-status` i sesję, `resync` odświeża wszystko, `message.new` tylko listy (bez
-  lokalnego powiadomienia). Własne `thread.updated` (`origin` = własny `X-Silo-Client`) są
-  ignorowane, dopóki trwa operacja na wątkach (`isThreadOpRunning`).
-- **Cykl życia** (`src/features/sync/useEvents.ts`, montowany raz w `app/(app)/_layout.tsx`):
-  strumień jest otwarty tylko po zalogowaniu i na pierwszym planie. `background`/`inactive`
-  zamykają strumień lub polling; powrót łączy ponownie z `Last-Event-ID` i unieważnia listy,
-  etykiety i `sync-status` (odpowiednik `refetchOnWindowFocus`). Powrót sieci (NetInfo) łączy od
-  razu. Wylogowanie rozłącza i zapomina ostatnie id. Główny layout zasila `focusManager` z
-  `AppState` i `onlineManager` z NetInfo.
-- **Stan połączenia** (`src/state/connection.ts`: `connecting | live | polling | offline`): przy
-  `offline` lista pokazuje „Brak połączenia z Silo. Ponawiam…”, przy pollingu nic.
-- Po ponad 24 h bez strumienia (retencja `events`) serwer odpowiada `resync` i aplikacja odświeża
-  wszystkie zapytania; zastąpi to endpoint delta `GET /changes` (Faza 5).
+## Requirements
 
-### Treść wiadomości: WebView i obrazy
+- Node.js 22 or newer (`.nvmrc`: 22; also checked on Node 24) and npm.
+- A running silo-server reachable from the phone or emulator – normally the dev stack of the
+  [`silo`](https://github.com/silopost/silo) repository.
+- One of:
+  - **Expo Go** on an Android phone (no Android SDK needed), or
+  - the **Android SDK** (Android Studio, `adb`, an AVD) for development builds and emulators.
 
-- `messageHtmlQuery` pobiera `GET /messages/{id}/html` jako tekst (`staleTime: Infinity`; 503
-  ponawiane po `Retry-After` do 6 razy; w międzyczasie „Pobieranie treści…”, potem „Treść
-  niedostępna · Spróbuj ponownie”).
-- `prepareHtml` (`src/lib/messageHtml.ts`) owija treść w dokument z własnym CSP
-  (`default-src 'none'`; obrazy tylko `data:`/`blob:` do „Pokaż obrazy”, które dla tej wiadomości
-  dodaje `https:`/`http:`; preferencja „Obrazy: Zawsze” pomija pytanie) i viewportem szerokości
-  urządzenia (szeroka poczta przewija się w bok w karcie). CSP z nagłówka serwera nie działa, bo
-  HTML ładowany jest jako napis. Skrypty usuwa serwer i ponownie `prepareHtml`.
-- Obrazy `cid:` są podmieniane na data URI pobrane klientem API z nagłówkiem bearer
-  (`fetchInlineImages`, do 5 MB na wiadomość; większe zostają zepsute).
-- `react-native-webview`: JavaScript włączony tylko dla wstrzykniętego skryptu wysokości
-  (`injectedJavaScript` → `onMessage`; CSP zostawia dla niego `script-src 'unsafe-inline'`); każda
-  nawigacja odrzucana – linki http(s) w Custom Tab (`expo-web-browser`), `mailto:`/`tel:` przez
-  `expo-linking`, inne schematy ignorowane; bez dostępu do plików, DOM storage, cookies i cache.
-  Strona jest biała także w trybie ciemnym.
+## Quick start
 
-### Załączniki i uploady
+Start the API (in the `silo` repository) and the Expo dev server:
 
-- **Pobieranie** (`AttachmentChips.tsx`): `expo-file-system/legacy` `createDownloadResumable` z
-  nagłówkami `Authorization` i `X-Silo-Client` do `cacheDirectory`, pasek postępu w chipie, potem
-  arkusz udostępniania (`expo-sharing`); 503 → „Załącznik jeszcze niepobrany, spróbuj za chwilę”.
-- **Miniatury** (0.4.0): `GET /attachments/{id}/thumbnail?size=s|m` przez React Native `Image` z
-  `source.headers` (bez nowego modułu natywnego; `expo-image` niepotrzebne); 415/błąd → ikona typu.
-  Natywny cache obrazów może trzymać miniatury po wylogowaniu (Android nie ma publicznego API do
-  jego czyszczenia). Obraz otwiera podgląd pełnoekranowy (`GET /attachments/{id}?inline=1`) z
-  „Udostępnij lub zapisz”.
-- **Upload** (`uploadFile` w `src/api/drafts.ts`): `multipart/form-data` (`file` jako
-  `{uri, name, type}`) na `<serwer>/api/v1/uploads` przez `XMLHttpRequest` (dla
-  `upload.onprogress`), z `Authorization` i `X-Silo-Client`; najwyżej 3 naraz (`queueUpload`);
-  „x” na kafelku przerywa (`AbortSignal`). Plik większy niż `Meta.maxAttachmentBytes` jest
-  odrzucany przed wysłaniem; pliki bez rozmiaru (pickery Androida) polegają na 413
-  `upload_too_large` z `limit`. Obraz w treści: `inline=true` (pole wysyłane jako pierwsze).
+```sh
+# in ../silo
+scripts/dev-up.sh postgres mailserver silo-server   # API on SILO_DEV_SERVER_PORT (default 8080)
+scripts/seed-mail.sh --all                          # sample mail, before the first sign-in
 
-### Akcje na wątkach, optimistic update i „Cofnij” (plan 4.4, 5.2, 6.5)
+# here
+npm ci
+npx expo start          # Expo dev server; scan the QR code with Expo Go
+npm run android         # the same, and open the app on a connected device or emulator
+npx expo run:android    # development build (needs the Android SDK)
+```
 
-Wiersze, swipe, pasek zaznaczenia i ekran wątku wołają `useThreadActions().run(action, ids, opts)`
-(`src/features/threadlist/actions.ts`), zaimplementowane przez `ThreadActionsRoot` wokół szuflady
-konta z `runThreadAction` (`src/api/mutations/threads.ts`). Bez wyboru `run('labels')` otwiera
-arkusz „Etykiety”, `run('moveTo')` – „Przenieś do”, `run('deleteForever')` – potwierdzenie („Tej
-operacji nie można cofnąć”); `opts.after` jest wołane po lokalnym zastosowaniu (wyjście do listy),
-`opts.onUndo` po „Cofnij” (ponowne otwarcie wątku).
+- **Expo Go (Android)**: install Expo Go on the phone and scan the QR code from `npx expo start`.
+  Every native module of the app is available in Expo Go, including the WebView
+  (`react-native-webview`), the TenTap editor (its optional `TenTapKeyboard` module is only for
+  custom keyboards) and the date/time picker.
+- **Instance address** on the sign-in screen: `http://10.0.2.2:8080` in the Android emulator (the
+  host machine), your computer's LAN address on a phone, for example `http://192.168.1.10:8080`
+  (`localhost` on the phone is the phone itself), `https://mail.example.com` in production. Then
+  the mailbox address and password, for example `dev1@silo.test` / `devpass1`.
+- **Cleartext HTTP** works only in development (Expo Go and debug builds allow traffic without
+  TLS); an Android release build blocks it by default, so a production instance must use HTTPS.
+- **Development build / emulator**: `npx expo run:android` generates `android/` (continuous native
+  generation, not committed) and installs a debug build.
 
-| Akcja                                        | Żądanie                                                                                          |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| archiwizuj                                   | `POST /threads/modify` `-INBOX` (widok folderu: `-<folder>`; widok etykiety: `-INBOX -<label>`)  |
-| usuń; „Kosz” w „Przenieś do”                 | `POST /threads/trash`                                                                            |
-| przywróć z kosza                             | `POST /threads/untrash`                                                                          |
-| usuń na zawsze (po potwierdzeniu)            | `POST /threads/delete` (bez cofania)                                                             |
-| zgłoś spam / to nie spam                     | modify `+SPAM` / `-SPAM`                                                                         |
-| przeczytane / nieprzeczytane                 | modify `-UNREAD` / `+UNREAD`                                                                     |
-| gwiazdka / bez gwiazdki (bez snackbara)      | modify `+STARRED` / `-STARRED`                                                                   |
-| etykiety (arkusz, po „OK”)                   | jedno modify z dodanymi i usuniętymi etykietami                                                  |
-| przenieś do Odebranych / Spamu / folderu     | modify `+<cel>` (serwer zdejmuje starą lokalizację)                                              |
-| przenieś do etykiety użytkownika             | modify `+<label> -INBOX` (jak Gmail)                                                             |
-| przenieś do Archiwum                         | jak archiwizuj                                                                                   |
-| odłóż / anuluj odłożenie (0.4.0)             | `POST /threads/{id}/snooze {until}` / `DELETE /threads/{id}/snooze` – po jednym żądaniu na wątek |
-| gwiazdka wiadomości, „nieprzeczytane od tej” | `POST /messages/modify` (`src/api/mutations/messages.ts`, bez cofania)                           |
-| Cofnij                                       | `POST /operations/{id}/undo` (przy snooze – dla każdego wątku)                                   |
+## Configuration
 
-Każda akcja robi migawkę list, etykiet i otwartych wątków z cache, stosuje zmianę lokalnie
-(wiersz znika z listy, do której już nie należy, liczniki etykiet podążają – jak w silo-web),
-wysyła żądanie i nadpisuje cache wątkami z odpowiedzi. Snackbar nazywa wynik z „Cofnij” do
-`undoUntil` (4 s, gdy `undoUntil` jest null, a jest `operationId`); „Cofnij” od razu przywraca
-migawkę i woła endpoint undo, którego odpowiedź jest scalana (409 → „Tej operacji nie można już
-cofnąć.”). Przy błędzie migawka wraca z „Nie udało się. Spróbuj ponownie.”; gdy żadna operacja nie
-trwa, listy i etykiety są odświeżane. Operacje na tych samych wątkach są serializowane (`scope`
-mutacji). Opcjonalne potwierdzenia (preferencje) pytają przed `trash`/`archive` z wiersza, paska i
-wątku.
+There is no build-time configuration of the instance: the user enters the instance address on the
+sign-in screen, and the app reads everything else from `GET /api/v1/meta`.
 
-### Compose i drafty
+| Setting | Where | Notes |
+| --- | --- | --- |
+| Instance address, bearer token, installation id | `expo-secure-store` (Android Keystore / iOS Keychain) | the token is also kept in memory (zustand `src/state/auth.ts`); never in a URL or the query cache |
+| Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`) | not secret; they change only the look and which request is sent |
+| Density, undo-send delay, signature, time zone, active account (server 0.4.0) | server (`GET/PATCH /settings`) | shared with silo-web |
+| App identity | `app.json` | name `Silo`, package `dev.silopost.mobile`, scheme `silopost` |
+| Targeted server contract | `package.json` → `silo.serverRef` | currently `v0.4.0` |
 
-- **Otwarcie**: FAB → `/compose?accountId=<konto listy>`; ekran raz wysyła
-  `POST /drafts {accountId}` i wpisuje id w trasę (`router.setParams`). Odpowiedź, odpowiedź
-  wszystkim, przekazanie (`openReply` → `POST /drafts {replyToMessageId, mode}`, jeden draft na
-  podwójne stuknięcie) i anulowana wysyłka zasilają sesję draftem z odpowiedzi (bez GET); draft z
-  Wersji roboczych lub toastu „Nie udało się wysłać · Otwórz” – `GET /drafts/{id}`.
-  `Draft.warnings` (np. przy przekazaniu z załącznikami oryginału, które kopiuje serwer) – snackbar.
-- **Sesja draftu** (`src/features/compose/session.ts`, port `DraftSession` z silo-web, klasa poza
-  Reactem czytana przez `useSyncExternalStore`): formularz, `version`/`syncedVersion`, `dirty`,
-  stan zapisu, `conflict` + `conflictCurrent`, `serverChanged`, `invalid`, uploady. Zmiany tylko w
-  pamięci. `PUT /drafts/{id}` z edytowaną `version` po 2 s bezczynności
-  (`composeConfig.autosaveMs`), gdy pole odbiorców lub temat traci fokus, oraz z `syncNow: true`
-  przy usunięciu ekranu (zdarzenie `removed` nawigacji) i przejściu aplikacji w tło. Zamknięcie
-  nowego, nieedytowanego draftu go usuwa (jak Gmail i silo-web); w przeciwnym razie ostatni zapis i
-  „Zapisano wersję roboczą”.
-- **Konflikty**: 409 `draft_version_conflict` zachowuje lokalne zmiany i pokazuje „Wersja robocza
-  zmieniona w innym miejscu · Wczytaj / Nadpisz” (Wczytaj bierze `Problem.current`, Nadpisz
-  zapisuje z jego wersją); ten sam pasek po `draft.updated` nowszej wersji z innego klienta
-  (`useCompose.remoteVersions`; Wczytaj pobiera draft). `Draft.serverChanged` → „Zmieniono w innym
-  programie · Wczytaj”. Nieudana wysyłka (`Draft.lastSend` lub `outbound.status failed` →
-  `useCompose.setFailure` i unieważnienie draftu) → czerwone „Nie udało się wysłać: <błąd>” z
-  odrzuconymi odbiorcami.
-- **Treść**: `@10play/tentap-editor` (TipTap w WebView, `src/features/compose/Editor.tsx`) z
-  zestawem startowym i placeholderem; każda zmiana oddaje `bodyHtml` i `bodyJson` (TipTap JSON,
-  format silo-web). Cytat odpowiedzi serwera jest częścią treści. Edytor rośnie w ScrollView
-  ekranu (`dynamicHeight`, `useScrollToCaret`); pasek (B, I, U, listy, link, cytat) nad klawiaturą
-  (`EditorKeyboardAvoidingView`).
-- **Obrazy w treści** (0.4.0): `ImageBridge` TenTap (`editor.setImage`) pokazuje data URI
-  odczytany z urządzenia (`expo-file-system`); `src/lib/inlineImages.ts` zamienia go na `cid:` w
-  `bodyHtml` i na formę silo-web (`/api/v1/attachments/{u_…}?inline=1` + `cid`) w `bodyJson`.
-  Wczytane drafty pobierają swoje obrazy z nagłówkiem bearer i pokazują je, o ile użytkownik nie
-  zaczął już pisać.
-- **Wysyłka i cofanie** (plan 3.9): „Wyślij” → ostatni PUT → `POST /drafts/{id}/send {}` →
-  compose się zamyka, lista pokazuje „Wysłano · Cofnij” do `undoUntil` (tylko czas snackbara).
-  „Cofnij” → `POST /outbound/{id}/cancel` → compose otwiera się z odesłanym `Draft`; 409 → „Za
-  późno, wiadomość została wysłana”. Odmowy zostawiają compose otwarte: 422 `no_recipients`,
-  `invalid_address` (czerwony chip), 413 `message_too_large` (z `limit`), 502
-  `upstream_smtp_error` (z `detail`), 409 `send_in_progress`. Listy konta są unieważniane po
-  zapisie, wysyłce i anulowaniu.
-- **Snackbar**: jeden magazyn toastów; lista renderuje snackbar tylko gdy jest na wierzchu, compose
-  ma własny nad paskiem narzędzi, więc „Wysłano · Cofnij” pojawia się na liście.
+Environment variables are used only by the tooling: `SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD` and
+`SILO_DEVICE` for `npm run smoke:api` (see [Testing](#smoke-test-against-a-live-api)) and
+Expo's own `EXPO_PUBLIC_USE_RN_FETCH`, which switches the global `fetch` back to React Native's instead of
+`expo/fetch` (without a streaming body, so live events fall back to polling).
+
+## Scripts
+
+| Script | Description |
+| --- | --- |
+| `npm start` / `npm run android` | Expo dev server (Android: also opens the app) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint 9 (`eslint-config-expo`, flat config) |
+| `npm run format` / `format:check` | Prettier |
+| `npm test` | Jest (preset `jest-expo` for Android) |
+| `npm run gen:api` | regenerate `src/api/schema.d.ts` (see [API contract](#api-contract)) |
+| `npm run gen:icons` | Expo icons in `assets/` from `assets/icon.svg` (a copy of `silo-web/public/icons/icon.svg`) |
+| `npm run export:android` | `expo export --platform android` into `dist/` |
+| `npm run smoke:api` | read-only smoke test against a live API (`scripts/smoke-api.mjs`) |
+
+## Building for production
+
+There is no signed release and no EAS project yet. A release APK (for example for F-Droid) is built
+from the generated native project:
+
+```sh
+npx expo prebuild --platform android    # generates android/
+cd android && ./gradlew assembleRelease   # on Windows: gradlew.bat assembleRelease
+```
+
+`npm run export:android` produces the Hermes JavaScript bundle (`dist/`, about 8.4 MB), the same
+step a release build runs; CI runs it on every push. Signing, store distribution and F-Droid are
+not set up.
+
+## Architecture
+
+### Thin client
+
+All domain logic lives in silo-server; the app renders state, caches it and applies optimistic
+updates. It makes no decision silo-web could not repeat: the Undo window is the server's
+`undoUntil` (no local timer and no inverse modify), draft autosave is `PUT /drafts/{id}` with
+`version`, the search query goes out as `q` exactly as typed (parser, suggestions and history are
+the server's), snooze presets come from the server, waking and scheduled sending happen on the
+server, and filters are matched and applied by the server. Only presentation, gestures, device
+preferences and the in-memory buffer of the draft being edited stay local.
+
+Layers (dependencies point down only):
+
+| Layer | Directory | Role |
+| --- | --- | --- |
+| routes | `app/` | expo-router (files = URLs, as in silo-web); thin, they render screens |
+| screens | `src/screens/` | one screen per route (label list, thread, compose, search, settings) |
+| features | `src/features/` | components and hooks per area: `nav`, `topbar`, `accounts`, `shell`, `threadlist`, `thread`, `compose`, `labels`, `snooze`, `search`, `settings`, `sync`, `toasts` |
+| queries, mutations, events | `src/api/queries`, `src/api/mutations`, `src/api/events.ts`, `src/api/sse.ts`, `src/api/drafts.ts` | TanStack Query (`keys.ts`), optimistic updates and undo, the event stream and its mapping onto the cache, uploads |
+| API client | `src/api/client.ts`, `auth.ts`, `errors.ts`, `schema.d.ts` | `openapi-fetch` with OpenAPI types, headers, 401 → sign-out, `ApiError` over RFC 9457 |
+| state and libraries | `src/state/`, `src/lib/` | zustand (auth, preferences, selection, toasts, connection, compose), pure functions (formatting, addresses, HTML, theme) |
+
+State: threads, labels, drafts, accounts, sessions, settings, filters, `sync-status` and `/meta`
+live on the server and in the TanStack Query cache (updated by events; `/meta` and message HTML
+with `staleTime: Infinity`). The draft being edited lives in memory (`DraftSession`) – there is no
+local draft store; it is saved after 2 s of idle time, on blur, on close and when the app goes to
+the background. Selection, toasts, connection state and remote draft versions are in-memory
+zustand stores (`selection.ts`, `toasts.ts`, `connection.ts`, `compose.ts`).
+
+### Authentication and headers
+
+- Sign-in (`src/api/auth.ts`): `POST /session` with `client: {kind: "bearer", name: <device
+  name>}` ([ADR 0007](https://github.com/silopost/silo/blob/main/docs/adr/0007-bearer-tokens-for-native-clients.md);
+  the name comes from `expo-device`, up to 100 characters). The token goes to the secure store; the
+  session body seeds `GET /session` in the cache (without the token).
+- Every request (`src/api/client.ts`) carries `Authorization: Bearer <token>` and
+  `X-Silo-Client: silo-mobile/<version>#<installation id>`; the server echoes it as the `origin` of
+  events, which lets the app recognise its own changes. `fetch` is resolved on every call (msw in
+  tests).
+- A 401 (other than a failed `POST /session`) ends the session: the app clears the token and the
+  cache and shows the sign-in screen; late answers to requests made with the old token are
+  ignored.
+- Sign-out: `DELETE /session`, and on an error other than 401 (for example offline) locally anyway
+  (the session can be revoked from another device). Sign out everywhere: `DELETE /sessions/{id}`
+  for every other session from `GET /sessions` (404 = already expired), then `DELETE /session`; if
+  one could not be revoked, the device stays signed in and shows an error.
+- Errors: `ApiError` (`src/api/errors.ts`) with `status`, `code` (the stable field to branch on),
+  `retryAfter` (seconds from `Retry-After` on 429/503) and the whole `Problem` (`limit`, `current`,
+  `address`/`field`). Messages are chosen by `code` plus the server's `detail`; request fields
+  (the password) never reach a snackbar or a log.
+
+### Events: SSE, polling, app state
+
+- **Stream** (`src/api/sse.ts`): `GET /api/v1/events` through `fetch` with an incremental
+  `text/event-stream` parser. React Native has no `EventSource`; the global `fetch` of Expo SDK 58
+  is `expo/fetch`, whose `Response.body` is a `ReadableStream` fed as data arrives (OkHttp on
+  Android, URLSession on iOS). Each attempt sends `Authorization`, `X-Silo-Client` and, when
+  resuming, `Last-Event-ID` as a header; the token never goes into the URL. A stream silent for
+  60 s (the server pings every 25 s) is considered dead and reopened.
+- **Reconnect and fallback** (`connectEvents` in `src/api/events.ts`, settings in `eventsConfig`):
+  retry after 1 s, 2 s, … (up to 30 s); after 3 failures in a row, polling
+  `GET /events/poll?after=<lastId>` every **15 s** (silo-web: 5 s; the phone saves battery) and a
+  return to SSE every 5 min. The first poll without a position skips the backlog and refreshes
+  everything. After a failed stream the app probes `GET /meta`: when Silo does not answer, the
+  state is `offline`. A 401 from the stream does not loop – it ends the session like REST.
+- **Mapping** (`applyEvent`, ported from silo-web): `thread.updated` patches rows and the open
+  thread (lists refresh when the thread is new or moved; `snoozedUntil` too), `label.counts` writes
+  counters into `/labels`, `operation.failed` rolls the change back through
+  `handleOperationFailed` (snapshot from `recentOps` in memory, a message by `kind`),
+  `draft.updated` stores the remote version for compose (`src/state/compose.ts`),
+  `outbound.status: failed` shows a failed-send toast that opens `/compose?draftId=`,
+  `settings.updated` from another `origin` refreshes `GET /settings`, `filter.applied` shows the
+  result and refreshes lists and labels, account events refresh `sync-status` and the session,
+  `resync` refreshes everything, and `message.new` refreshes lists only (no local notification).
+  The app's own `thread.updated` (`origin` = its `X-Silo-Client`) is ignored while a thread
+  operation runs (`isThreadOpRunning`).
+- **Lifecycle** (`src/features/sync/useEvents.ts`, mounted once in `app/(app)/_layout.tsx`): the
+  stream is open only when signed in and in the foreground. `background`/`inactive` close the
+  stream or polling; coming back reconnects with `Last-Event-ID` and invalidates lists, labels and
+  `sync-status` (the equivalent of `refetchOnWindowFocus`). Network recovery (NetInfo) reconnects
+  at once. Sign-out disconnects and forgets the last id. The root layout feeds `focusManager` from
+  `AppState` and `onlineManager` from NetInfo.
+- **Connection state** (`src/state/connection.ts`: `connecting | live | polling | offline`): when
+  `offline`, the list shows a "can't reach Silo, retrying" notice; when polling, nothing.
+- After more than 24 h without a stream (the retention of `events`) the server answers `resync`
+  and the app refreshes every query; a delta endpoint `GET /changes` will replace this.
+
+### Message content: WebView and images
+
+- `messageHtmlQuery` fetches `GET /messages/{id}/html` as text (`staleTime: Infinity`; a 503 is
+  retried after `Retry-After` up to 6 times, with a loading and then a retry state).
+- `prepareHtml` (`src/lib/messageHtml.ts`) wraps the content in a document with its own CSP
+  (`default-src 'none'`; images only `data:`/`blob:` until the user chooses to show images, which
+  adds `https:`/`http:` for that message; the "always show images" preference skips the question)
+  and a device-width viewport (wide mail scrolls sideways inside the card). The server's CSP header
+  does not apply because the HTML is loaded as a string. Scripts are removed by the server and
+  again by `prepareHtml`.
+- `cid:` images are replaced with data URIs fetched by the API client with the bearer header
+  (`fetchInlineImages`, up to 5 MB per message; larger ones stay broken).
+- `react-native-webview`: JavaScript is enabled only for the injected height script
+  (`injectedJavaScript` → `onMessage`; the CSP keeps `script-src 'unsafe-inline'` for it); every
+  navigation is refused – http(s) links open in a Custom Tab (`expo-web-browser`), `mailto:`/`tel:`
+  through `expo-linking`, other schemes are ignored; no file access, DOM storage, cookies or cache.
+  The page stays white in dark mode.
+
+### Attachments and uploads
+
+- **Download** (`AttachmentChips.tsx`): `expo-file-system/legacy` `createDownloadResumable` with
+  the `Authorization` and `X-Silo-Client` headers into `cacheDirectory`, a progress bar in the chip,
+  then the share sheet (`expo-sharing`); a 503 says the attachment is not downloaded yet.
+- **Thumbnails** (0.4.0): `GET /attachments/{id}/thumbnail?size=s|m` through React Native `Image`
+  with `source.headers` (no new native module; `expo-image` not needed); 415 or an error → the type
+  icon. The native image cache may keep thumbnails after sign-out (Android has no public API to
+  clear it). An image opens a full-screen preview (`GET /attachments/{id}?inline=1`) with share or
+  save.
+- **Upload** (`uploadFile` in `src/api/drafts.ts`): `multipart/form-data` (`file` as
+  `{uri, name, type}`) to `<server>/api/v1/uploads` through `XMLHttpRequest` (for
+  `upload.onprogress`), with `Authorization` and `X-Silo-Client`; at most 3 at a time
+  (`queueUpload`); the × on a tile aborts (`AbortSignal`). A file larger than
+  `Meta.maxAttachmentBytes` is refused before sending; files without a size (Android pickers) rely
+  on `413 upload_too_large` with `limit`. Inline image: `inline=true` (sent as the first field).
+
+### Thread actions, optimistic updates and Undo
+
+Rows, swipe, the selection bar and the thread screen call `useThreadActions().run(action, ids,
+opts)` (`src/features/threadlist/actions.ts`), implemented by `ThreadActionsRoot` around the
+account drawer with `runThreadAction` (`src/api/mutations/threads.ts`). Without a choice,
+`run('labels')` opens the labels sheet, `run('moveTo')` the move-to sheet and `run('deleteForever')`
+a confirmation; `opts.after` runs after the local change (back to the list), `opts.onUndo` after
+Undo (reopening the thread).
+
+| Action | Request |
+| --- | --- |
+| archive | `POST /threads/modify` `-INBOX` (folder view: `-<folder>`; label view: `-INBOX -<label>`) |
+| delete; Trash in "move to" | `POST /threads/trash` |
+| restore from Trash | `POST /threads/untrash` |
+| delete forever (after confirmation) | `POST /threads/delete` (no undo) |
+| report spam / not spam | modify `+SPAM` / `-SPAM` |
+| read / unread | modify `-UNREAD` / `+UNREAD` |
+| star / unstar (no snackbar) | modify `+STARRED` / `-STARRED` |
+| labels (sheet, after OK) | one modify with the added and removed labels |
+| move to Inbox / Spam / a folder | modify `+<target>` (the server removes the old location) |
+| move to a user label | modify `+<label> -INBOX` (as Gmail does) |
+| move to Archive | as archive |
+| snooze / unsnooze (0.4.0) | `POST /threads/{id}/snooze {until}` / `DELETE /threads/{id}/snooze`, one request per thread |
+| star a message, "mark unread from here" | `POST /messages/modify` (`src/api/mutations/messages.ts`, no undo) |
+| Undo | `POST /operations/{id}/undo` (for snooze, one per thread) |
+
+Every action snapshots the lists, labels and open threads in the cache, applies the change locally
+(a row leaves a list it no longer belongs to, label counters follow – as in silo-web), sends the
+request and overwrites the cache with the threads from the answer. The snackbar names the result
+with Undo until `undoUntil` (4 s when `undoUntil` is null but there is an `operationId`); Undo
+restores the snapshot at once and calls the undo endpoint, whose answer is merged (409 → the
+operation can no longer be undone). On an error the snapshot comes back with a retry message; when
+no operation is running, lists and labels are refreshed. Operations on the same threads are
+serialised (mutation `scope`). Optional confirmations (preferences) ask before `trash`/`archive`
+from a row, the bar or the thread.
+
+### Compose and drafts
+
+- **Opening**: the FAB → `/compose?accountId=<account of the list>`; the screen sends
+  `POST /drafts {accountId}` once and writes the id into the route (`router.setParams`). Reply,
+  reply all, forward (`openReply` → `POST /drafts {replyToMessageId, mode}`, one draft per double
+  tap) and a cancelled send seed the session with the draft from the answer (no GET); a draft from
+  Drafts or from the failed-send toast is loaded with `GET /drafts/{id}`. `Draft.warnings` (for
+  example on a forward with the original's attachments, which the server copies) → snackbar.
+- **Draft session** (`src/features/compose/session.ts`, a port of silo-web's `DraftSession`, a
+  class outside React read through `useSyncExternalStore`): form, `version`/`syncedVersion`,
+  `dirty`, save state, `conflict` + `conflictCurrent`, `serverChanged`, `invalid`, uploads. Changes
+  stay in memory. `PUT /drafts/{id}` with the edited `version` after 2 s of idle time
+  (`composeConfig.autosaveMs`), when the recipients field or the subject loses focus, and with
+  `syncNow: true` when the screen is removed (the navigation `removed` event) or the app goes to
+  the background. Closing a new, untouched draft deletes it (as Gmail and silo-web do); otherwise
+  the last save runs and a "draft saved" toast appears.
+- **Conflicts**: `409 draft_version_conflict` keeps the local changes and offers to load the other
+  version (`Problem.current`) or overwrite it (save with its version); the same bar appears after a
+  `draft.updated` with a newer version from another client (`useCompose.remoteVersions`).
+  `Draft.serverChanged` offers to load the version changed in another program. A failed send
+  (`Draft.lastSend` or `outbound.status failed` → `useCompose.setFailure` and draft invalidation)
+  shows the error in red with the refused recipients.
+- **Body**: `@10play/tentap-editor` (TipTap in a WebView, `src/features/compose/Editor.tsx`) with
+  the starter kit and a placeholder; every change yields `bodyHtml` and `bodyJson` (TipTap JSON,
+  silo-web's format). The server's reply quote is part of the body. The editor grows inside the
+  screen's ScrollView (`dynamicHeight`, `useScrollToCaret`); the toolbar (bold, italic, underline,
+  lists, link, quote) sits above the keyboard (`EditorKeyboardAvoidingView`).
+- **Inline images** (0.4.0): TenTap's `ImageBridge` (`editor.setImage`) shows a data URI read from
+  the device (`expo-file-system`); `src/lib/inlineImages.ts` turns it into `cid:` in `bodyHtml`
+  and into silo-web's form (`/api/v1/attachments/{u_…}?inline=1` + `cid`) in `bodyJson`. Loaded
+  drafts fetch their images with the bearer header and show them unless the user has started
+  typing.
+- **Send and undo**: Send → the last PUT → `POST /drafts/{id}/send {}` → compose closes, the list
+  shows a "sent" snackbar with Undo until `undoUntil` (snackbar timing only). Undo →
+  `POST /outbound/{id}/cancel` → compose reopens with the returned `Draft`; 409 → too late, the
+  message was sent. Refusals keep compose open: `422 no_recipients`, `invalid_address` (a red chip),
+  `413 message_too_large` (with `limit`), `502 upstream_smtp_error` (with `detail`),
+  `409 send_in_progress`. The account's lists are invalidated after save, send and cancel.
+- **Snackbar**: one toast store; the list renders its snackbar only when it is on top, compose has
+  its own above the toolbar, so the "sent · Undo" snackbar appears on the list.
 
 ### Stack
 
-- [Expo](https://expo.dev) SDK 58 (React Native 0.88, React 19.3, nowa architektura, React
+- [Expo](https://expo.dev) SDK 58 (React Native 0.88, React 19.3, the new architecture, React
   Compiler), TypeScript `strict`
-- [expo-router](https://docs.expo.dev/router/introduction/) (trasy w `app/`, `Drawer` na
+- [expo-router](https://docs.expo.dev/router/introduction/) (routes in `app/`, `Drawer` on
   `react-native-drawer-layout`, `react-native-gesture-handler` 3, `react-native-reanimated` 4)
-- [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) z typami z
+- [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with types from
   [openapi-typescript](https://openapi-ts.dev/) (`src/api/schema.d.ts`)
 - [TanStack Query](https://tanstack.com/query), [zustand](https://zustand.docs.pmnd.rs)
   (+ AsyncStorage), `expo-secure-store`, `@react-native-community/netinfo`
 - [react-native-paper](https://callstack.github.io/react-native-paper/) 5 (Material 3),
-  [FlashList](https://shopify.github.io/flash-list/) 2, `date-fns` (locale `pl`), `expo-haptics`
+  [FlashList](https://shopify.github.io/flash-list/) 2, `date-fns`, `expo-haptics`
 - `react-native-webview`, `@10play/tentap-editor`, `@react-native-community/datetimepicker`,
   `expo-document-picker`, `expo-image-picker`, `expo-file-system`, `expo-sharing`,
   `expo-web-browser`, `expo-linking`
-- Testy: `jest-expo`, `@testing-library/react-native` 14, [msw](https://mswjs.io) 3
+- Tests: `jest-expo`, `@testing-library/react-native` 14, [msw](https://mswjs.io) 3
 
-Uzasadnienia wyborów: [docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#decyzje-stacku).
+The reasoning behind these choices is in
+[docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#decyzje-stacku) (in Polish).
 
-## Mapowanie aplikacja Gmail → ekrany → endpointy
+## Screens and endpoints
 
-Trasy odpowiadają URL-om silo-web (plan 6.2); `<n>` to `Account.position`. Ścieżki API względem
-`/api/v1`; „0.4.0” – tylko na serwerze ≥ 0.4.0.
+Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relative to `/api/v1`;
+"0.4.0" marks features that need server 0.4.0 or newer.
 
-| Aplikacja Gmail             | silo-mobile (trasa, ekran)                                                                                                             | Endpointy                                                                                                                         |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| logowanie                   | `/login`: adres instancji, adres skrzynki, hasło; „Silo · serwer <wersja>”                                                             | `GET /meta`, `POST /session {client: bearer}`                                                                                     |
-| start (Odebrane)            | `/` → `/u/<n>/inbox` konta `settings.activeAccountId`, inaczej pierwszego; bez kont – „Dodaj konto”                                    | `GET /session`                                                                                                                    |
-| szuflada                    | widoki systemowe, „Etykiety”, foldery serwera, „Utwórz nową”, „Ustawienia”                                                             | `GET /labels?accountId=`, `POST /labels`                                                                                          |
-| pasek wyszukiwania          | menu, „Szukaj w poczcie” (→ wyszukiwanie), awatar konta                                                                                | –                                                                                                                                 |
-| przełącznik kont            | dialog z awatara: konta z licznikami Odebranych, „Zarządzaj kontami”, „Dodaj konto”, wyloguj                                           | `GET /labels` per konto (gdy dialog otwarty), `PATCH /settings {activeAccountId}` (0.4.0)                                         |
-| FAB „Utwórz”                | `/compose?accountId=…` → `?draftId=d_…`                                                                                                | `POST /drafts {accountId}`                                                                                                        |
-| lista wątków                | `/u/<n>/<label>` (slug systemowy `inbox`, `starred`, … lub `l_<id>`); przewijanie nieskończone, pull-to-refresh, banery synchronizacji | `GET /threads?accountId=&labelId=&cursor=` (50), `GET /accounts/{id}/sync-status`, `POST /accounts/{id}/resync`                   |
-| swipe                       | archiwizuj / usuń / odłóż wg preferencji                                                                                               | jak akcje (wyżej)                                                                                                                 |
-| zaznaczanie wielu           | długie przytrzymanie lub awatar → pasek zaznaczenia i menu ⋮; arkusze „Etykiety”, „Przenieś do”                                        | `POST /threads/modify\|trash\|untrash\|delete`, `POST /labels`                                                                    |
-| wątek                       | `/u/<n>/<label>/<threadId>`: karty wiadomości, treść w WebView, załączniki, odpowiedź, strzałki nowszy/starszy                         | `GET /threads/{id}`, `GET /messages/{id}/html`, `GET /attachments/{id}[?inline=1]`, `/thumbnail` (0.4.0), `POST /messages/modify` |
-| odpowiedz / przekaż         | pasek odpowiedzi i menu wiadomości → compose                                                                                           | `POST /drafts {replyToMessageId, mode}`                                                                                           |
-| compose                     | `/compose?draftId=d_…` (pełny ekran): Od, Do/DW/UDW, Temat, treść, załączniki, ⋮                                                       | `GET/PUT/DELETE /drafts/{id}`, `GET /contacts/autocomplete?q=`, `POST /uploads`                                                   |
-| wyślij, cofnij wysyłkę      | „Wysłano · Cofnij” do `undoUntil`                                                                                                      | `POST /drafts/{id}/send {}`, `POST /outbound/{id}/cancel`                                                                         |
-| cofnij akcję                | snackbar „Cofnij” do `undoUntil`                                                                                                       | `POST /operations/{id}/undo`                                                                                                      |
-| odłóż (0.4.0)               | arkusz „Odłóż do…”: presety serwera, „Wybierz datę i godzinę”; ze swipe, paska zaznaczenia, menu wątku                                 | `GET /snooze/presets`, `POST`/`DELETE /threads/{id}/snooze`                                                                       |
-| Odłożone                    | wiersze „Odłożono do <czas>”, „Anuluj odłożenie”                                                                                       | `DELETE /threads/{id}/snooze`                                                                                                     |
-| zaplanuj wysyłkę (0.4.0)    | compose ⋮ → arkusz z propozycjami i „Wybierz datę i godzinę”                                                                           | `POST /drafts/{id}/send {sendAt}`                                                                                                 |
-| Zaplanowane                 | wiersze z zegarem „Zaplanowano: <czas>”; w wątku „Anuluj wysyłkę” → draft w compose                                                    | `POST /outbound/{outboundId}/cancel`                                                                                              |
-| Wersje robocze              | wiersz otwiera `/compose?draftId=d_…`                                                                                                  | `GET /drafts/{id}`                                                                                                                |
-| wyszukiwanie                | `/u/<n>/search?q=`; wynik `/u/<n>/search/<threadId>?q=`; historia, podpowiedzi, chipy filtrów (0.4.0)                                  | `GET /threads?q=`, `GET /search/suggest?q=&accountId=`, `DELETE /search/history[?query=]` (0.4.0)                                 |
-| ustawienia                  | `/settings`: Ustawienia ogólne, konta, Dodaj konto, O aplikacji                                                                        | `GET /session`                                                                                                                    |
-| – ustawienia ogólne         | `/settings/general`: sekcja urządzenia + „Konto Silo (synchronizowane)” (0.4.0)                                                        | `GET /settings`, `PATCH /settings` (0.4.0)                                                                                        |
-| – konto                     | `/settings/account/<id>`: nazwa, synchronizacja, serwer, hasło, foldery (odczyt), „Filtry”, „Etykiety”, usuń                           | `GET /accounts/{id}/sync-status`, `PATCH`/`DELETE /accounts/{id}`, `POST /accounts/{id}/resync`                                   |
-| – dodaj konto               | `/settings/add-account`: jeden formularz, „Sprawdź połączenie”, „Dodaj”                                                                | `POST /accounts/test`, `POST /accounts`                                                                                           |
-| – filtry (0.4.0)            | `/settings/filters?accountId=`, edytor `/settings/filter`                                                                              | `GET/POST /filters`, `PUT`/`DELETE /filters/{id}`, `POST /filters/{id}/apply`                                                     |
-| – etykiety (0.4.0)          | `/settings/labels?accountId=`: drzewo, edycja, usuwanie                                                                                | `GET /labels`, `POST /labels`, `PATCH`/`DELETE /labels/{id}`                                                                      |
-| – urządzenia (konto Google) | `/settings/sessions`: unieważnij, „Wyloguj się”, „Wyloguj wszędzie”                                                                    | `GET /sessions`, `DELETE /sessions/{id}`, `DELETE /session`                                                                       |
-| – informacje                | `/settings/about`: wersja aplikacji, `silo.serverRef`, adres i `/meta` serwera, link do źródeł AGPL-3.0, sesje, wyloguj                | `GET /meta`                                                                                                                       |
-| (na żywo)                   | odświeżanie list, liczników, wątku, compose bez przeładowania                                                                          | `GET /events` (SSE), `GET /events/poll`                                                                                           |
+| Gmail app | silo-mobile (route, screen) | Endpoints |
+| --- | --- | --- |
+| sign-in | `/login`: instance address, mailbox address, password; server version shown | `GET /meta`, `POST /session {client: bearer}` |
+| start (Inbox) | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first account; without accounts: add account | `GET /session` |
+| drawer | system views, labels, server folders, create label, settings | `GET /labels?accountId=`, `POST /labels` |
+| search bar | menu, search field (→ search), account avatar | – |
+| account switcher | dialog from the avatar: accounts with Inbox unread counts, manage accounts, add account, sign out | `GET /labels` per account (while the dialog is open), `PATCH /settings {activeAccountId}` (0.4.0) |
+| Compose FAB | `/compose?accountId=…` → `?draftId=d_…` | `POST /drafts {accountId}` |
+| thread list | `/u/<n>/<label>` (system slug `inbox`, `starred`, … or `l_<id>`); infinite scroll, pull-to-refresh, sync banners | `GET /threads?accountId=&labelId=&cursor=` (50), `GET /accounts/{id}/sync-status`, `POST /accounts/{id}/resync` |
+| swipe | archive / delete / snooze by preference | as the actions above |
+| multi-select | long press or avatar → selection bar and ⋮ menu; labels and move-to sheets | `POST /threads/modify\|trash\|untrash\|delete`, `POST /labels` |
+| thread | `/u/<n>/<label>/<threadId>`: message cards, body in a WebView, attachments, reply, newer/older arrows | `GET /threads/{id}`, `GET /messages/{id}/html`, `GET /attachments/{id}[?inline=1]`, `/thumbnail` (0.4.0), `POST /messages/modify` |
+| reply / forward | reply bar and message menu → compose | `POST /drafts {replyToMessageId, mode}` |
+| compose | `/compose?draftId=d_…` (full screen): From, To/Cc/Bcc, subject, body, attachments, ⋮ | `GET/PUT/DELETE /drafts/{id}`, `GET /contacts/autocomplete?q=`, `POST /uploads` |
+| send, undo send | "sent" snackbar with Undo until `undoUntil` | `POST /drafts/{id}/send {}`, `POST /outbound/{id}/cancel` |
+| undo an action | snackbar Undo until `undoUntil` | `POST /operations/{id}/undo` |
+| snooze (0.4.0) | snooze sheet: server presets, custom date and time; from swipe, the selection bar, the thread menu | `GET /snooze/presets`, `POST`/`DELETE /threads/{id}/snooze` |
+| Snoozed | rows with the wake time, unsnooze | `DELETE /threads/{id}/snooze` |
+| schedule send (0.4.0) | compose ⋮ → sheet with suggestions and a custom date and time | `POST /drafts/{id}/send {sendAt}` |
+| Scheduled | rows with a clock and the send time; cancel send in the thread → draft in compose | `POST /outbound/{outboundId}/cancel` |
+| Drafts | a row opens `/compose?draftId=d_…` | `GET /drafts/{id}` |
+| search | `/u/<n>/search?q=`; result `/u/<n>/search/<threadId>?q=`; history, suggestions, filter chips (0.4.0) | `GET /threads?q=`, `GET /search/suggest?q=&accountId=`, `DELETE /search/history[?query=]` (0.4.0) |
+| settings | `/settings`: general settings, accounts, add account, about | `GET /session` |
+| – general | `/settings/general`: device section + synced Silo account section (0.4.0) | `GET /settings`, `PATCH /settings` (0.4.0) |
+| – account | `/settings/account/<id>`: name, sync, server, password, folders (read-only), filters, labels, remove | `GET /accounts/{id}/sync-status`, `PATCH`/`DELETE /accounts/{id}`, `POST /accounts/{id}/resync` |
+| – add account | `/settings/add-account`: one form, test connection, add | `POST /accounts/test`, `POST /accounts` |
+| – filters (0.4.0) | `/settings/filters?accountId=`, editor `/settings/filter` | `GET/POST /filters`, `PUT`/`DELETE /filters/{id}`, `POST /filters/{id}/apply` |
+| – labels (0.4.0) | `/settings/labels?accountId=`: tree, edit, delete | `GET /labels`, `POST /labels`, `PATCH`/`DELETE /labels/{id}` |
+| – devices | `/settings/sessions`: revoke, sign out, sign out everywhere | `GET /sessions`, `DELETE /sessions/{id}`, `DELETE /session` |
+| – about | `/settings/about`: app version, `silo.serverRef`, server address and `/meta`, link to the AGPL-3.0 source, sessions, sign out | `GET /meta` |
+| (live) | lists, counters, thread and compose refresh without reload | `GET /events` (SSE), `GET /events/poll` |
 
-### Szczegóły ekranów
+### Screen notes
 
-**Szuflada** (`src/features/nav`): otwierana swipe od lewej krawędzi lub przyciskiem menu.
-Logotyp, widoki systemowe w kolejności Gmaila (`src/lib/labels.ts`, port `SYSTEM_VIEWS` silo-web)
-z licznikami (nieprzeczytane: Odebrane, Spam; wszystkie: Zaplanowane, Wersje robocze; `99+`
-powyżej 99), „Etykiety” z etykietami użytkownika (kropka koloru, licznik nieprzeczytanych, dzieci
-wcięte), foldery serwera, „Utwórz nową” (dialog nazwy, na 0.4.0 także kolor i rodzic), „Ustawienia”,
-„Pomoc i opinie” (wyłączone). Aktywna pozycja na pigułce MD3 (`secondaryContainer`, zaokrąglony
-prawy koniec), ogłaszana jako zaznaczona.
+- **Drawer** (`src/features/nav`): opened by a swipe from the left edge or the menu button; system
+  views in Gmail's order (`src/lib/labels.ts`, a port of silo-web's `SYSTEM_VIEWS`) with counters
+  (unread for Inbox and Spam, totals for Scheduled and Drafts, `99+` above 99), user labels (colour
+  dot, unread count, children indented), server folders, create label (name; on 0.4.0 also colour
+  and parent), settings. The active item sits on an MD3 pill and is announced as selected.
+- **List** (`src/features/threadlist/ThreadList.tsx`): an infinite query on FlashList (keyset
+  cursor, 50 per page); Gmail-style empty states, an error view with retry. Rows
+  (`ThreadRow.tsx`) show the avatar of the last other participant, senders with the message count,
+  date, subject, snippet (hidden in compact density), user label chips in their colours, star,
+  paperclip, scheduled and snoozed times and a pending-sync clock after 3 s. Heights: 72 dp
+  (default), 64 dp (`comfortable`, 0.4.0), 56 dp (compact). TalkBack reads one label per row.
+- **Swipe** (`SwipeableRow.tsx`, a custom gesture-handler 3 pan + reanimated 4): the row follows the
+  finger over a green (archive) or red (delete) background; released past 40 % of the width it
+  slides out and runs that side's action (`swipeLeftAction`/`swipeRightAction`: archive, delete,
+  snooze or none) with a haptic tick at the threshold. It activates after 16 dp horizontally and
+  fails after 12 dp vertically (list scrolling); a pan started within 32 dp of the left edge opens
+  the drawer. No swipe in Trash, Spam or while selecting.
+- **Selection** (`SelectionBar.tsx`, `src/state/selection.ts`): long press or tapping the avatar
+  selects (the avatar turns into a check mark); the selection bar replaces the search bar with
+  archive, delete, snooze (0.4.0), read/unread; Trash offers delete forever, Spam "not spam" and
+  delete forever; the ⋮ menu has move to, labels, star/unstar, report spam, restore, unsnooze and
+  select all (loaded rows). Back ends selection.
+- **Thread** (`src/screens/ThreadScreen.tsx`): the list row from the cache is the
+  `placeholderData` (subject and chips at once); 404 → not found. Header with subject, location
+  chip, label chips, importance marker and thread star; toolbar actions follow the thread's
+  location. After loading, an unread thread is marked read once unless the preference turns it off.
+  Message cards (`MessageCard.tsx`): unread and last expanded, the rest collapsed (3+ collapsed
+  messages fold into a counter); details, star, reply and a ⋮ menu per message. The reply bar
+  targets the last message that is neither a draft nor scheduled; newer/older arrows navigate the
+  cached list (in search, the results).
+- **Compose** (`src/screens/ComposeScreen.tsx`, a `fullScreenModal`): back (save and close), the
+  paperclip (attach files with `expo-document-picker`, insert from the gallery with
+  `expo-image-picker`, insert an inline image – 0.4.0), send (enabled with at least one
+  recipient), ⋮ (save draft, schedule send – 0.4.0, discard with a confirmation). Fields: From
+  (read-only), To with chips, Cc/Bcc, subject, body, attachment tiles with progress.
+  `RecipientInput` turns Enter, comma, semicolon, a space after `…@…` or leaving the field into
+  chips; pasted lists are split by `src/lib/addresses.ts` (a port from silo-web); suggestions come
+  from `GET /contacts/autocomplete?q=` (150 ms debounce, `staleTime` 60 s). A chip is red only for
+  an address refused by the server – the app itself checks only "at least one recipient".
+- **Search** (`/u/<n>/search`, its own stack so results can be browsed): on 0.4.0 recent searches
+  (from the server; no local history), suggestions while typing (150 ms debounce), filter chips
+  (labels, from, to, date, attachment, unread, starred) that add or remove query text
+  (`src/lib/searchText.ts`), result estimates, notices for `approximate` and `indexing.done < 1`,
+  `422` as an invalid-query message and "create filter from this search". On 0.3.0 the field
+  searches plain text.
+- **Snooze and schedule** (0.4.0): the snooze sheet (`src/features/snooze/SnoozeSheet.tsx`) shows the
+  server's presets by `key` with times in the zone from the answer, and a custom date and time
+  (`DateTimePickerAndroid.open`, `src/lib/pickDateTime.ts`). N threads = N requests, one Undo
+  undoes all N operations; `422 invalid_snooze` and `409 not_in_inbox` are explained; unsnooze has
+  no undo (`409 not_snoozed`). Schedule send offers tomorrow morning 8:00, tomorrow afternoon 13:00
+  and Monday morning 8:00 (device clock, suggestions only) plus a custom date and time; its
+  snackbar with Undo lasts at most 10 s (the message can be cancelled from Scheduled).
+- **General settings** (`/settings/general`): device section (theme, list density, swipe actions,
+  confirmations before delete/archive, mark as read on open, images ask/always, notifications –
+  disabled, no push yet). On 0.4.0 a synced section: density (default/comfortable/compact),
+  undo-send delay (5/10/20/30 s), signature (multi-line text dialog), time zone (IANA list from
+  `Intl.supportedValuesOf("timeZone")` with search, or a text field without `Intl`). One field per
+  `PATCH`, optimistic `setQueryData`; `422 invalid_setting`/`invalid_timezone` → snackbar and the
+  previous value. On 0.4.0 the server is the source of density (`useDensity()` copies
+  `Settings.density` to `useUi.density`; the device value is never sent). The server stores the
+  signature as sanitised HTML; the phone edits it as lines of text (`src/lib/signature.ts`).
+- **Account** (`/settings/account/<id>`): name (`PATCH {displayName}`), sync state and counters of
+  pending and failed operations, sync now (`incremental`) and full comparison (`full`), server
+  details (capabilities, keyword warning, read-only folders, hosts, login, `sentAppend` switch,
+  change password = `PATCH {password}`), filters and labels (0.4.0), remove the account from Silo
+  (`DELETE`; the user stays signed in, because a Silo session is not tied to a mailbox).
+- **Add account** (`/settings/add-account`): address, password, name, advanced (login; servers only
+  when `Meta.allowCustomServers`), test connection (`POST /accounts/test`), add (`POST /accounts`,
+  422 with the steps).
+- **Filters** (0.4.0, a port of silo-web's `FiltersPanel`/`FilterEditor`): list with criteria,
+  action chips, an enable switch (PUT of the whole filter, `filterBody()`), ↑/↓ reordering (PUT with
+  a new `position`), and an editor with criteria as text plus search chips, a test search, five
+  action switches, a label sheet, forward-to, apply to existing messages and delete with a
+  confirmation. `422 invalid_query`, `invalid_label` and `invalid_filter` are shown next to the
+  fields; apply shows `matchedEstimate` and then the `filter.applied` result.
+- **Labels** (0.4.0, a port of `LabelsPanel`): the user label tree with colour dots, counters,
+  `keywordState` warnings (`local_only`, `partial` with folder names) and a show-in-navigation
+  switch (`show`/`hide`; silo-web's `show_if_unread` shows as on). The edit dialog has name, the 20
+  Gmail colours (`src/lib/labelColors.ts`) and a parent (not its own subtree); only changed fields
+  are sent.
+- **Theme** (`src/lib/theme.ts`): light and dark MD3 palettes tuned to the Gmail app (Google blue as
+  primary, a white or `#131314` list background, light blue pill and FAB, Gmail red
+  `#C5221F`/`#F28B82` as the `brand` colour of the logo and accents); fixed swipe colours in both
+  modes; the system scheme unless chosen otherwise.
 
-**Pasek wyszukiwania i konta** (`src/features/topbar`, `src/features/accounts`): pływające
-zaokrąglone pole (`surfaceContainerHigh`); awatar = inicjał na kolorze z hasha adresu. Poza
-Odebranymi tytuł sekcji nazywa etykietę nad listą. Dialog kont: bieżące konto, pozostałe wg
-`position` z licznikami nieprzeczytanych w Odebranych (jedno `GET /labels` na konto, tylko przy
-otwartym dialogu, cache 30 s); wybór otwiera `/u/<position>/inbox`.
+## Development
 
-**FAB** (`src/features/shell`): Paper `AnimatedFAB` „Utwórz” z ołówkiem, zwijany do ołówka przy
-przewijaniu w dół i rozwijany przy przewijaniu w górę lub na górze (próg 8 dp).
+- Routes are files in `app/` (expo-router); screens in `src/screens/`; per-area components and hooks
+  in `src/features/`; the API layer in `src/api/`; stores in `src/state/`; pure functions in
+  `src/lib/`.
+- UI strings, date formats and plural rules are in `src/lib/i18n.ts`, currently **Polish only**
+  (`pl-PL` formats). silo-web already has typed English and Polish dictionaries and follows
+  `settings.language`; bringing that to the app is planned.
+- Icons: `assets/icon.svg` is a copy of `silo-web/public/icons/icon.svg` (keep them identical);
+  `npm run gen:icons` regenerates the Expo PNGs referenced by `app.json`.
+- Before a pull request run `npm run typecheck && npm run lint && npm run format:check && npm test`
+  (the CI `check` job also runs `npm run export:android` with `CI=1`).
 
-**Lista** (`src/features/threadlist/ThreadList.tsx`): infinite query na FlashList (kursor keyset,
-50 na stronę, `src/api/queries/threads.ts`), następna strona przy końcu ze spinnerem pod ostatnim
-wierszem; pull-to-refresh odświeża listę i liczniki etykiet. Puste widoki jak w Gmailu („Brak
-wiadomości w Odebranych”, „Brak spamu”, „Kosz jest pusty”, inaczej „Nic tu nie ma”) z dużą ikoną;
-widok błędu ze „Spróbuj ponownie”; spinner przy pierwszym ładowaniu.
+### API contract
 
-**Wiersz** (`ThreadRow.tsx`): awatar ostatniego uczestnika, który nie jest użytkownikiem (konta,
-gdy wątek ma tylko własne wiadomości), nadawcy (jedno pełne imię, inaczej do trzech krótkich, „ja”
-dla użytkownika) z liczbą wiadomości, data („09:12” dziś, „4 lis” w tym roku, „04.11.2025”
-wcześniej), temat (lub „(bez tematu)”), fragment (ukryty w gęstości kompaktowej), chipy etykiet
-użytkownika w ich kolorach (bez etykiety otwartego widoku), gwiazdka, spinacz, zegar dla
-Zaplanowanych („Zaplanowano: <czas>”), „Odłożono do <czas>”, zegar oczekiwania po 3 s `pendingSync`.
-Nieprzeczytane pogrubione na czystej powierzchni, przeczytane na przyciemnionej. Wysokość: 72 dp
-(domyślna), 64 dp (`comfortable`, 0.4.0), 56 dp (kompaktowa). TalkBack czyta jedną etykietę na
-wiersz („Nieprzeczytane, Jan Kowalski, Oferta na Q4, 09:12, załącznik”).
-
-**Swipe** (`SwipeableRow.tsx`, własny pan gesture-handler 3 + reanimated 4): wiersz podąża za
-palcem nad zielonym (archiwizuj) lub czerwonym (usuń) tłem; puszczony za 40 % szerokości wysuwa
-się i wykonuje akcję tej strony (`swipeLeftAction`/`swipeRightAction`: Archiwizuj/Usuń/Odłóż/Brak),
-z haptycznym tyknięciem na progu. Aktywacja po 16 dp w poziomie, porażka po 12 dp w pionie
-(przewijanie listy); pan zaczęty w 32 dp lewej krawędzi otwiera szufladę. Bez swipe w Koszu, Spamie
-i podczas zaznaczania.
-
-**Zaznaczanie** (`SelectionBar.tsx`, `src/state/selection.ts`): długie przytrzymanie lub stuknięcie
-awatara zaznacza (awatar zmienia się w ptaszka), kolejne stuknięcia przełączają wiersze; pasek
-wyszukiwania ustępuje paskowi zaznaczenia: zamknij i liczba, archiwizuj, usuń, odłóż (0.4.0),
-przeczytane/nieprzeczytane („nieprzeczytane”, gdy wszystkie są przeczytane); w Koszu „usuń na
-zawsze”, w Spamie „To nie spam” i „usuń na zawsze”. Menu ⋮: „Przenieś do”, „Etykiety”, gwiazdka /
-bez gwiazdki (gdy wszystkie mają), „Zgłoś spam” (nie w Spamie i Koszu), „Przywróć z kosza” (Kosz),
-„Anuluj odłożenie” (Odłożone), „Zaznacz wszystko” (wczytane wiersze). Wstecz kończy zaznaczanie.
-
-**Arkusze** (`src/features/labels`, `src/components/BottomSheet.tsx` na Paper `Modal`): „Etykiety” –
-etykiety użytkownika jako pola wyboru (wszystkie / część / żaden z wątków), „Nowa etykieta”
-(`POST /labels`, od razu zaznaczona), zmiany jednym modify po „OK”. „Przenieś do” – Odebrane, Spam,
-Kosz, Archiwum, foldery serwera, etykiety użytkownika; bieżące miejsce wyszarzone.
-
-**Banery** (`src/features/sync/Banners.tsx`): nad listą, z `GET /accounts/{id}/sync-status`
-(odpytywane co 15 s, gdy konto nie jest `live`, a zdarzenia są w pollingu lub offline): odrzucone
-hasło skrzynki („Zaktualizuj hasło” → ustawienia), nieosiągalny serwer poczty z liczbą oczekujących
-zmian i „Ponów teraz” (`POST /accounts/{id}/resync`), postęp synchronizacji początkowej.
-
-**Snackbar** (`src/state/toasts.ts`, `src/features/toasts/Snackbar.tsx`): jeden naraz nad FAB, nowy
-zastępuje pokazany; na ekranach ustawień własny `SettingsSnackbar` (snackbar powłoki nie jest tam
-zamontowany).
-
-**Wątek** (`src/screens/ThreadScreen.tsx`): `threadQuery` z wierszem listy z cache jako
-`placeholderData` (temat i chipy od razu); 404 → „Nie znaleziono wątku”. Nagłówek: temat, chip
-lokalizacji (Odebrane, Spam, Kosz, folder), chipy etykiet, znacznik ważności, gwiazdka wątku. Pasek:
-wstecz i logika paska zaznaczenia (`primaryActions`) dla miejsca wątku – archiwizuj (lub „Przenieś
-do Odebranych” poza Odebranymi), usuń; w Koszu usuń na zawsze; w Spamie „To nie spam” i usuń na
-zawsze – oznacz jako nieprzeczytane, ⋮ (Przenieś do, Etykiety, gwiazdka, Zgłoś spam / To nie
-spam, Przywróć z kosza, Odłóż i Anuluj odłożenie – 0.4.0). Akcje opuszczające wątek: archiwizuj, do
-Odebranych, kosz, przywróć, spam, nie spam, usuń na zawsze, przenieś, nieprzeczytane. Po
-wczytaniu (nie placeholdera) nieprzeczytany wątek jest raz oznaczany jako przeczytany
-(`run('read', …, {silent: true})`), chyba że preferencja to wyłącza.
-
-**Karty wiadomości** (`src/features/thread/MessageCard.tsx`): nieprzeczytane i ostatnia rozwinięte,
-reszta zwinięta; 3+ zwinięte po pierwszej składają się w okrągły licznik. Zwinięta: awatar, nadawca,
-fragment, data, gwiazdka. Rozwinięta: nadawca, data (stuknięcie: pełna), „do mnie ▾” z Od/Do/DW/Data,
-gwiazdka, odpowiedz, ⋮ (Odpowiedz, Odpowiedz wszystkim, Przekaż dalej, Oznacz jako nieprzeczytane
-od tej wiadomości – wraca do listy), treść, załączniki; `PendingIcon`; „Wysyłanie…” dla `SCHEDULED`
-(bez odpowiedzi). Draft to wiersz „Wersja robocza” → compose. Gwiazdka wiadomości i „nieprzeczytane
-od tej” – optimistic na otwartym wątku (wątek ma gwiazdkę/nieprzeczytane, gdy ma je którakolwiek
-wiadomość). Pasek odpowiedzi: Odpowiedz / Odpowiedz wszystkim / Przekaż dalej dla ostatniej
-wiadomości niebędącej draftem ani zaplanowaną (`replyTarget`); pod nim strzałki nowszy/starszy z
-listy w cache (`neighbourInList`), zastępujące trasę, więc wstecz wraca do listy. W trybie
-wyszukiwania wątek działa jak w „Wszystkie”, a ↑/↓ przechodzą po wynikach. Zaplanowana wiadomość:
-„Zaplanowano na <czas>” z „Anuluj wysyłkę” (409 `send_in_progress`).
-
-**Compose** (`src/screens/ComposeScreen.tsx`, `fullScreenModal` bez nagłówka stosu): wstecz
-(„Zapisz i zamknij”), spinacz (arkusz „Załącz plik” – `expo-document-picker`, wiele plików; „Wstaw z
-galerii” – systemowy picker zdjęć `expo-image-picker`; „Wstaw obraz w treści” – 0.4.0), wyślij
-(aktywne przy ≥ 1 odbiorcy), ⋮ („Zapisz wersję roboczą”, „Zaplanuj wysyłkę” – 0.4.0, „Odrzuć” –
-dialog, `DELETE /drafts/{id}`, „Odrzucono wersję roboczą”). Pola: Od (konto draftu, tylko
-odczyt), Do z chipami, „∨” dla DW i UDW, Temat, treść, kafelki załączników z postępem (413 → kafelek
-podaje `limit` serwera; usunięcie odpina załącznik przez `attachmentIds`). `RecipientInput`: Enter,
-przecinek, średnik, spacja po `…@…` lub opuszczenie pola tworzą chipy (awatar z inicjałem);
-wklejona lista dzielona przez `src/lib/addresses.ts` (port z silo-web); podpowiedzi z
-`GET /contacts/autocomplete?q=` (150 ms debounce, `staleTime` 60 s) z awatarem, nazwą i adresem;
-chip znika przez „x” lub długie przytrzymanie. Chip jest czerwony tylko dla adresu odrzuconego
-przez serwer (`Problem.address/field` z 400/422 lub `lastSend.failedRecipients`) – aplikacja
-sprawdza tylko „≥ 1 odbiorca”.
-
-**Wyszukiwanie** (`/u/<n>/search`, osobny stos: wynik wraca do wyników i pozwala po nich
-przechodzić): pole w górnym pasku (autofocus, „x”, wstecz). Na 0.4.0: „Ostatnie wyszukiwania” z „x”
-i „Wyczyść wszystko” (puste `q` → serwer zwraca 5 ostatnich; brak lokalnej historii); podpowiedzi
-w trakcie pisania (150 ms debounce, ikony wg `kind`: zegar, kontakt, etykieta, kod; stuknięcie
-wstawia `text` serwera); chipy filtrów Etykiety, Od, Do, Data (arkusze), Załącznik,
-Nieprzeczytane, Oznaczone gwiazdką (przełączniki) – każdy dodaje lub usuwa tekst
-(`src/lib/searchText.ts`) i szuka ponownie. Wyniki: lista wątków `{q}` ze swipe i zaznaczaniem,
-„Około N wyników”, notki dla `approximate` i `indexing.done < 1`, 422 → „Nieprawidłowe zapytanie”;
-⋮ „Utwórz filtr z tego wyszukiwania” (edytor z `criteria = q`). Na 0.3.0 pole szuka samego tekstu.
-
-**Odłóż i zaplanuj** (0.4.0): arkusz „Odłóż do…” (`src/features/snooze/SnoozeSheet.tsx`) – presety
-serwera po polsku wg `key`, czas w strefie z odpowiedzi; „Wybierz datę i godzinę” – dialog daty,
-potem godziny (`DateTimePickerAndroid.open`, `src/lib/pickDateTime.ts`, jak w Gmailu). Snackbar
-„Odłożono do <czas> · Cofnij” do `undoUntil`; N wątków = N żądań, jedno „Cofnij” cofa N operacji;
-422 `invalid_snooze` i 409 `not_in_inbox` objaśnione; „Anuluj odłożenie” bez cofania (409
-`not_snoozed`). „Zaplanuj wysyłkę”: Jutro rano 8:00, Jutro po południu 13:00, Poniedziałek rano 8:00
-(zegar urządzenia, tylko propozycje) i „Wybierz datę i godzinę”; snackbar „Zaplanowano na <czas> ·
-Cofnij” najwyżej 10 s (wiadomość można anulować z Zaplanowanych).
-
-**Ustawienia ogólne** (`/settings/general`). Sekcja urządzenia (`useUi`, AsyncStorage): Motyw
-(Systemowy/Jasny/Ciemny), Gęstość listy (Domyślna/Kompaktowa; na 0.4.0 z serwera), Działania przy
-przesuwaniu (W prawo / W lewo, podgląd koloru i ikony), Potwierdzaj przed usunięciem /
-archiwizacją, oznaczanie wątku jako przeczytanego po otwarciu, Obrazy (Pytaj/Zawsze),
-Powiadomienia (nieaktywne – serwer nie ma jeszcze urządzeń push). Na 0.4.0 sekcja „Konto Silo
-(synchronizowane)”: Gęstość (Domyślna/Wygodna/Kompaktowa), Czas na cofnięcie wysyłki (5/10/20/30
-s), Podpis (dialog tekstu wielowierszowego), Strefa czasowa (lista IANA z
-`Intl.supportedValuesOf("timeZone")` z wyszukiwaniem i najwyżej 40 wierszami, „Ustaw strefę
-urządzenia”; bez `Intl` – pole tekstowe), powiadomienia na pulpicie jako pozycja nieaktywna. Jedno
-pole na `PATCH`, optimistic `setQueryData`; 422 `invalid_setting`/`invalid_timezone` → snackbar i
-poprzednia wartość. Gęstość: na 0.4.0 źródłem jest serwer – `useDensity()` bierze
-`Settings.density` i kopiuje do `useUi.density`; wartość urządzenia nie jest wysyłana na serwer
-(inne urządzenie mogło ją ustawić), więc kto miał „Kompaktowa” tylko lokalnie, po aktualizacji
-serwera widzi wartość serwera. Podpis: serwer przechowuje oczyszczony HTML, telefon edytuje go jako
-linie tekstu (`src/lib/signature.ts`: `<br>`/końce bloków ↔ nowe linie, escapowanie przy zapisie).
-
-**Konto** (`/settings/account/<id>`): Nazwa (`PATCH {displayName}`), Synchronizacja (stan: live ·
-czas, postęp synchronizacji początkowej, host w backoffie, `auth_failed`, wyłączone; liczniki
-oczekujących i nieudanych operacji; „Synchronizuj teraz” = `incremental`, „Pełne porównanie” =
-`full`), serwer (chipy capabilities, ostrzeżenie o keywordach, foldery tylko do odczytu, IMAP/SMTP
-host:port (TLS), login, przełącznik `sentAppend`, „Zmień hasło” = `PATCH {password}`), „Filtry” i
-„Etykiety” (0.4.0; filtry należą do konta – `Filter.accountId`), „Usuń konto z Silo” (`DELETE`; gdy
-było aktywne lub ostatnie → `/`, który otwiera następne konto albo proponuje „Dodaj konto”;
-użytkownik zostaje zalogowany, bo sesja Silo nie jest związana ze skrzynką).
-
-**Dodaj konto** (`/settings/add-account`): adres, hasło, nazwa, zaawansowane (login; serwery tylko
-przy `Meta.allowCustomServers`), „Sprawdź połączenie” (`POST /accounts/test`), „Dodaj” (`POST
-/accounts`, 422 z krokami). Błędy żądań konta: polskie zdanie dla `code` i `detail` serwera
-(limit, odrzucony host, odpowiedź serwera poczty).
-
-**Filtry** (0.4.0, port `FiltersPanel`/`FilterEditor` silo-web): lista – nazwa/kryteria, akcje jako
-chipy, przełącznik (PUT całego filtra, `filterBody()`), ↑/↓ (PUT z nowym `position`), FAB „Utwórz
-filtr”. Edytor: nazwa, kryteria jako tekst z chipami wyszukiwania (Od, Do, Temat, Etykiety,
-Załącznik), „Testuj wyszukiwanie”, pięć przełączników akcji, arkusz „Nadaj etykietę”, „Przekaż do”,
-„Zastosuj też do istniejących wiadomości”, usuwanie z dialogiem. 422 `invalid_query` pod kryteriami,
-`invalid_label` pod etykietami, `invalid_filter` pod formularzem; „Stosowanie filtra… (ok. N
-wątków)” z `matchedEstimate`, „Filtr zastosowano do N wątków” po `filter.applied`.
-
-**Etykiety** (0.4.0, port `LabelsPanel`): drzewo etykiet użytkownika z kropką koloru, licznikami,
-ostrzeżeniami `keywordState` (`local_only`, `partial` z nazwami folderów), przełącznik „Pokaż w
-menu nawigacji” (`show`/`hide`; `show_if_unread` z silo-web pokazany jako włączony z „Gdy są
-nieprzeczytane”). Dialog edycji: nazwa, paleta 20 kolorów Gmaila (`src/lib/labelColors.ts`), „Umieść
-pod etykietą” (bez własnego poddrzewa); wysyłane tylko zmienione pola; usuwanie z dialogiem.
-
-**Motyw** (`src/lib/theme.ts`): jasna i ciemna paleta MD3 dostrojona do aplikacji Gmail (primary =
-niebieski Google, tło listy białe lub `#131314`, jasnoniebieska pigułka i FAB, czerwień Gmaila
-`#C5221F`/`#F28B82` jako `brand` logotypu i akcentów, nie `primary`); kolory swipe stałe (zielony,
-czerwony) w obu trybach; schemat systemowy, o ile nie wybrano inaczej.
-
-## Uruchomienie
-
-Wymagania: Node ≥ 22 (`.nvmrc`: 22; sprawdzone też na Node 24), działający silo-server (stos dev –
-repozytorium `silo`) osiągalny z telefonu.
+`src/api/schema.d.ts` is generated from silo-server's `api/openapi.yaml` and committed. The server
+release the app is built against is declared in `package.json`: `"silo": {"serverRef": ...}`
+(currently `v0.4.0`).
 
 ```sh
-npm ci
-npx expo start          # serwer deweloperski Expo; kod QR skanuje się w Expo Go
-npm run android         # to samo i otwarcie na podłączonym urządzeniu lub emulatorze
+npm run gen:api                          # openapi.yaml at silo.serverRef (v0.4.0) from GitHub
+npm run gen:api -- --server-ref v0.3.0   # another git ref
+npm run gen:api -- --local [path]        # a local file (default ../silo-server/api/openapi.yaml)
 ```
 
-- **Expo Go (Android)**: zainstaluj Expo Go na telefonie i zeskanuj kod QR z `npx expo start`. Nie
-  potrzeba Android SDK. Wszystkie moduły natywne aplikacji są w Expo Go – także WebView
-  (`react-native-webview`), edytor TenTap (jego opcjonalny moduł `TenTapKeyboard` służy tylko
-  własnym klawiaturom) i datetimepicker.
-- **Adres instancji** na ekranie logowania: w emulatorze Androida `http://10.0.2.2:8090` (host
-  maszyny), na telefonie adres LAN komputera, np. `http://192.168.1.10:8090` (`localhost` na
-  telefonie to sam telefon); produkcyjnie `https://mail.example.com`. Następnie adres skrzynki i
-  hasło.
-- **Cleartext HTTP** działa tylko w trybie deweloperskim (Expo Go i debug build dopuszczają ruch
-  bez TLS); build release Androida domyślnie go blokuje – instancja produkcyjna musi mieć HTTPS.
-- **Development build / emulator**: `npx expo run:android` wymaga Android SDK (Android Studio,
-  `adb`, AVD); generuje `android/` (continuous native generation, niecommitowane) i instaluje build
-  debug. APK release (np. dla F-Droid) buduje się tak samo z wygenerowanego projektu
-  (`npx expo prebuild`, potem Gradle); projektu EAS nie ma.
-- **Weryfikacja bez urządzenia.** Na maszynie deweloperskiej nie było Android SDK ani urządzenia,
-  więc aplikacja **nie była uruchamiana na urządzeniu ani emulatorze**. Dowodem działania są
-  `npm run typecheck`, `npm run lint`, `npm test`, `npm run export:android` (bundel JavaScript
-  Androida w `dist/`, ten sam krok co w buildzie release) oraz smoke-test warstwy API na żywym
-  serwerze (niżej). Gesty, klawiatura w edytorze, WebView i pickery wymagają sprawdzenia na
-  urządzeniu.
+The CI job `api-contract` checks out silo-server at `silo.serverRef`, regenerates the schema and
+fails when it differs from the committed one; it passes once the silo-server repository with the
+`v0.4.0` tag is public on GitHub. The committed schema is the 0.4.0 contract
+(`../silo-server/api/openapi.yaml` at tag `v0.4.0`).
 
-## Skrypty
-
-| Skrypt                            | Co robi                                                        |
-| --------------------------------- | -------------------------------------------------------------- |
-| `npm start` / `npm run android`   | serwer deweloperski Expo (Android: także otwiera aplikację)    |
-| `npm run typecheck`               | `tsc --noEmit`                                                 |
-| `npm run lint`                    | ESLint 9 (`eslint-config-expo`, flat config)                   |
-| `npm run format` / `format:check` | Prettier                                                       |
-| `npm test`                        | Jest (preset `jest-expo` dla Androida)                         |
-| `npm run gen:api`                 | regeneracja `src/api/schema.d.ts` (niżej)                      |
-| `npm run export:android`          | `expo export --platform android` do `dist/`                    |
-| `npm run smoke:api`               | smoke-test tylko-odczyt na żywym API (`scripts/smoke-api.mjs`) |
-
-## Kontrakt API
-
-`src/api/schema.d.ts` jest generowany z `api/openapi.yaml` silo-server i commitowany. Wydanie
-serwera, z którym budowana jest aplikacja, deklaruje `package.json`: `"silo": {"serverRef": ...}`
-(teraz `v0.4.0`).
+## Testing
 
 ```sh
-npm run gen:api                          # openapi.yaml z silo.serverRef (v0.4.0) z GitHuba
-npm run gen:api -- --server-ref v0.3.0   # inny ref gita
-npm run gen:api -- --local [ścieżka]     # plik lokalny (domyślnie ../silo-server/api/openapi.yaml)
+npm test                     # all Jest tests (405 at 0.1.0)
+npx jest src/api/sse.test.ts --forceExit   # one file (see the known issues below)
+npm run export:android       # Android bundle, the same step as in a release build
+npm run smoke:api            # read-only check against a live server (below)
 ```
 
-Job CI `api-contract` pobiera silo-server na `silo.serverRef`, regeneruje schemat i failuje, gdy
-różni się od zacommitowanego; przechodzi, gdy repozytorium silo-server z tagiem `v0.4.0` jest
-publiczne na GitHubie. Zacommitowany schemat to kontrakt 0.4.0 (`../silo-server/api/openapi.yaml`
-na tagu `v0.4.0`). Job `check` uruchamia `typecheck`, `lint`, `format:check`, `test` i
-`export:android` (`CI=1`).
+Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/node`,
+`src/test/server.ts`). Adjustments for `jest-expo`:
 
-## Testy
+- `jest.environment.js` (jest-expo's Android environment) saves Node's WHATWG `fetch`, `Request`,
+  `Response`, `Headers` and `FormData`, and `jest.polyfills.js` restores them after the jest-expo
+  setup, which installs Expo's native "winter" fetch – its `Response` does not carry a body built
+  in JavaScript, so msw answers would be empty. The API client resolves `globalThis.fetch` on every
+  call. (The `undici` package does not work as a replacement: its bodies hang on jest-expo's
+  web-streams polyfill.)
+- `jest.config.js` makes Babel transform msw and its ES-module-only dependencies (`.mjs` files and
+  a few packages) like React Native packages.
+- Route tests render the real `app/` tree through expo-router's `renderRouter`
+  (`src/test/router.tsx`). `renderRouter` turns on fake timers, under which msw does not answer;
+  `fakeTimers.doNotFake` leaves only the clock fake.
+- `react-native-reanimated/mock` loads the real library, whose native initialiser throws under the
+  Android preset (reanimated 4.7: JSReanimated has no `setCSSEventHandler`); the path is mapped to a
+  minimal replacement, `src/test/reanimated-mock.js` (what the drawer uses).
+- Mocks: `@10play/tentap-editor` – a fake bridge holding the content as HTML (`typeInEditor` in
+  `src/test/editor.ts` calls `onChange`); uploads – a fake `XMLHttpRequest` (`src/test/xhr.ts`
+  through `uploadConfig.createXhr`); `react-native-webview` – a View that keeps its props (tests
+  read `source.html` and call `onMessage`); `expo-file-system/legacy`, `expo-sharing`,
+  `expo-web-browser`, `expo-linking` – mocked per file. `expo-secure-store` and `expo-device` are
+  in-memory fakes in `jest.setup.ts`, as are AsyncStorage, NetInfo, gesture-handler, worklets and
+  the safe-area insets (library mocks). `jest.setup.ts` also replaces `fetchEventSource` with a
+  source that never opens, so screen tests make no SSE requests; `src/api/sse.test.ts` tests the
+  real reader on an msw stream, and the `connectEvents`/`useEvents` tests inject a fake through
+  `eventsConfig.createEventSource` (short intervals instead of fake timers).
+- The list runs on the real FlashList with `@shopify/flash-list/jestSetup` (a fixed 400 × 900
+  viewport); tests reach `onEndReached` and `RefreshControl` through the scroll view props. The
+  swipe pan is not driven in Jest (gesture-handler does not run native pans); the mapping of
+  preferences to actions (`swipeActionFor`) has unit tests, while the gesture and the FAB collapse
+  need checking on a device.
 
-Testy rozmawiają z API przez [msw](https://mswjs.io) (`setupServer` z `msw/node`,
-`src/test/server.ts`). Dostosowania pod `jest-expo`:
+### Smoke test against a live API
 
-- `jest.environment.js` (środowisko Androida jest-expo) zapisuje WHATWG `fetch`, `Request`,
-  `Response`, `Headers` i `FormData` Node, a `jest.polyfills.js` przywraca je po setupie jest-expo,
-  który instaluje natywny „winter” fetch Expo – jego `Response` nie przenosi ciała zbudowanego w
-  JavaScripcie, więc odpowiedzi msw byłyby puste. Klient API rozwiązuje `globalThis.fetch` przy
-  każdym wywołaniu. (Pakiet `undici` nie działa jako zamiennik: jego ciała wiszą na polyfillu
-  web-streams jest-expo.)
-- `jest.config.js` każe Babelowi transformować msw i jego zależności ES-module-only (pliki `.mjs`
-  i kilka pakietów) jak pakiety React Native.
-- Testy tras renderują prawdziwe drzewo `app/` przez `renderRouter` expo-router
-  (`src/test/router.tsx`). `renderRouter` włącza fake timers, pod którymi msw nie odpowiada;
-  `fakeTimers.doNotFake` zostawia fałszywy tylko zegar.
-- `react-native-reanimated/mock` ładuje prawdziwą bibliotekę, której natywny inicjalizator rzuca
-  pod presetem Androida (reanimated 4.7: JSReanimated nie ma `setCSSEventHandler`); ścieżka jest
-  mapowana na minimalny zamiennik `src/test/reanimated-mock.js` (to, czego używa szuflada).
-- Atrapy: `@10play/tentap-editor` – fałszywy mostek trzymający treść jako HTML (`typeInEditor` w
-  `src/test/editor.ts` wywołuje `onChange`); uploady – fałszywy `XMLHttpRequest` (`src/test/xhr.ts`
-  przez `uploadConfig.createXhr`); `react-native-webview` – View zachowujący propsy (testy czytają
-  `source.html` i wołają `onMessage`); `expo-file-system/legacy`, `expo-sharing`,
-  `expo-web-browser`, `expo-linking` – mockowane per plik. `expo-secure-store` i `expo-device` –
-  fałszywki w pamięci w `jest.setup.ts`, podobnie AsyncStorage, NetInfo, gesture-handler, worklets
-  i wcięcia safe-area (mocki bibliotek). `jest.setup.ts` zastępuje też `fetchEventSource` źródłem,
-  które się nie otwiera, więc testy ekranów nie robią żądań SSE; `src/api/sse.test.ts` testuje
-  prawdziwy czytnik na strumieniu msw, a testy `connectEvents`/`useEvents` wstrzykują atrapę przez
-  `eventsConfig.createEventSource` (krótkie interwały zamiast fake timers).
-- Lista działa na prawdziwym FlashList z `@shopify/flash-list/jestSetup` (stały viewport 400 × 900);
-  testy sięgają `onEndReached` i `RefreshControl` przez propsy scroll view. Pan swipe nie jest
-  sterowany w jest (gesture-handler nie uruchamia natywnych panów); mapowanie preferencji na akcje
-  (`swipeActionFor`) ma testy jednostkowe, gest i zwijanie FAB – do sprawdzenia na urządzeniu.
+`npm run smoke:api` (`scripts/smoke-api.mjs`, plain Node `fetch`) checks the client layer against a
+running server without a device: a bearer session as in the app, `X-Silo-Client:
+silo-mobile/<version>#smoke`, the reads of the start screen, a thread, its HTML (no `<script`) and
+events, and on server 0.4.0 or newer (or `dev`) also search, snooze presets, settings and filters.
+It is **read-only** – the only changes are creating and deleting its own session. It prints step →
+status → ms and counts only (no mail content, no passwords) and exits with 1 on an error.
 
-### Smoke-test na żywym API
-
-`npm run smoke:api` (`scripts/smoke-api.mjs`, czysty `fetch` Node) sprawdza warstwę klienta na
-działającym serwerze bez urządzenia: sesja bearer jak w aplikacji, `X-Silo-Client:
-silo-mobile/<wersja>#smoke`, odczyty ekranu startowego, wątku, jego HTML (bez `<script`) i
-zdarzeń, a na serwerze ≥ 0.4.0 (lub `dev`) także wyszukiwania, presetów snooze, ustawień i filtrów.
-**Tylko odczyt** – jedyne zmiany to utworzenie i usunięcie własnej sesji. Parametry z env:
-`SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD`, `SILO_DEVICE` (nazwa sesji, domyślnie `smoke`). Wypisuje
-krok → status → ms i same liczności (bez treści poczty i haseł); kod wyjścia 1 przy błędzie.
+| Variable | Default | Description |
+| --- | --- | --- |
+| `SILO_URL` | – | Base URL of silo-server, for example `http://localhost:8080` |
+| `SILO_EMAIL`, `SILO_PASSWORD` | – | Mailbox to sign in with |
+| `SILO_DEVICE` | `smoke` | Session name |
 
 ```sh
-SILO_URL=http://localhost:8090 SILO_EMAIL=dev3@silo.test SILO_PASSWORD=devpass3 npm run smoke:api
+SILO_URL=http://localhost:8080 SILO_EMAIL=dev3@silo.test SILO_PASSWORD=devpass3 npm run smoke:api
 ```
 
-**Smoke-test na dev compose 2026-11-06** (silo-server `dev`, konto `dev3@silo.test`): wszystkie
-kroki OK.
+Result on the dev Compose stack on 2026-11-06 (silo-server `dev`, mailbox `dev3@silo.test`): all
+steps OK.
 
-| Krok                                            | Status | ms   | Wynik                      |
-| ----------------------------------------------- | ------ | ---- | -------------------------- |
-| `GET /meta`                                     | 200    | 78   | `serverVersion` dev, API 1 |
-| `POST /session` (`client.kind: bearer`)         | 200    | 1014 | token bearer               |
-| `GET /session`                                  | 200    | 7    | 1 konto                    |
-| `GET /accounts`                                 | 200    | 4    | 1 konto                    |
-| `GET /labels?accountId=`                        | 200    | 46   | 11 etykiet                 |
-| `GET /threads?accountId=&labelId=INBOX&limit=5` | 200    | 15   | 5 wątków, ~5000 w widoku   |
-| `GET /threads/{id}`                             | 200    | 12   | 1 wiadomość                |
-| `GET /messages/{id}/html`                       | 200    | 8    | 146 znaków, bez `<script`  |
-| `GET /events/poll?after=0&limit=1`              | 200    | 9    | 1 zdarzenie                |
-| `GET /search/suggest?q=te&accountId=`           | 200    | 9    | 0 podpowiedzi              |
-| `GET /snooze/presets`                           | 200    | 3    | 3 presety, strefa UTC      |
-| `GET /settings`                                 | 200    | 3    | gęstość `default`          |
-| `GET /filters?accountId=`                       | 200    | 4    | 0 filtrów                  |
-| `DELETE /session`                               | 204    | 10   | sesja usunięta             |
+| Step | Status | ms | Result |
+| --- | --- | --- | --- |
+| `GET /meta` | 200 | 78 | `serverVersion` dev, API 1 |
+| `POST /session` (`client.kind: bearer`) | 200 | 1014 | bearer token |
+| `GET /session` | 200 | 7 | 1 account |
+| `GET /accounts` | 200 | 4 | 1 account |
+| `GET /labels?accountId=` | 200 | 46 | 11 labels |
+| `GET /threads?accountId=&labelId=INBOX&limit=5` | 200 | 15 | 5 threads, ~5000 in the view |
+| `GET /threads/{id}` | 200 | 12 | 1 message |
+| `GET /messages/{id}/html` | 200 | 8 | 146 characters, no `<script` |
+| `GET /events/poll?after=0&limit=1` | 200 | 9 | 1 event |
+| `GET /search/suggest?q=te&accountId=` | 200 | 9 | 0 suggestions |
+| `GET /snooze/presets` | 200 | 3 | 3 presets, zone UTC |
+| `GET /settings` | 200 | 3 | density `default` |
+| `GET /filters?accountId=` | 200 | 4 | 0 filters |
+| `DELETE /session` | 204 | 10 | session deleted |
 
-Czas `POST /session` obejmuje logowanie IMAP na serwerze poczty. Smoke-test nie sprawdza mutacji,
-SSE (`/events`) ani renderowania – to robią testy jednostkowe i ekranów.
+The `POST /session` time includes the IMAP sign-in on the mail server. The smoke test does not
+check mutations, SSE (`/events`) or rendering – the unit and screen tests do.
 
-### Znane problemy testów
+### Known test issues
 
-- Pojedynczy plik uruchomiony w jednym procesie (`npx jest <plik>`) przechodzi, ale jest nie kończy
-  się (otwarty uchwyt); dodaj `--forceExit`. `npm test` uruchamia pliki w workerach i kończy się.
-- `console.warn` Paper „Tried to use the icon '…' … none of the required icon libraries are
-  installed” jest oczekiwane: pod jest-expo Paper nie wykrywa `@expo/vector-icons` (w aplikacji
-  ikony działają); nie oznacza błędu testu.
-- Pod dużym obciążeniem maszyny pojedyncze testy z `waitFor` potrafią przekroczyć limit czasu
-  (flaky); ponowne uruchomienie przechodzi.
+- A single file run in one process (`npx jest <file>`) passes, but Jest does not exit (an open
+  handle); add `--forceExit`. `npm test` runs files in workers and exits.
+- Paper's `console.warn` "Tried to use the icon '…' … none of the required icon libraries are
+  installed" is expected: under jest-expo Paper does not detect `@expo/vector-icons` (icons work in
+  the app); it is not a test failure.
+- Under heavy machine load single tests with `waitFor` may time out (flaky); a rerun passes.
 
-## Odstępstwa od parytetu
+## Differences from the Gmail app
 
-Względem aplikacji Gmail i silo-web 0.3.0. Przyczyny po stronie kontraktu:
-[docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#luki-kontraktu-odkryte-przez-mobile).
+Compared with the Gmail app and silo-web 0.3.0. The contract gaps behind some of them are in
+[docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#luki-kontraktu-odkryte-przez-mobile) (in Polish).
 
-Lista i akcje:
+List and actions:
 
-- Brak menu długiego przytrzymania wiersza (w aplikacji Gmail go nie ma; przytrzymanie zaznacza);
-  odłożenie jest dostępne ze swipe, paska zaznaczenia i menu wątku.
-- Brak swipe w Koszu i Spamie (preferencje znają tylko archiwizuj/usuń/odłóż); w zamian pasek
-  zaznaczenia z „usuń na zawsze”, „To nie spam” i (menu) przywróć.
-- Arkusze „Etykiety” i „Przenieś do” nie dają się przeciągać (Paper `Modal`: scrim, wstecz i
-  przyciski je zamykają).
-- Etykieta utworzona w arkuszu jest zaznaczana, a nie od razu nadawana (silo-web nadaje ją od
-  razu); całość idzie jednym żądaniem po „OK”, jak w arkuszu Gmaila.
-- Przeczytane/nieprzeczytane pokazuje snackbar z „Cofnij” (jak silo-web; Gmail oznacza po cichu).
-- „Zaznacz wszystko” zaznacza wczytane wiersze, nie wszystkie wątki etykiety.
-- Kolory swipe stałe (zielony, czerwony), nie z ról motywu.
-- Brak miniatur w wierszach listy (w żadnym kliencie; wiersz nie ma listy załączników); awatary to
-  inicjały, nie zdjęcia kontaktów.
+- No long-press menu on a row (the Gmail app has none either; long press selects); snooze is
+  available from swipe, the selection bar and the thread menu.
+- No swipe in Trash and Spam (the preferences know only archive/delete/snooze); the selection bar
+  offers delete forever, not spam and (menu) restore instead.
+- The labels and move-to sheets cannot be dragged (Paper `Modal`: the scrim, back and the buttons
+  close them).
+- A label created in the sheet is checked, not applied at once (silo-web applies it at once);
+  everything goes in one request after OK, as in Gmail's sheet.
+- Read/unread shows a snackbar with Undo (as silo-web; Gmail marks silently).
+- Select all selects the loaded rows, not every thread of the label.
+- Swipe colours are fixed (green, red), not theme roles.
+- No thumbnails in list rows (in no client; a row has no attachment list); avatars are initials,
+  not contact photos.
 
-Wątek:
+Thread:
 
-- Strzałki nowszy/starszy na dole wątku zamiast opcjonalnego swipe między wątkami (poziomy pan
-  walczyłby z przewijaniem szerokiej poczty w bok).
-- Treść wiadomości zostaje biała w trybie ciemnym (Gmail przyciemnia).
-- Załączniki otwierane przez arkusz udostępniania, nie przeglądarkę Gmaila.
-- Brak „Drukuj” i „Pokaż oryginał”.
-- „Oznacz jako nieprzeczytane od tej wiadomości” wraca do listy bez „Cofnij” (zmiany per
-  wiadomość nie mają snackbara cofania).
+- Newer/older arrows at the bottom of the thread instead of an optional swipe between threads (a
+  horizontal pan would fight the sideways scrolling of wide mail).
+- The message body stays white in dark mode (Gmail darkens it).
+- Attachments open through the share sheet, not a built-in viewer.
+- No print and no "show original".
+- "Mark unread from here" returns to the list without Undo (per-message changes have no undo
+  snackbar).
 
 Compose:
 
-- Od tylko do odczytu (konto draftu ustalone przy `POST /drafts`).
-- Brak „Cofnij” po „Odrzuć” – dialog potwierdzenia.
-- Brak „Poufnie”.
-- Podpis nie jest wstawiany do nowych draftów (serwer tego nie robi, silo-web robi to w kliencie);
-  podpis edytowany jako tekst – zapis z telefonu traci formatowanie z silo-web.
-- Pasek formatowania stale nad klawiaturą (Gmail – tylko przy zaznaczeniu tekstu).
-- Cytat odpowiedzi jest częścią treści edytora (jak silo-web), nie zwiniętym „…” Gmaila.
-- Podpowiedzi kontaktów tylko z adresów znanych serwerowi, nie z kontaktów telefonu.
-- Presety zaplanowanej wysyłki liczone na urządzeniu (Gmail ma je od Google).
-- Brak przechodzenia fokusu między polami (typ ref `TextInput` Paper 5 nie pasuje do React
-  Native 0.88).
+- From is read-only (the draft's account is fixed by `POST /drafts`).
+- No Undo after discard – a confirmation dialog instead.
+- No confidential mode.
+- The signature is not inserted into new drafts (the server does not do it; silo-web does it in the
+  client); the signature is edited as text, so saving it from the phone loses silo-web's
+  formatting.
+- The formatting toolbar is always above the keyboard (Gmail shows it only for a text selection).
+- The reply quote is part of the editor body (as in silo-web), not Gmail's collapsed "…".
+- Contact suggestions come only from addresses known to the server, not from the phone's contacts.
+- Scheduled-send presets are computed on the device (Gmail gets them from Google).
+- No focus movement between fields (Paper 5's `TextInput` ref type does not fit React Native 0.88).
 
-Wyszukiwanie:
+Search:
 
-- Chip „Data” oferuje zakresy względne i po/przed dniem zamiast dialogu zakresu dat Gmaila.
-- Chipy „Od”/„Do” przyjmują wpisany tekst, bez podpowiedzi kontaktów.
+- The date chip offers relative ranges and before/after a day instead of Gmail's date range dialog.
+- The from/to chips take typed text, without contact suggestions.
 
-Ustawienia:
+Settings:
 
-- Jeden formularz „Dodaj konto” zamiast kreatora Gmaila (bez listy dostawców – Silo to tylko
-  IMAP/SMTP).
-- Brak powiadomień per konto, autorespondera i przełącznika „Synchronizuj Gmaila”; podpis tylko
-  globalny (0.4.0); „Pełne porównanie” i lista folderów są specyficzne dla Silo; sesje zastępują
-  listę urządzeń Google.
-- Brak ustawienia skrótów klawiszowych (`keyboardShortcutsEnabled`; nie dotyczy telefonu) i
-  przełącznika `conversationView` (aplikacja zawsze pokazuje wątki).
-- Edytor filtra bez formularza „pól zaawansowanych” silo-web (`AdvancedFieldsForm`); kryteria to
-  jedno pole tekstowe z chipami dodającymi `from:`, `to:`, `subject:`, `label:`, `has:attachment`;
-  „Nie zawiera” i rozmiar wpisuje się ręcznie.
-- Brak przeciągania filtrów (tylko ↑/↓, jak w silo-web).
-- Gęstość „Wygodna” tylko na 0.4.0 (na 0.3.0 dwie gęstości, jak Gmail na Androidzie).
-- Ekran etykiet zarządza tylko etykietami użytkownika; foldery serwera (tworzenie, usuwanie, role,
-  `syncMode`) nie są zarządzane z telefonu.
-- Nieudane operacje tylko jako licznik (brak listy w API); `rebuild` nieoferowany (501).
-- Powiadomienia nieaktywne (brak push).
+- One add-account form instead of Gmail's wizard (no provider list – Silo is IMAP/SMTP only).
+- No per-account notifications, auto-reply or "sync Gmail" switch; the signature is global only
+  (0.4.0); full comparison and the folder list are Silo-specific; sessions replace Google's device
+  list.
+- No keyboard shortcut setting (`keyboardShortcutsEnabled`; not relevant on a phone) and no
+  `conversationView` switch (the app always shows threads).
+- The filter editor has no form of advanced fields like silo-web's `AdvancedFieldsForm`; criteria
+  are one text field with chips adding `from:`, `to:`, `subject:`, `label:`, `has:attachment`;
+  "doesn't have" and size are typed by hand.
+- No dragging of filters (only ↑/↓, as in silo-web).
+- The comfortable density only on 0.4.0 (two densities on 0.3.0, like Gmail on Android).
+- The labels screen manages user labels only; server folders (create, delete, roles, `syncMode`)
+  are not managed from the phone.
+- Failed operations only as a counter (no list in the API); `rebuild` is not offered (501).
+- Notifications are disabled (no push).
 
-Platforma:
+Platform:
 
-- Picker daty i godziny tylko na Androidzie (`DateTimePickerAndroid`); iOS wymaga komponentu
-  inline.
-- iOS niesprawdzony (ani build, ani urządzenie); Android sprawdzony tylko testami i bundlem, nie na
-  urządzeniu.
+- The date/time picker is Android-only (`DateTimePickerAndroid`); iOS needs an inline component.
+- iOS is unverified (neither a build nor a device); Android is verified only by tests and the
+  bundle, not on a device.
+- The UI is Polish-only (see [Development](#development)).
 
-## Poza zakresem
+## Status and roadmap
 
-- **Push**: punkt zaczepienia – po zalogowaniu rejestracja urządzenia dla bieżącej sesji bearer
-  `POST /devices` (plan 5.1, Faza 6: `push_devices`, job `push.notify`), wyrejestrowanie przy
-  wylogowaniu; „Powiadomienia” stanie się aktywną pozycją. Lokalne powiadomienia dla `message.new`
-  (punkt zaczepienia w `applyEvent`) – też dopiero z push.
-- **Offline cache i `/changes`** (Faza 5): dziś cache żyje tylko w pamięci, a po > 24 h offline
-  serwer odpowiada `resync`; docelowo `expo-sqlite` dla cache TanStack Query i delta
-  `GET /changes?cursor=`.
-- **Dystrybucja**: podpisany APK/AAB, sklepy, F-Droid – do ustalenia.
-- Zarządzanie folderami serwera (role, `syncMode`), wstawianie podpisu do nowych draftów.
-- Czat, Meet, Spaces i wszystko niezwiązane z pocztą (jak całe Silo).
+Verified on 2026-11-06 without a device: typecheck, lint, format, 405 tests (jest-expo + msw), the
+Android Hermes bundle (`expo export`, 8.4 MB), the schema matching `v0.4.0` and the read-only smoke
+test on the dev Compose stack (14/14).
 
-## Licencja
+Not verified yet: the app **has never run on a device or an emulator** (gestures, the editor
+keyboard, WebView, pickers), iOS at all, end-to-end tests with mutations and SSE against a live
+API.
 
-[AGPL-3.0-only](LICENSE)
+Out of scope for 0.1.0, planned:
+
+- **Push**: after sign-in, register the device for the current bearer session (`POST /devices` on
+  the server, not implemented yet), unregister on sign-out; the notifications setting becomes
+  active. Local notifications for `message.new` (hook point in `applyEvent`) come with push too.
+- **Offline cache and `/changes`**: today the cache lives in memory only and after more than 24 h
+  offline the server answers `resync`; the plan is `expo-sqlite` for the TanStack Query cache and a
+  delta endpoint `GET /changes?cursor=`.
+- **Distribution**: signed APK/AAB, stores, F-Droid.
+- **English UI** with the typed dictionaries of silo-web.
+- Server folder management (roles, `syncMode`), inserting the signature into new drafts.
+- Chat, Meet, Spaces and anything unrelated to mail are out of scope (as for all of Silo).
+
+## Contributing
+
+The main contribution guide lives in the
+[`silo` repository](https://github.com/silopost/silo/blob/main/CONTRIBUTING.md); see also
+[CONTRIBUTING.md](CONTRIBUTING.md). Use Conventional Commits, keep pull requests focused and run the
+checks listed under [Development](#development). Testing on a real Android device is the most
+valuable contribution right now.
+
+## License
+
+[GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`).
