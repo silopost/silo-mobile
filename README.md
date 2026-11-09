@@ -5,7 +5,7 @@ Expo app modelled on the Gmail app for Android (Material 3), talking to
 [`silo-server`](https://github.com/silopost/silo-server) with bearer tokens.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0%20(unreleased)-orange.svg)](package.json)
+[![Version](<https://img.shields.io/badge/version-0.1.0%20(unreleased)-orange.svg>)](package.json)
 [![Expo SDK](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)](package.json)
 [![CI](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml/badge.svg)](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml)
 
@@ -66,21 +66,21 @@ Deviations from parity are listed in [Differences from the Gmail app](#differenc
 
 ## Repositories
 
-| Repository | License | Contents |
-|---|---|---|
-| [`silo`](https://github.com/silopost/silo) | MIT | Orchestration (Docker Compose, Caddy, scripts), documentation, ADRs |
-| [`silo-server`](https://github.com/silopost/silo-server) | AGPL-3.0 | Go backend: API, SSE, IMAP sync, SMTP, workers |
-| [`silo-web`](https://github.com/silopost/silo-web) | AGPL-3.0 | React/TypeScript web client and PWA |
-| [`silo-mobile`](https://github.com/silopost/silo-mobile) (this one) | AGPL-3.0 | React Native/Expo Android client |
+| Repository                                                          | License  | Contents                                                            |
+| ------------------------------------------------------------------- | -------- | ------------------------------------------------------------------- |
+| [`silo`](https://github.com/silopost/silo)                          | MIT      | Orchestration (Docker Compose, Caddy, scripts), documentation, ADRs |
+| [`silo-server`](https://github.com/silopost/silo-server)            | AGPL-3.0 | Go backend: API, SSE, IMAP sync, SMTP, workers                      |
+| [`silo-web`](https://github.com/silopost/silo-web)                  | AGPL-3.0 | React/TypeScript web client and PWA                                 |
+| [`silo-mobile`](https://github.com/silopost/silo-mobile) (this one) | AGPL-3.0 | React Native/Expo Android client                                    |
 
 ## Server compatibility
 
-| silo-server | What works |
-| --- | --- |
-| 0.3.0 (minimum) | bearer sign-in, list, thread, actions with Undo, compose and undo send, attachments, accounts, sessions, events; settings on the device only; plain-text search (no suggestions, history or chips) |
-| 0.4.0 | everything above plus search with operators and suggestions, snooze, scheduled send, synced settings (`/settings`), filters, label management (colours, parent, `showInList`, `keywordState`), thumbnails, inline images |
-| 0.5.0 | expected to work as with 0.4.0 (the 0.5.0 contract is additive; not verified). Not supported yet: sign-in with TOTP (`401 totp_required`, no code field), adding OAuth2 accounts (needs a native-client variant on the server), the admin panel, changing "From" in a draft, `DELETE /sessions?others=true`. OAuth2 accounts added in silo-web sync normally |
-| ≤ 0.2.0 | not supported (no bearer sign-in) |
+| silo-server     | What works                                                                                                                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0.3.0 (minimum) | bearer sign-in, list, thread, actions with Undo, compose and undo send, attachments, accounts, sessions, events; settings on the device only; plain-text search (no suggestions, history or chips)                                                                                                                                                           |
+| 0.4.0           | everything above plus search with operators and suggestions, snooze, scheduled send, synced settings (`/settings`), filters, label management (colours, parent, `showInList`, `keywordState`), thumbnails, inline images                                                                                                                                     |
+| 0.5.0           | expected to work as with 0.4.0 (the 0.5.0 contract is additive; not verified). Not supported yet: sign-in with TOTP (`401 totp_required`, no code field), adding OAuth2 accounts (needs a native-client variant on the server), the admin panel, changing "From" in a draft, `DELETE /sessions?others=true`. OAuth2 accounts added in silo-web sync normally |
+| ≤ 0.2.0         | not supported (no bearer sign-in)                                                                                                                                                                                                                                                                                                                            |
 
 `GET /meta` has no feature flags, so `src/lib/features.ts` (`hasServerFeature`,
 `useServerFeature`) compares `Meta.serverVersion` with the version each feature appeared in
@@ -135,13 +135,13 @@ npx expo run:android    # development build (needs the Android SDK)
 There is no build-time configuration of the instance: the user enters the instance address on the
 sign-in screen, and the app reads everything else from `GET /api/v1/meta`.
 
-| Setting | Where | Notes |
-| --- | --- | --- |
-| Instance address, bearer token, installation id | `expo-secure-store` (Android Keystore / iOS Keychain) | the token is also kept in memory (zustand `src/state/auth.ts`); never in a URL or the query cache |
-| Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`) | not secret; they change only the look and which request is sent |
-| Density, undo-send delay, signature, time zone, active account (server 0.4.0) | server (`GET/PATCH /settings`) | shared with silo-web |
-| App identity | `app.json` | name `Silo`, package `dev.silopost.mobile`, scheme `silopost` |
-| Targeted server contract | `package.json` → `silo.serverRef` | currently `v0.4.0` |
+| Setting                                                                                                              | Where                                                  | Notes                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Instance address, bearer token, installation id                                                                      | `expo-secure-store` (Android Keystore / iOS Keychain)  | the token is also kept in memory (zustand `src/state/auth.ts`); never in a URL or the query cache |
+| Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`) | not secret; they change only the look and which request is sent                                   |
+| Density, undo-send delay, signature, time zone, active account (server 0.4.0)                                        | server (`GET/PATCH /settings`)                         | shared with silo-web                                                                              |
+| App identity                                                                                                         | `app.json`                                             | name `Silo`, package `dev.silopost.mobile`, scheme `silopost`                                     |
+| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                      | currently `v0.4.0`                                                                                |
 
 Environment variables are used only by the tooling: `SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD` and
 `SILO_DEVICE` for `npm run smoke:api` (see [Testing](#smoke-test-against-a-live-api)) and
@@ -150,17 +150,17 @@ Expo's own `EXPO_PUBLIC_USE_RN_FETCH`, which switches the global `fetch` back to
 
 ## Scripts
 
-| Script | Description |
-| --- | --- |
-| `npm start` / `npm run android` | Expo dev server (Android: also opens the app) |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint 9 (`eslint-config-expo`, flat config) |
-| `npm run format` / `format:check` | Prettier |
-| `npm test` | Jest (preset `jest-expo` for Android) |
-| `npm run gen:api` | regenerate `src/api/schema.d.ts` (see [API contract](#api-contract)) |
-| `npm run gen:icons` | Expo icons in `assets/` from `assets/icon.svg` (a copy of `silo-web/public/icons/icon.svg`) |
-| `npm run export:android` | `expo export --platform android` into `dist/` |
-| `npm run smoke:api` | read-only smoke test against a live API (`scripts/smoke-api.mjs`) |
+| Script                            | Description                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm start` / `npm run android`   | Expo dev server (Android: also opens the app)                                               |
+| `npm run typecheck`               | `tsc --noEmit`                                                                              |
+| `npm run lint`                    | ESLint 9 (`eslint-config-expo`, flat config)                                                |
+| `npm run format` / `format:check` | Prettier                                                                                    |
+| `npm test`                        | Jest (preset `jest-expo` for Android)                                                       |
+| `npm run gen:api`                 | regenerate `src/api/schema.d.ts` (see [API contract](#api-contract))                        |
+| `npm run gen:icons`               | Expo icons in `assets/` from `assets/icon.svg` (a copy of `silo-web/public/icons/icon.svg`) |
+| `npm run export:android`          | `expo export --platform android` into `dist/`                                               |
+| `npm run smoke:api`               | read-only smoke test against a live API (`scripts/smoke-api.mjs`)                           |
 
 ## Building for production
 
@@ -190,14 +190,14 @@ preferences and the in-memory buffer of the draft being edited stay local.
 
 Layers (dependencies point down only):
 
-| Layer | Directory | Role |
-| --- | --- | --- |
-| routes | `app/` | expo-router (files = URLs, as in silo-web); thin, they render screens |
-| screens | `src/screens/` | one screen per route (label list, thread, compose, search, settings) |
-| features | `src/features/` | components and hooks per area: `nav`, `topbar`, `accounts`, `shell`, `threadlist`, `thread`, `compose`, `labels`, `snooze`, `search`, `settings`, `sync`, `toasts` |
-| queries, mutations, events | `src/api/queries`, `src/api/mutations`, `src/api/events.ts`, `src/api/sse.ts`, `src/api/drafts.ts` | TanStack Query (`keys.ts`), optimistic updates and undo, the event stream and its mapping onto the cache, uploads |
-| API client | `src/api/client.ts`, `auth.ts`, `errors.ts`, `schema.d.ts` | `openapi-fetch` with OpenAPI types, headers, 401 → sign-out, `ApiError` over RFC 9457 |
-| state and libraries | `src/state/`, `src/lib/` | zustand (auth, preferences, selection, toasts, connection, compose), pure functions (formatting, addresses, HTML, theme) |
+| Layer                      | Directory                                                                                          | Role                                                                                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| routes                     | `app/`                                                                                             | expo-router (files = URLs, as in silo-web); thin, they render screens                                                                                              |
+| screens                    | `src/screens/`                                                                                     | one screen per route (label list, thread, compose, search, settings)                                                                                               |
+| features                   | `src/features/`                                                                                    | components and hooks per area: `nav`, `topbar`, `accounts`, `shell`, `threadlist`, `thread`, `compose`, `labels`, `snooze`, `search`, `settings`, `sync`, `toasts` |
+| queries, mutations, events | `src/api/queries`, `src/api/mutations`, `src/api/events.ts`, `src/api/sse.ts`, `src/api/drafts.ts` | TanStack Query (`keys.ts`), optimistic updates and undo, the event stream and its mapping onto the cache, uploads                                                  |
+| API client                 | `src/api/client.ts`, `auth.ts`, `errors.ts`, `schema.d.ts`                                         | `openapi-fetch` with OpenAPI types, headers, 401 → sign-out, `ApiError` over RFC 9457                                                                              |
+| state and libraries        | `src/state/`, `src/lib/`                                                                           | zustand (auth, preferences, selection, toasts, connection, compose), pure functions (formatting, addresses, HTML, theme)                                           |
 
 State: threads, labels, drafts, accounts, sessions, settings, filters, `sync-status` and `/meta`
 live on the server and in the TanStack Query cache (updated by events; `/meta` and message HTML
@@ -209,7 +209,7 @@ zustand stores (`selection.ts`, `toasts.ts`, `connection.ts`, `compose.ts`).
 ### Authentication and headers
 
 - Sign-in (`src/api/auth.ts`): `POST /session` with `client: {kind: "bearer", name: <device
-  name>}` ([ADR 0007](https://github.com/silopost/silo/blob/main/docs/adr/0007-bearer-tokens-for-native-clients.md);
+name>}` ([ADR 0007](https://github.com/silopost/silo/blob/main/docs/adr/0007-bearer-tokens-for-native-clients.md);
   the name comes from `expo-device`, up to 100 characters). The token goes to the secure store; the
   session body seeds `GET /session` in the cache (without the token).
 - Every request (`src/api/client.ts`) carries `Authorization: Bearer <token>` and
@@ -308,22 +308,22 @@ account drawer with `runThreadAction` (`src/api/mutations/threads.ts`). Without 
 a confirmation; `opts.after` runs after the local change (back to the list), `opts.onUndo` after
 Undo (reopening the thread).
 
-| Action | Request |
-| --- | --- |
-| archive | `POST /threads/modify` `-INBOX` (folder view: `-<folder>`; label view: `-INBOX -<label>`) |
-| delete; Trash in "move to" | `POST /threads/trash` |
-| restore from Trash | `POST /threads/untrash` |
-| delete forever (after confirmation) | `POST /threads/delete` (no undo) |
-| report spam / not spam | modify `+SPAM` / `-SPAM` |
-| read / unread | modify `-UNREAD` / `+UNREAD` |
-| star / unstar (no snackbar) | modify `+STARRED` / `-STARRED` |
-| labels (sheet, after OK) | one modify with the added and removed labels |
-| move to Inbox / Spam / a folder | modify `+<target>` (the server removes the old location) |
-| move to a user label | modify `+<label> -INBOX` (as Gmail does) |
-| move to Archive | as archive |
-| snooze / unsnooze (0.4.0) | `POST /threads/{id}/snooze {until}` / `DELETE /threads/{id}/snooze`, one request per thread |
-| star a message, "mark unread from here" | `POST /messages/modify` (`src/api/mutations/messages.ts`, no undo) |
-| Undo | `POST /operations/{id}/undo` (for snooze, one per thread) |
+| Action                                  | Request                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| archive                                 | `POST /threads/modify` `-INBOX` (folder view: `-<folder>`; label view: `-INBOX -<label>`)   |
+| delete; Trash in "move to"              | `POST /threads/trash`                                                                       |
+| restore from Trash                      | `POST /threads/untrash`                                                                     |
+| delete forever (after confirmation)     | `POST /threads/delete` (no undo)                                                            |
+| report spam / not spam                  | modify `+SPAM` / `-SPAM`                                                                    |
+| read / unread                           | modify `-UNREAD` / `+UNREAD`                                                                |
+| star / unstar (no snackbar)             | modify `+STARRED` / `-STARRED`                                                              |
+| labels (sheet, after OK)                | one modify with the added and removed labels                                                |
+| move to Inbox / Spam / a folder         | modify `+<target>` (the server removes the old location)                                    |
+| move to a user label                    | modify `+<label> -INBOX` (as Gmail does)                                                    |
+| move to Archive                         | as archive                                                                                  |
+| snooze / unsnooze (0.4.0)               | `POST /threads/{id}/snooze {until}` / `DELETE /threads/{id}/snooze`, one request per thread |
+| star a message, "mark unread from here" | `POST /messages/modify` (`src/api/mutations/messages.ts`, no undo)                          |
+| Undo                                    | `POST /operations/{id}/undo` (for snooze, one per thread)                                   |
 
 Every action snapshots the lists, labels and open threads in the cache, applies the change locally
 (a row leaves a list it no longer belongs to, label counters follow – as in silo-web), sends the
@@ -407,37 +407,37 @@ exercised against mocked HTTP instead of hand-written fakes.
 Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relative to `/api/v1`;
 "0.4.0" marks features that need server 0.4.0 or newer.
 
-| Gmail app | silo-mobile (route, screen) | Endpoints |
-| --- | --- | --- |
-| sign-in | `/login`: instance address, mailbox address, password; server version shown | `GET /meta`, `POST /session {client: bearer}` |
-| start (Inbox) | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first account; without accounts: add account | `GET /session` |
-| drawer | system views, labels, server folders, create label, settings | `GET /labels?accountId=`, `POST /labels` |
-| search bar | menu, search field (→ search), account avatar | – |
-| account switcher | dialog from the avatar: accounts with Inbox unread counts, manage accounts, add account, sign out | `GET /labels` per account (while the dialog is open), `PATCH /settings {activeAccountId}` (0.4.0) |
-| Compose FAB | `/compose?accountId=…` → `?draftId=d_…` | `POST /drafts {accountId}` |
-| thread list | `/u/<n>/<label>` (system slug `inbox`, `starred`, … or `l_<id>`); infinite scroll, pull-to-refresh, sync banners | `GET /threads?accountId=&labelId=&cursor=` (50), `GET /accounts/{id}/sync-status`, `POST /accounts/{id}/resync` |
-| swipe | archive / delete / snooze by preference | as the actions above |
-| multi-select | long press or avatar → selection bar and ⋮ menu; labels and move-to sheets | `POST /threads/modify\|trash\|untrash\|delete`, `POST /labels` |
-| thread | `/u/<n>/<label>/<threadId>`: message cards, body in a WebView, attachments, reply, newer/older arrows | `GET /threads/{id}`, `GET /messages/{id}/html`, `GET /attachments/{id}[?inline=1]`, `/thumbnail` (0.4.0), `POST /messages/modify` |
-| reply / forward | reply bar and message menu → compose | `POST /drafts {replyToMessageId, mode}` |
-| compose | `/compose?draftId=d_…` (full screen): From, To/Cc/Bcc, subject, body, attachments, ⋮ | `GET/PUT/DELETE /drafts/{id}`, `GET /contacts/autocomplete?q=`, `POST /uploads` |
-| send, undo send | "sent" snackbar with Undo until `undoUntil` | `POST /drafts/{id}/send {}`, `POST /outbound/{id}/cancel` |
-| undo an action | snackbar Undo until `undoUntil` | `POST /operations/{id}/undo` |
-| snooze (0.4.0) | snooze sheet: server presets, custom date and time; from swipe, the selection bar, the thread menu | `GET /snooze/presets`, `POST`/`DELETE /threads/{id}/snooze` |
-| Snoozed | rows with the wake time, unsnooze | `DELETE /threads/{id}/snooze` |
-| schedule send (0.4.0) | compose ⋮ → sheet with suggestions and a custom date and time | `POST /drafts/{id}/send {sendAt}` |
-| Scheduled | rows with a clock and the send time; cancel send in the thread → draft in compose | `POST /outbound/{outboundId}/cancel` |
-| Drafts | a row opens `/compose?draftId=d_…` | `GET /drafts/{id}` |
-| search | `/u/<n>/search?q=`; result `/u/<n>/search/<threadId>?q=`; history, suggestions, filter chips (0.4.0) | `GET /threads?q=`, `GET /search/suggest?q=&accountId=`, `DELETE /search/history[?query=]` (0.4.0) |
-| settings | `/settings`: general settings, accounts, add account, about | `GET /session` |
-| – general | `/settings/general`: device section + synced Silo account section (0.4.0) | `GET /settings`, `PATCH /settings` (0.4.0) |
-| – account | `/settings/account/<id>`: name, sync, server, password, folders (read-only), filters, labels, remove | `GET /accounts/{id}/sync-status`, `PATCH`/`DELETE /accounts/{id}`, `POST /accounts/{id}/resync` |
-| – add account | `/settings/add-account`: one form, test connection, add | `POST /accounts/test`, `POST /accounts` |
-| – filters (0.4.0) | `/settings/filters?accountId=`, editor `/settings/filter` | `GET/POST /filters`, `PUT`/`DELETE /filters/{id}`, `POST /filters/{id}/apply` |
-| – labels (0.4.0) | `/settings/labels?accountId=`: tree, edit, delete | `GET /labels`, `POST /labels`, `PATCH`/`DELETE /labels/{id}` |
-| – devices | `/settings/sessions`: revoke, sign out, sign out everywhere | `GET /sessions`, `DELETE /sessions/{id}`, `DELETE /session` |
-| – about | `/settings/about`: app version, `silo.serverRef`, server address and `/meta`, link to the AGPL-3.0 source, sessions, sign out | `GET /meta` |
-| (live) | lists, counters, thread and compose refresh without reload | `GET /events` (SSE), `GET /events/poll` |
+| Gmail app             | silo-mobile (route, screen)                                                                                                   | Endpoints                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| sign-in               | `/login`: instance address, mailbox address, password; server version shown                                                   | `GET /meta`, `POST /session {client: bearer}`                                                                                     |
+| start (Inbox)         | `/` → `/u/<n>/inbox` of `settings.activeAccountId`, else the first account; without accounts: add account                     | `GET /session`                                                                                                                    |
+| drawer                | system views, labels, server folders, create label, settings                                                                  | `GET /labels?accountId=`, `POST /labels`                                                                                          |
+| search bar            | menu, search field (→ search), account avatar                                                                                 | –                                                                                                                                 |
+| account switcher      | dialog from the avatar: accounts with Inbox unread counts, manage accounts, add account, sign out                             | `GET /labels` per account (while the dialog is open), `PATCH /settings {activeAccountId}` (0.4.0)                                 |
+| Compose FAB           | `/compose?accountId=…` → `?draftId=d_…`                                                                                       | `POST /drafts {accountId}`                                                                                                        |
+| thread list           | `/u/<n>/<label>` (system slug `inbox`, `starred`, … or `l_<id>`); infinite scroll, pull-to-refresh, sync banners              | `GET /threads?accountId=&labelId=&cursor=` (50), `GET /accounts/{id}/sync-status`, `POST /accounts/{id}/resync`                   |
+| swipe                 | archive / delete / snooze by preference                                                                                       | as the actions above                                                                                                              |
+| multi-select          | long press or avatar → selection bar and ⋮ menu; labels and move-to sheets                                                    | `POST /threads/modify\|trash\|untrash\|delete`, `POST /labels`                                                                    |
+| thread                | `/u/<n>/<label>/<threadId>`: message cards, body in a WebView, attachments, reply, newer/older arrows                         | `GET /threads/{id}`, `GET /messages/{id}/html`, `GET /attachments/{id}[?inline=1]`, `/thumbnail` (0.4.0), `POST /messages/modify` |
+| reply / forward       | reply bar and message menu → compose                                                                                          | `POST /drafts {replyToMessageId, mode}`                                                                                           |
+| compose               | `/compose?draftId=d_…` (full screen): From, To/Cc/Bcc, subject, body, attachments, ⋮                                          | `GET/PUT/DELETE /drafts/{id}`, `GET /contacts/autocomplete?q=`, `POST /uploads`                                                   |
+| send, undo send       | "sent" snackbar with Undo until `undoUntil`                                                                                   | `POST /drafts/{id}/send {}`, `POST /outbound/{id}/cancel`                                                                         |
+| undo an action        | snackbar Undo until `undoUntil`                                                                                               | `POST /operations/{id}/undo`                                                                                                      |
+| snooze (0.4.0)        | snooze sheet: server presets, custom date and time; from swipe, the selection bar, the thread menu                            | `GET /snooze/presets`, `POST`/`DELETE /threads/{id}/snooze`                                                                       |
+| Snoozed               | rows with the wake time, unsnooze                                                                                             | `DELETE /threads/{id}/snooze`                                                                                                     |
+| schedule send (0.4.0) | compose ⋮ → sheet with suggestions and a custom date and time                                                                 | `POST /drafts/{id}/send {sendAt}`                                                                                                 |
+| Scheduled             | rows with a clock and the send time; cancel send in the thread → draft in compose                                             | `POST /outbound/{outboundId}/cancel`                                                                                              |
+| Drafts                | a row opens `/compose?draftId=d_…`                                                                                            | `GET /drafts/{id}`                                                                                                                |
+| search                | `/u/<n>/search?q=`; result `/u/<n>/search/<threadId>?q=`; history, suggestions, filter chips (0.4.0)                          | `GET /threads?q=`, `GET /search/suggest?q=&accountId=`, `DELETE /search/history[?query=]` (0.4.0)                                 |
+| settings              | `/settings`: general settings, accounts, add account, about                                                                   | `GET /session`                                                                                                                    |
+| – general             | `/settings/general`: device section + synced Silo account section (0.4.0)                                                     | `GET /settings`, `PATCH /settings` (0.4.0)                                                                                        |
+| – account             | `/settings/account/<id>`: name, sync, server, password, folders (read-only), filters, labels, remove                          | `GET /accounts/{id}/sync-status`, `PATCH`/`DELETE /accounts/{id}`, `POST /accounts/{id}/resync`                                   |
+| – add account         | `/settings/add-account`: one form, test connection, add                                                                       | `POST /accounts/test`, `POST /accounts`                                                                                           |
+| – filters (0.4.0)     | `/settings/filters?accountId=`, editor `/settings/filter`                                                                     | `GET/POST /filters`, `PUT`/`DELETE /filters/{id}`, `POST /filters/{id}/apply`                                                     |
+| – labels (0.4.0)      | `/settings/labels?accountId=`: tree, edit, delete                                                                             | `GET /labels`, `POST /labels`, `PATCH`/`DELETE /labels/{id}`                                                                      |
+| – devices             | `/settings/sessions`: revoke, sign out, sign out everywhere                                                                   | `GET /sessions`, `DELETE /sessions/{id}`, `DELETE /session`                                                                       |
+| – about               | `/settings/about`: app version, `silo.serverRef`, server address and `/meta`, link to the AGPL-3.0 source, sessions, sign out | `GET /meta`                                                                                                                       |
+| (live)                | lists, counters, thread and compose refresh without reload                                                                    | `GET /events` (SSE), `GET /events/poll`                                                                                           |
 
 ### Screen notes
 
@@ -607,11 +607,11 @@ events, and on server 0.4.0 or newer (or `dev`) also search, snooze presets, set
 It is **read-only** – the only changes are creating and deleting its own session. It prints step →
 status → ms and counts only (no mail content, no passwords) and exits with 1 on an error.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `SILO_URL` | – | Base URL of silo-server, for example `http://localhost:8080` |
-| `SILO_EMAIL`, `SILO_PASSWORD` | – | Mailbox to sign in with |
-| `SILO_DEVICE` | `smoke` | Session name |
+| Variable                      | Default | Description                                                  |
+| ----------------------------- | ------- | ------------------------------------------------------------ |
+| `SILO_URL`                    | –       | Base URL of silo-server, for example `http://localhost:8080` |
+| `SILO_EMAIL`, `SILO_PASSWORD` | –       | Mailbox to sign in with                                      |
+| `SILO_DEVICE`                 | `smoke` | Session name                                                 |
 
 ```sh
 SILO_URL=http://localhost:8080 SILO_EMAIL=dev3@silo.test SILO_PASSWORD=devpass3 npm run smoke:api
@@ -620,22 +620,22 @@ SILO_URL=http://localhost:8080 SILO_EMAIL=dev3@silo.test SILO_PASSWORD=devpass3 
 Result on the dev Compose stack on 2026-11-06 (silo-server `dev`, mailbox `dev3@silo.test`): all
 steps OK.
 
-| Step | Status | ms | Result |
-| --- | --- | --- | --- |
-| `GET /meta` | 200 | 78 | `serverVersion` dev, API 1 |
-| `POST /session` (`client.kind: bearer`) | 200 | 1014 | bearer token |
-| `GET /session` | 200 | 7 | 1 account |
-| `GET /accounts` | 200 | 4 | 1 account |
-| `GET /labels?accountId=` | 200 | 46 | 11 labels |
-| `GET /threads?accountId=&labelId=INBOX&limit=5` | 200 | 15 | 5 threads, ~5000 in the view |
-| `GET /threads/{id}` | 200 | 12 | 1 message |
-| `GET /messages/{id}/html` | 200 | 8 | 146 characters, no `<script` |
-| `GET /events/poll?after=0&limit=1` | 200 | 9 | 1 event |
-| `GET /search/suggest?q=te&accountId=` | 200 | 9 | 0 suggestions |
-| `GET /snooze/presets` | 200 | 3 | 3 presets, zone UTC |
-| `GET /settings` | 200 | 3 | density `default` |
-| `GET /filters?accountId=` | 200 | 4 | 0 filters |
-| `DELETE /session` | 204 | 10 | session deleted |
+| Step                                            | Status | ms   | Result                       |
+| ----------------------------------------------- | ------ | ---- | ---------------------------- |
+| `GET /meta`                                     | 200    | 78   | `serverVersion` dev, API 1   |
+| `POST /session` (`client.kind: bearer`)         | 200    | 1014 | bearer token                 |
+| `GET /session`                                  | 200    | 7    | 1 account                    |
+| `GET /accounts`                                 | 200    | 4    | 1 account                    |
+| `GET /labels?accountId=`                        | 200    | 46   | 11 labels                    |
+| `GET /threads?accountId=&labelId=INBOX&limit=5` | 200    | 15   | 5 threads, ~5000 in the view |
+| `GET /threads/{id}`                             | 200    | 12   | 1 message                    |
+| `GET /messages/{id}/html`                       | 200    | 8    | 146 characters, no `<script` |
+| `GET /events/poll?after=0&limit=1`              | 200    | 9    | 1 event                      |
+| `GET /search/suggest?q=te&accountId=`           | 200    | 9    | 0 suggestions                |
+| `GET /snooze/presets`                           | 200    | 3    | 3 presets, zone UTC          |
+| `GET /settings`                                 | 200    | 3    | density `default`            |
+| `GET /filters?accountId=`                       | 200    | 4    | 0 filters                    |
+| `DELETE /session`                               | 204    | 10   | session deleted              |
 
 The `POST /session` time includes the IMAP sign-in on the mail server. The smoke test does not
 check mutations, SSE (`/events`) or rendering – the unit and screen tests do.
