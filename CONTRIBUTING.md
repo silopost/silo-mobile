@@ -17,12 +17,12 @@ rules specific to this repository.
 
 ## API contract
 
-- The app is a thin client of silo-server's `/api/v1`: **no domain logic in the client**
-  ([plan 2.6](https://github.com/silopost/silo/blob/main/ARCHITECTURE_AND_PLAN.md#26-klienci-api)).
+- The app is a thin client of silo-server's `/api/v1`: **no domain logic in the client**.
   Undo windows, draft autosave and deduplication, search parsing and suggestions, snooze and
   scheduled send, filters and the pending-operation queue belong to the server; the app renders,
-  caches and updates optimistically. If a feature needs a decision the server does not offer, add
-  it to `docs/NOTES-FOR-SILO.md` as a contract gap instead of implementing it locally.
+  caches and updates optimistically. If a feature needs a decision the server does not offer, report
+  it as a contract gap in an issue on [silo-server](https://github.com/silopost/silo-server) instead
+  of implementing it locally.
 - No hand-written DTOs: use the types generated into `src/api/schema.d.ts`.
 - When bumping `silo.serverRef` in `package.json`, run `npm run gen:api` (or
   `npm run gen:api -- --local ../silo-server/api/openapi.yaml`) and commit the schema in the same

@@ -393,8 +393,14 @@ from a row, the bar or the thread.
   `expo-web-browser`, `expo-linking`
 - Tests: `jest-expo`, `@testing-library/react-native` 14, [msw](https://mswjs.io) 3
 
-The reasoning behind these choices is in
-[docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#decyzje-stacku) (in Polish).
+Why this stack: Expo and React Native let one TypeScript code base target Android first (and iOS
+later) without a local Android SDK, and they reuse what silo-web already uses: types generated
+from silo-server's OpenAPI with openapi-typescript, requests through openapi-fetch, server state in
+TanStack Query and zustand for the rest. react-native-paper provides Material 3 components close
+to the Gmail app with little custom styling. The compose editor is TipTap (through tentap in a
+WebView), like silo-web's, so a draft's `bodyJson` moves between phone and browser with its
+formatting. Tests run under jest-expo with msw, so the real API layer, SSE parser included, is
+exercised against mocked HTTP instead of hand-written fakes.
 
 ## Screens and endpoints
 
@@ -645,8 +651,10 @@ check mutations, SSE (`/events`) or rendering – the unit and screen tests do.
 
 ## Differences from the Gmail app
 
-Compared with the Gmail app and silo-web 0.3.0. The contract gaps behind some of them are in
-[docs/NOTES-FOR-SILO.md](docs/NOTES-FOR-SILO.md#luki-kontraktu-odkryte-przez-mobile) (in Polish).
+Compared with the Gmail app and silo-web 0.3.0. Some of them come from gaps in the API contract;
+server compatibility is tracked in the
+[compatibility matrix](https://github.com/silopost/silo/blob/main/docs/compat-matrix.md) of the
+`silo` repository.
 
 List and actions:
 
