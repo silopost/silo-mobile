@@ -227,10 +227,25 @@ describe("selection bar", () => {
     await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
 
     const bodies = recordModify();
+    // The server answers only once the test lets it, so the row is seen leaving before the answer:
+    // this handler waits, then falls through to recordModify's (it returns no response).
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      http.post(`${API}/threads/modify`, async () => {
+        await answered;
+      }),
+    );
     await fireEvent.press(screen.getByLabelText("Archiwizuj"));
     expect(screen.queryByTestId("selection-bar")).toBeNull();
-    // The row leaves the Inbox at once; the snackbar offers Cofnij once the server answered.
-    expect(screen.queryByText("Faktura")).toBeNull();
+    // The row leaves the Inbox before the server answers (the optimistic change reaches the list
+    // through React Query's notification batch, a timer, so it is awaited); the snackbar offers
+    // Cofnij once the server answered.
+    await waitFor(() => expect(screen.queryByText("Faktura")).toBeNull());
+    expect(screen.queryByText("Wątek zarchiwizowany")).toBeNull();
+    answer();
     expect(await screen.findByText("Wątek zarchiwizowany")).toBeOnTheScreen();
     expect(screen.getByText("Cofnij")).toBeOnTheScreen();
     expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: [], removeLabelIds: ["INBOX"] }]);
@@ -258,7 +273,8 @@ describe("selection bar", () => {
     await fireEvent.press(await screen.findByText("Przenieś do"));
     await fireEvent.press(within(await screen.findByTestId("move-to-sheet")).getByText("Praca"));
 
-    expect(screen.queryByText("Faktura")).toBeNull();
+    // The list hears of the change through React Query's notification batch, a timer.
+    await waitFor(() => expect(screen.queryByText("Faktura")).toBeNull());
     expect(await screen.findByText("Wątek przeniesiony do: Praca")).toBeOnTheScreen();
     expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["l_1"], removeLabelIds: ["INBOX"] }]);
   });
