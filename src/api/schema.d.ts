@@ -350,6 +350,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register the push device of this session
+         * @description Bearer sessions only (403 bearer_session_required for the cookie session). A session has one device: registering again updates it (another token replaces it). The same token registered by another session moves to this one. Signing out (DELETE /session) or the expiry of the session removes the device. 403 push_disabled when the instance has push switched off (GET /meta push.providers is empty); 422 invalid_account when accountIds names an account the user does not have. Notifications carry no message content: a generic title and data `{v: 1, type: "mail", accountId, threadId, count}` (Android channel `mail`).
+         */
+        post: operations["registerDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the push device of this session
+         * @description Bearer sessions only (403 bearer_session_required). 404 when the session has no device (never registered, or removed after the push service reported the token as not registered).
+         */
+        get: operations["getCurrentDevice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unregister a push device
+         * @description Removes a device of the user (any of their sessions); push to it stops. Works with push switched off too.
+         */
+        delete: operations["deleteDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drafts": {
         parameters: {
             query?: never;
@@ -1388,6 +1448,25 @@ export interface components {
              */
             type: "user" | "folder";
         };
+        Device: {
+            /** @description Accounts whose new mail is pushed; null: every account of the user. */
+            accountIds: string[] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @example dev_1 */
+            id: string;
+            /** @description Last delivery error reported by the push service (e.g. MessageRateExceeded), null after a successful push. A token the service reports as not registered removes the device instead. */
+            lastError: string | null;
+            /**
+             * Format: date-time
+             * @description Last registration or accepted push.
+             */
+            lastUsedAt: string;
+            /** @enum {string} */
+            provider: "expo";
+            /** @description The token registered by this session. */
+            pushToken: string;
+        };
         DiscoverRequest: {
             /** @description Address of the account to configure. */
             email: string;
@@ -1777,6 +1856,8 @@ export interface components {
             minWebVersion: string;
             /** @description OAuth2 providers configured on the instance (google, microsoft): silo-web offers "Sign in with ..." for them (POST /oauth/{provider}/start). Empty when none. */
             oauthProviders: string[] | null;
+            /** @description Push notifications for native clients. */
+            push: components["schemas"]["PushMeta"];
             /**
              * @description Version of silo-server.
              * @example 0.3.0
@@ -1902,12 +1983,27 @@ export interface components {
             ok: boolean;
             steps: components["schemas"]["Step"][] | null;
         };
+        PushMeta: {
+            /** @description Push providers accepted by POST /devices (expo); empty when push is switched off (SILO_PUSH_ENABLED=false): clients hide the feature. */
+            providers: string[] | null;
+        };
         PutFoldersInputBody: {
             folders: components["schemas"]["FolderChange"][] | null;
         };
         Recipient: {
             email: string;
             name?: string;
+        };
+        RegisterDevice: {
+            /** @description Accounts of the user (acc_ ids) to push; omitted or null: every account (also accounts added later). */
+            accountIds?: string[] | null;
+            /**
+             * @description Push provider; one of GET /meta push.providers.
+             * @enum {string}
+             */
+            provider: "expo";
+            /** @description Expo push token (ExponentPushToken[...] or ExpoPushToken[...]). */
+            pushToken: string;
         };
         Resync: {
             /**
@@ -3787,6 +3883,196 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    registerDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterDevice"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getCurrentDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

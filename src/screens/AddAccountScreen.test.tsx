@@ -19,6 +19,7 @@ const meta = (allowCustomServers: boolean): Meta => ({
   allowCustomServers,
   maxAttachmentBytes: 26214400,
   oauthProviders: [],
+  push: { providers: [] },
 });
 
 const failed: TestResult = {

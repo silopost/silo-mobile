@@ -7,7 +7,6 @@ import { metaQuery } from "../../api/queries/meta";
 import { sessionQuery } from "../../api/queries/session";
 import { useAuth } from "../../state/auth";
 import { usePush } from "../../state/push";
-import type { MetaWithPush } from "./api";
 import { pushBuild, pushUnavailable, type PushUnavailable } from "./config";
 import { onDevicePushToken, registerAgain } from "./register";
 import { mailPushHref, parseMailPush } from "./route";
@@ -16,7 +15,7 @@ import { mailPushHref, parseMailPush } from "./route";
 export function usePushUnavailable(): PushUnavailable | null {
   const serverUrl = useAuth((s) => s.serverUrl) ?? "";
   const meta = useQuery({ ...metaQuery(serverUrl), enabled: !!serverUrl });
-  return pushUnavailable(meta.data as MetaWithPush | undefined, pushBuild());
+  return pushUnavailable(meta.data, pushBuild());
 }
 
 /** Opens what a tapped mail push points at; anything else opens the app as it is. */

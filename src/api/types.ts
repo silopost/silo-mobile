@@ -50,3 +50,6 @@ export type FilterApplyResult = Schemas["FilterApplyResult"];
 export type UpdateLabelBody = Schemas["UpdateLabelBody"];
 export type CreateLabelBody = Schemas["CreateLabelBody"];
 export type DraftWarning = NonNullable<Schemas["Draft"]["warnings"]>[number];
+export type PushMeta = Schemas["PushMeta"];
+export type Device = Schemas["Device"];
+export type RegisterDevice = Schemas["RegisterDevice"];

@@ -2,12 +2,13 @@ import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { Platform } from "react-native";
 import { queryClient } from "../../api/cache";
+import { deleteDevice, getCurrentDevice, registerDevice } from "../../api/devices";
 import { isApiError } from "../../api/errors";
 import { keys } from "../../api/keys";
 import { sessionQuery } from "../../api/queries/session";
+import type { Device } from "../../api/types";
 import { t } from "../../lib/i18n";
 import { usePush } from "../../state/push";
-import { deleteDevice, getCurrentDevice, registerDevice, type Device } from "./api";
 import { pushBuild } from "./config";
 
 /** The Android channel the server names in every push (`channelId: "mail"`). */

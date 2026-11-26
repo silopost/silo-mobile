@@ -10,7 +10,7 @@ import { usePush } from "../../state/push";
 import { toast } from "../../state/toasts";
 import { sortedAccounts, useSession, type Account } from "../account";
 import { SettingsItem, SwitchItem } from "../settings/items";
-import { getCurrentDevice } from "./api";
+import { getCurrentDevice } from "../../api/devices";
 import {
   disablePush,
   enablePush,

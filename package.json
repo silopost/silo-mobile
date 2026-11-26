@@ -72,7 +72,7 @@
     "typescript": "~6.0.3"
   },
   "silo": {
-    "serverRef": "v0.9.0"
+    "serverRef": "v0.10.0"
   },
   "overrides": {
     "openapi-typescript": {

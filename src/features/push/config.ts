@@ -1,7 +1,6 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
-import { hasServerPush } from "../../lib/features";
-import type { MetaWithPush } from "./api";
+import { hasServerPush, type MetaMaybePush } from "../../lib/features";
 
 /** What this build knows about push (app.config.js → `extra`). */
 export type PushBuild = {
@@ -34,7 +33,7 @@ export function pushBuild(): PushBuild {
 export type PushUnavailable = "loading" | "server" | "build" | "expoGo";
 
 export function pushUnavailable(
-  meta: MetaWithPush | undefined,
+  meta: MetaMaybePush | undefined,
   build: PushBuild,
 ): PushUnavailable | null {
   if (!meta) return "loading";

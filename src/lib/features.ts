@@ -63,14 +63,18 @@ export function hasServerFeature(
 }
 
 /**
+ * GET /meta as an unknown server may answer it. `Meta.push` is required in the 0.10.0 contract,
+ * but servers before 0.10.0 do not send it, so it is read as optional.
+ */
+export type MetaMaybePush = Omit<Meta, "push"> & { push?: Meta["push"] | null };
+
+/**
  * Whether the server pushes new mail through Expo: unlike the features above it is a flag of
  * `GET /meta` (`push.providers` contains "expo"), because an instance can switch push off
- * (SILO_PUSH_ENABLED=false answers `[]`). Servers before push have no `push` field at all.
- * The type is structural until `Meta.push` is in the generated schema (src/features/push/api.ts).
+ * (SILO_PUSH_ENABLED=false answers `[]`). Servers before 0.10.0 have no `push` field at all, which
+ * the generated type (`push` required) does not show; hence the optional chaining.
  */
-export function hasServerPush(
-  meta: { push?: { providers?: string[] | null } | null } | undefined,
-): boolean {
+export function hasServerPush(meta: MetaMaybePush | undefined): boolean {
   return !!meta?.push?.providers?.includes("expo");
 }
 
