@@ -46,21 +46,36 @@ describe("MessageCard", () => {
     expect(screen.getByRole("button", { name: /rozwinięta$/ })).toBeOnTheScreen();
     await fireEvent.press(screen.getByText("do mnie ▾"));
     expect(screen.getByTestId("details-m_1")).toBeOnTheScreen();
-    expect(screen.getByText("Jan Kowalski <jan@example.com>")).toBeOnTheScreen();
+    expect(screen.getByText("Jan Kowalski • jan@example.com")).toBeOnTheScreen();
     expect(await screen.findByTestId("message-html-m_1")).toBeOnTheScreen();
   });
 
-  it("menu: reply all, forward, unread from here; star", async () => {
+  it("menu: reply all for several recipients, unread from here; star", async () => {
     const h = handlers();
-    await renderScreen(<MessageCard message={message({})} expanded me="ala@example.com" {...h} />);
-    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
+    const to = [
+      { email: "ala@example.com", name: "Ala" },
+      { email: "ola@example.com", name: "Ola" },
+    ];
+    await renderScreen(
+      <MessageCard message={message({ to })} expanded me="ala@example.com" {...h} />,
+    );
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
     await fireEvent.press(await screen.findByText("Odpowiedz wszystkim"));
     expect(h.onReply).toHaveBeenCalledWith("replyAll");
-    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
-    await fireEvent.press(await screen.findByText("Oznacz jako nieprzeczytane od tej wiadomości"));
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    await fireEvent.press(await screen.findByText("Oznacz jako nieprzeczytane od tego miejsca"));
     expect(h.onUnreadFromHere).toHaveBeenCalled();
-    await fireEvent.press(screen.getByLabelText("Oznacz gwiazdką"));
+    await fireEvent.press(screen.getByLabelText("Dodaj gwiazdkę"));
     expect(h.onStar).toHaveBeenCalledWith(true);
+  });
+
+  it("menu: no 'Odpowiedz wszystkim' for a single recipient", async () => {
+    await renderScreen(
+      <MessageCard message={message({})} expanded me="ala@example.com" {...handlers()} />,
+    );
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    expect(await screen.findByText("Przekaż dalej")).toBeOnTheScreen();
+    expect(screen.queryByText("Odpowiedz wszystkim")).toBeNull();
   });
 
   it("a scheduled message shows 'Wysyłanie…' and no reply", async () => {

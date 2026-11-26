@@ -1,4 +1,5 @@
 import type { components } from "../api/schema";
+import { t } from "./i18n";
 
 type Label = components["schemas"]["Label"];
 
@@ -14,51 +15,44 @@ export type SystemView = {
   icon: IconName;
   /** Counter shown in the drawer, as in Gmail. */
   count?: "unread" | "total";
-  /** Listed under "Więcej" in silo-web; the mobile drawer shows every view, like Gmail. */
+  /** Listed under "More" in silo-web; the mobile drawer shows every view, like Gmail. */
   more?: boolean;
 };
+
+/** A drawer entry whose name is read from the dictionary of the current language (t.views). */
+function view(
+  slug: keyof typeof t.views,
+  labelId: string | undefined,
+  icon: IconName,
+  extra: Pick<SystemView, "count" | "more"> = {},
+): SystemView {
+  return {
+    slug,
+    labelId,
+    icon,
+    ...extra,
+    get name() {
+      return t.views[slug];
+    },
+  };
+}
 
 /**
  * System labels of plan 5.5 as drawer entries (port of silo-web's lib/labels.ts), in the order of
  * the Gmail app's drawer; Archive (not a Gmail view) comes last.
  */
 export const SYSTEM_VIEWS: SystemView[] = [
-  { slug: "inbox", labelId: "INBOX", name: "Odebrane", icon: "inbox", count: "unread" },
-  { slug: "starred", labelId: "STARRED", name: "Oznaczone gwiazdką", icon: "star-outline" },
-  { slug: "snoozed", labelId: "SNOOZED", name: "Odłożone", icon: "clock-outline" },
-  { slug: "important", labelId: "IMPORTANT", name: "Ważne", icon: "label-variant-outline" },
-  { slug: "sent", labelId: "SENT", name: "Wysłane", icon: "send-outline" },
-  {
-    slug: "scheduled",
-    labelId: "SCHEDULED",
-    name: "Zaplanowane",
-    icon: "send-clock-outline",
-    count: "total",
-  },
-  {
-    slug: "drafts",
-    labelId: "DRAFT",
-    name: "Wersje robocze",
-    icon: "file-outline",
-    count: "total",
-  },
-  {
-    slug: "all",
-    labelId: undefined,
-    name: "Wszystkie",
-    icon: "email-multiple-outline",
-    more: true,
-  },
-  {
-    slug: "spam",
-    labelId: "SPAM",
-    name: "Spam",
-    icon: "alert-octagon-outline",
-    count: "unread",
-    more: true,
-  },
-  { slug: "trash", labelId: "TRASH", name: "Kosz", icon: "delete-outline", more: true },
-  { slug: "archive", labelId: "ARCHIVE", name: "Archiwum", icon: "archive-outline", more: true },
+  view("inbox", "INBOX", "inbox", { count: "unread" }),
+  view("starred", "STARRED", "star-outline"),
+  view("snoozed", "SNOOZED", "clock-outline"),
+  view("important", "IMPORTANT", "label-variant-outline"),
+  view("sent", "SENT", "send-outline"),
+  view("scheduled", "SCHEDULED", "send-clock-outline", { count: "total" }),
+  view("drafts", "DRAFT", "file-outline", { count: "total" }),
+  view("all", undefined, "email-multiple-outline", { more: true }),
+  view("spam", "SPAM", "alert-octagon-outline", { count: "unread", more: true }),
+  view("trash", "TRASH", "delete-outline", { more: true }),
+  view("archive", "ARCHIVE", "archive-outline", { more: true }),
 ];
 
 export const INBOX_SLUG = "inbox";

@@ -1,22 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Appbar, Button, Icon, IconButton, Menu, Text } from "react-native-paper";
+import { Appbar, Button, Icon, IconButton, Text, TouchableRipple } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isApiError } from "../api/errors";
 import { findCachedThread, neighbourInList } from "../api/mutations/cache";
 import { modifyMessages } from "../api/mutations/messages";
 import { useLabels } from "../api/queries/labels";
 import { threadQuery } from "../api/queries/threads";
 import type { Label, Message, ThreadDetail } from "../api/types";
+import { DropdownMenu, MenuDivider, MenuEntry } from "../components/DropdownMenu";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { composeHref, openReply, replyTarget, type DraftMode } from "../features/compose/actions";
 import { undoSend } from "../features/compose/session";
 import { PendingIcon } from "../features/sync/PendingIcon";
-import { MessageCard } from "../features/thread/MessageCard";
+import { hasManyRecipients, MessageCard } from "../features/thread/MessageCard";
 import { useThreadActions, type ThreadAction } from "../features/threadlist/actions";
 import { primaryActions, type BarAction } from "../features/threadlist/SelectionBar";
-import { STAR_COLOR } from "../features/threadlist/ThreadRow";
+import { CARD_GAP, CARD_INSET, cardShape, STAR_COLOR } from "../features/threadlist/ThreadRow";
 import { useServerFeature } from "../lib/features";
 import { formatWhen } from "../lib/format";
 import { t } from "../lib/i18n";
@@ -104,6 +106,7 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const index = useAccountIndex();
   const account = useActiveAccount();
   const accountId = account?.id;
@@ -226,6 +229,58 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   const foldEnd = firstExpanded < 0 ? messages.length - 1 : firstExpanded;
   const fold = !unfolded && foldEnd - 1 >= FOLD_MIN;
 
+  const page = theme.colors.listBackground;
+  /** The messages (and the fold bar) of the thread, each drawn as a card. */
+  const items: { key: string; node: ReactNode }[] = [];
+  messages.forEach((m, i) => {
+    if (fold && i >= 1 && i < foldEnd) {
+      if (i > 1) return;
+      const n = foldEnd - 1;
+      items.push({
+        key: "fold",
+        node: (
+          <Pressable
+            testID="fold"
+            accessibilityRole="button"
+            accessibilityLabel={t.folded(n)}
+            onPress={() => setUnfolded(true)}
+            style={styles.fold}
+          >
+            <View style={[styles.foldCount, { borderColor: theme.colors.outlineVariant }]}>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurface }}>
+                {n}
+              </Text>
+            </View>
+            <View style={[styles.foldLine, { backgroundColor: theme.colors.outlineVariant }]} />
+          </Pressable>
+        ),
+      });
+      return;
+    }
+    items.push({
+      key: m.id,
+      node: (
+        <MessageCard
+          message={m}
+          expanded={expanded.has(m.id)}
+          me={account?.email ?? ""}
+          onToggle={() => toggle(m.id)}
+          onStar={(star) => starMessage(m, star)}
+          onReply={(mode) => reply(mode, m.id)}
+          onUnreadFromHere={() => unreadFromHere(i)}
+          onOpenDraft={(draftId) => router.push(composeHref(draftId))}
+        />
+      ),
+    });
+  });
+  const replies: [DraftMode, string, string][] = [
+    ["reply", t.reply, "reply"],
+    ...(target && hasManyRecipients(target)
+      ? ([["replyAll", t.replyAll, "reply-all"]] as [DraftMode, string, string][])
+      : []),
+    ["forward", t.forward, "share"],
+  ];
+
   const more = (
     <Appbar.Action
       icon="dots-vertical"
@@ -235,8 +290,8 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <Appbar.Header style={{ backgroundColor: theme.colors.background }}>
+    <View style={[styles.screen, { backgroundColor: page }]}>
+      <Appbar.Header style={{ backgroundColor: page }}>
         <Appbar.BackAction accessibilityLabel={t.back} onPress={back} />
         <Appbar.Content title="" />
         {detail &&
@@ -258,24 +313,54 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
         {/* Mounted only while open (Paper's Menu hides itself on mount otherwise). */}
         {detail &&
           (menu ? (
-            <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
-              {canSnooze && <Menu.Item title={t.snooze} onPress={() => act("snooze")} />}
-              {snoozeEnabled && snoozed && (
-                <Menu.Item title={t.unsnooze} onPress={() => act("unsnooze")} />
-              )}
-              <Menu.Item title={t.moveTo} onPress={() => act("moveTo")} />
-              <Menu.Item title={t.labels} onPress={() => act("labels")} />
-              <Menu.Item
+            <DropdownMenu onDismiss={() => setMenu(false)} anchor={more}>
+              <MenuEntry
+                icon="folder-move-outline"
+                title={t.moveTo}
+                onPress={() => act("moveTo")}
+              />
+              <MenuEntry
+                icon="label-outline"
+                title={t.changeLabels}
+                onPress={() => act("labels")}
+              />
+              <MenuEntry
+                icon={starred ? "star-off-outline" : "star-outline"}
                 title={starred ? t.unstar : t.star}
                 onPress={() => act(starred ? "unstar" : "star")}
               />
-              {inTrash && <Menu.Item title={t.untrash} onPress={() => act("untrash")} />}
-              {inSpam ? (
-                <Menu.Item title={t.notSpam} onPress={() => act("notSpam")} />
-              ) : (
-                !inTrash && <Menu.Item title={t.reportSpam} onPress={() => act("spam")} />
+              {(canSnooze || (snoozeEnabled && snoozed)) && <MenuDivider />}
+              {canSnooze && (
+                <MenuEntry icon="clock-outline" title={t.snooze} onPress={() => act("snooze")} />
               )}
-            </Menu>
+              {snoozeEnabled && snoozed && (
+                <MenuEntry
+                  icon="clock-remove-outline"
+                  title={t.unsnooze}
+                  onPress={() => act("unsnooze")}
+                />
+              )}
+              <MenuDivider />
+              {inTrash && (
+                <MenuEntry icon="delete-restore" title={t.untrash} onPress={() => act("untrash")} />
+              )}
+              {inSpam ? (
+                <MenuEntry
+                  icon="alert-octagon-outline"
+                  title={t.notSpam}
+                  onPress={() => act("notSpam")}
+                />
+              ) : (
+                !inTrash && (
+                  <MenuEntry
+                    icon="alert-octagon-outline"
+                    title={t.reportSpam}
+                    danger
+                    onPress={() => act("spam")}
+                  />
+                )
+              )}
+            </DropdownMenu>
           ) : (
             more
           ))}
@@ -319,7 +404,7 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
                 accessibilityLabel={starred ? t.unstar : t.star}
                 accessibilityState={{ checked: starred }}
                 onPress={() => act(starred ? "unstar" : "star")}
-                style={styles.headerStar}
+                style={styles.icon48}
               />
             </View>
             {(chips.length > 0 || messages.some((m) => m.pendingSync)) && (
@@ -388,80 +473,31 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
             </Text>
           )}
 
-          {messages.map((m, i) => {
-            if (fold && i >= 1 && i < foldEnd) {
-              if (i > 1) return null;
-              const n = foldEnd - 1;
-              return (
-                <Pressable
-                  key="fold"
-                  testID="fold"
-                  accessibilityRole="button"
-                  accessibilityLabel={t.folded(n)}
-                  onPress={() => setUnfolded(true)}
-                  style={[styles.fold, { borderTopColor: theme.colors.outlineVariant }]}
-                >
-                  <View style={[styles.foldCount, { borderColor: theme.colors.outlineVariant }]}>
-                    <Text variant="labelMedium" style={{ color: theme.colors.onSurface }}>
-                      {n}
-                    </Text>
-                  </View>
-                  <View
-                    style={[styles.foldLine, { backgroundColor: theme.colors.outlineVariant }]}
-                  />
-                </Pressable>
-              );
-            }
-            return (
-              <MessageCard
-                key={m.id}
-                message={m}
-                expanded={expanded.has(m.id)}
-                me={account?.email ?? ""}
-                onToggle={() => toggle(m.id)}
-                onStar={(star) => starMessage(m, star)}
-                onReply={(mode) => reply(mode, m.id)}
-                onUnreadFromHere={() => unreadFromHere(i)}
-                onOpenDraft={(draftId) => router.push(composeHref(draftId))}
-              />
-            );
-          })}
-
-          {target && (
-            <View style={styles.replyBar}>
-              {(
-                [
-                  ["reply", t.reply, "reply"],
-                  ["replyAll", t.replyAll, "reply-all"],
-                  ["forward", t.forward, "share"],
-                ] as const
-              ).map(([mode, text, icon]) => (
-                <Button
-                  key={mode}
-                  mode="outlined"
-                  icon={icon}
-                  compact
-                  onPress={() => reply(mode)}
-                  style={styles.replyButton}
-                  contentStyle={styles.replyContent}
-                  labelStyle={styles.replyLabel}
-                >
-                  {text}
-                </Button>
-              ))}
+          {items.map((it, i) => (
+            <View
+              key={it.key}
+              style={[
+                styles.card,
+                cardShape(i === 0, i === items.length - 1, false),
+                { backgroundColor: theme.colors.listCard },
+              ]}
+            >
+              {it.node}
             </View>
-          )}
+          ))}
 
           {(newer || older) && (
             <View style={styles.neighbours}>
               <IconButton
                 icon="chevron-up"
+                style={styles.icon48}
                 accessibilityLabel={t.newerLabel}
                 disabled={!newer}
                 onPress={() => newer && router.replace(threadHref(newer))}
               />
               <IconButton
                 icon="chevron-down"
+                style={styles.icon48}
                 accessibilityLabel={t.olderLabel}
                 disabled={!older}
                 onPress={() => older && router.replace(threadHref(older))}
@@ -470,18 +506,78 @@ export function ThreadScreen({ search = false }: { search?: boolean }) {
           )}
         </ScrollView>
       )}
+      {detail && target && (
+        <View
+          testID="reply-bar"
+          style={[styles.replyBar, { backgroundColor: page, paddingBottom: insets.bottom + 8 }]}
+        >
+          {replies.map(([mode, text, icon]) => (
+            <ReplyButton
+              key={mode}
+              icon={icon}
+              text={text}
+              compact={replies.length > 2}
+              onPress={() => reply(mode)}
+            />
+          ))}
+        </View>
+      )}
     </View>
+  );
+}
+
+/**
+ * A filled pill of the reply bar pinned under the thread, as in the Gmail app (2026). Paper's
+ * Button keeps its label on one line, which cuts "Odpowiedz wszystkim" in a third of a phone's
+ * width; here the label wraps to a second line (smaller with three pills) inside the 50 dp pill.
+ */
+function ReplyButton({
+  icon,
+  text,
+  compact,
+  onPress,
+}: {
+  icon: string;
+  text: string;
+  /** Three pills share the row: the smaller label. */
+  compact: boolean;
+  onPress: () => void;
+}) {
+  const theme = useAppTheme();
+  const ink = theme.colors.onReplyButton;
+  return (
+    <TouchableRipple
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={text}
+      borderless
+      rippleColor={theme.colors.onSurfaceVariant}
+      style={[styles.replyButton, { backgroundColor: theme.colors.replyButton }]}
+    >
+      <View style={styles.replyContent}>
+        <Icon source={icon} size={20} color={ink} />
+        <Text
+          variant={compact ? "labelLarge" : "titleMedium"}
+          numberOfLines={2}
+          style={[styles.replyLabel, { color: ink }]}
+        >
+          {text}
+        </Text>
+      </View>
+    </TouchableRipple>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
-  content: { paddingBottom: 32 },
-  header: { paddingLeft: 16, paddingRight: 4, paddingBottom: 12, gap: 8 },
-  title: { flexDirection: "row", alignItems: "flex-start" },
+  content: { paddingBottom: 8 },
+  // Subject 16 dp from the edge, its star 48 dp at the edge (Gmail 2026); no line under it.
+  header: { paddingLeft: 16, paddingBottom: 12, gap: 8 },
+  title: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   grow: { flex: 1, minWidth: 0 },
-  headerStar: { margin: 0 },
+  icon48: { margin: 0, width: MIN_TOUCH, height: MIN_TOUCH },
+  card: { marginHorizontal: CARD_INSET, marginBottom: CARD_GAP, overflow: "hidden" },
   chips: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
   chip: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: "hidden" },
   pad: { paddingHorizontal: 16, paddingVertical: 8 },
@@ -501,7 +597,6 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: MIN_TOUCH,
     paddingHorizontal: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   foldCount: {
     width: 40,
@@ -512,9 +607,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   foldLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  replyBar: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 16 },
-  replyButton: { flex: 1, borderRadius: 20 },
-  replyContent: { minHeight: MIN_TOUCH },
-  replyLabel: { marginHorizontal: 8 },
+  // Gmail 2026: 50 dp pills, 16 dp from the edges, 8 dp apart.
+  replyBar: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 8 },
+  replyButton: { flex: 1, height: 50, borderRadius: 25, overflow: "hidden" },
+  replyContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    // Tight enough for "Odpowiedz" and "wszystkim" to fit whole beside the icon at 411 dp.
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  replyLabel: { flexShrink: 1, textAlign: "center" },
   neighbours: { flexDirection: "row", justifyContent: "center", paddingTop: 8 },
 });

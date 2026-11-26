@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Divider, Icon, Text, TouchableRipple } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,7 +23,11 @@ type ItemProps = {
   testID?: string;
 };
 
-/** Entry of the drawer: icon, name, counter; the active one sits on the MD3 pill. */
+/**
+ * Entry of the drawer as in the Gmail app (2026): 48 dp, icon at 24 dp and name at 72 dp; the
+ * active one sits on a pill 8 dp from both edges, in regular weight (an unread count of another
+ * entry is bold).
+ */
 export function DrawerItem({
   label,
   icon,
@@ -39,7 +44,7 @@ export function DrawerItem({
   const color = active ? theme.colors.onSecondaryContainer : theme.colors.onSurfaceVariant;
   const a11yCount =
     count > 0 ? `, ${countKind === "unread" ? t.unreadCount(count) : t.totalCount(count)}` : "";
-  const bold = countKind === "unread" && count > 0;
+  const bold = countKind === "unread" && count > 0 && !active;
   return (
     <TouchableRipple
       testID={testID}
@@ -56,12 +61,12 @@ export function DrawerItem({
         disabled && styles.disabled,
       ]}
     >
-      <View style={[styles.row, depth > 0 && { paddingLeft: 24 + depth * 16 }]}>
+      <View style={[styles.row, depth > 0 && { paddingLeft: 16 + depth * 16 }]}>
         <Icon source={icon} size={24} color={iconColor ?? color} />
         <Text
-          variant="labelLarge"
+          variant="bodyLarge"
           numberOfLines={1}
-          style={[styles.name, { color }, (active || bold) && styles.bold]}
+          style={[styles.name, { color }, bold && styles.bold]}
         >
           {label}
         </Text>
@@ -85,8 +90,9 @@ type Props = {
 };
 
 /**
- * Content of the navigation drawer as in the Gmail app (plan 6.3): the logotype, system views with
- * their counters, the user's labels and server folders, "Utwórz nową", settings and help.
+ * Content of the navigation drawer as in the Gmail app (plan 6.3): the logotype, the Inbox, "Wszystkie
+ * etykiety" with the other system views and their counters, the user's labels ending with "Utwórz
+ * etykietę", server folders, settings and help.
  */
 export function MailDrawer({ labels, activeSlug, onSelect, onCreateLabel, onSettings }: Props) {
   const theme = useAppTheme();
@@ -111,17 +117,27 @@ export function MailDrawer({ labels, activeSlug, onSelect, onCreateLabel, onSett
       </View>
       <Divider style={styles.divider} />
 
-      {SYSTEM_VIEWS.map((v) => (
-        <DrawerItem
-          key={v.slug}
-          testID={`nav-${v.slug}`}
-          label={v.name}
-          icon={v.icon}
-          count={systemCount(v, labels)}
-          countKind={v.count}
-          active={activeSlug === v.slug}
-          onPress={() => onSelect(v.slug)}
-        />
+      {SYSTEM_VIEWS.map((v, i) => (
+        <Fragment key={v.slug}>
+          <DrawerItem
+            testID={`nav-${v.slug}`}
+            label={v.name}
+            icon={v.icon}
+            count={systemCount(v, labels)}
+            countKind={v.count}
+            active={activeSlug === v.slug}
+            onPress={() => onSelect(v.slug)}
+          />
+          {i === 0 && (
+            <Text
+              variant="labelLarge"
+              accessibilityRole="header"
+              style={[styles.section, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {t.allLabels}
+            </Text>
+          )}
+        </Fragment>
       ))}
 
       <LabelSection
@@ -194,16 +210,16 @@ const styles = StyleSheet.create({
   },
   logo: { fontWeight: "500" },
   divider: { marginVertical: 8 },
-  // Full height 56 dp (MD3 navigation drawer), pill rounded on the right end like Gmail.
+  // 48 dp; the pill 8 dp from both edges, fully rounded (Gmail 2026).
   item: {
-    minHeight: Math.max(MIN_TOUCH, 52),
+    minHeight: MIN_TOUCH,
     justifyContent: "center",
-    marginRight: 12,
-    borderTopRightRadius: 26,
-    borderBottomRightRadius: 26,
+    marginHorizontal: 8,
+    borderRadius: MIN_TOUCH / 2,
     overflow: "hidden",
   },
-  row: { flexDirection: "row", alignItems: "center", gap: 16, paddingLeft: 24, paddingRight: 16 },
+  // Icon 24 dp and text 72 dp from the drawer's edge.
+  row: { flexDirection: "row", alignItems: "center", gap: 24, paddingLeft: 16, paddingRight: 16 },
   name: { flex: 1 },
   bold: { fontWeight: "700" },
   disabled: { opacity: 0.5 },

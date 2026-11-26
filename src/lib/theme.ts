@@ -13,13 +13,28 @@ type GmailColors = {
   surfaceContainerLow: string;
   /** Gmail red: the logotype and accents of important things. */
   brand: string;
+  /** Page behind the cards of the thread list and the search results (MD3 surface-container). */
+  listBackground: string;
+  /** A row card of the list, also the floating search pill (MD3 surface-bright in light mode). */
+  listCard: string;
+  /** Swipe pills: archive (dark green), trash (red), snooze (blue), other actions (grey). */
+  swipeArchive: string;
+  swipeTrash: string;
+  swipeSnooze: string;
+  swipeOther: string;
+  /** Icon on a swipe pill. */
+  onSwipe: string;
+  /** Filled pills of the thread's reply bar (Odpowiedz, Przekaż dalej) and their text. */
+  replyButton: string;
+  onReplyButton: string;
 };
 
 export type AppTheme = MD3Theme & { colors: MD3Theme["colors"] & GmailColors };
 
 /**
- * Material 3 theme that reads as the Gmail app for Android: Google blue as primary, white list
- * background (#131314 in dark mode), the light-blue pill of the active drawer entry
+ * Material 3 theme that reads as the Gmail app for Android (2026): Google blue as primary, the
+ * thread list as light cards on a grey-lilac page (cards one container level above the #131314
+ * page in dark mode), white surfaces elsewhere, the light-blue pill of the active drawer entry
  * (secondaryContainer) and the light-blue compose FAB (primaryContainer). Typography stays Paper's
  * MD3 type scale on the system font (Roboto on Android).
  */
@@ -45,6 +60,15 @@ export const lightTheme: AppTheme = {
     surfaceContainerHigh: "#e9eef6",
     surfaceContainerLow: "#f6f8fc",
     brand: "#c5221f",
+    listBackground: "#eeedf4",
+    listCard: "#faf8ff",
+    swipeArchive: "#146c2e",
+    swipeTrash: "#d93025",
+    swipeSnooze: "#1a73e8",
+    swipeOther: "#5f6368",
+    onSwipe: "#ffffff",
+    replyButton: "#535c71",
+    onReplyButton: "#ffffff",
   },
 };
 
@@ -70,6 +94,16 @@ export const darkTheme: AppTheme = {
     surfaceContainerHigh: "#282a2c",
     surfaceContainerLow: "#1b1b1b",
     brand: "#f28b82",
+    // The page stays the dark surface; cards one container level above it (surface-container).
+    listBackground: "#131314",
+    listCard: "#1e1f20",
+    swipeArchive: "#146c2e",
+    swipeTrash: "#b3261e",
+    swipeSnooze: "#0b57d0",
+    swipeOther: "#444746",
+    onSwipe: "#ffffff",
+    replyButton: "#3e4759",
+    onReplyButton: "#dae2f9",
   },
 };
 

@@ -1,9 +1,11 @@
-import { FlashList } from "@shopify/flash-list";
+import { AnimatedFlashList, FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Pressable,
   RefreshControl,
   StyleSheet,
   View,
@@ -17,13 +19,17 @@ import { threadsQuery } from "../../api/queries/threads";
 import type { Thread } from "../../api/types";
 import { useServerFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
-import { useAppTheme } from "../../lib/theme";
+import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
+import { TOP_BAR_HEIGHT, useTopBarScroll } from "../shell/topBarScroll";
 import { useSelection } from "../../state/selection";
 import { useUi } from "../../state/ui";
 import { useDensity } from "../../api/queries/settings";
 import { swipeActionFor, useThreadActions, type ThreadAction } from "./actions";
 import { SwipeableRow } from "./SwipeableRow";
 import { ThreadRow } from "./ThreadRow";
+
+/** FlashList accepting a natively driven Animated.event (the library's export loses the props' type). */
+const List = AnimatedFlashList as unknown as typeof FlashList;
 
 /** Scroll distance in dp that counts as a direction change for the compose FAB. */
 const SCROLL_SLOP = 8;
@@ -37,6 +43,10 @@ type Props = {
   threadHref: (id: string) => string;
   /** Text and icon of the empty view. */
   empty: { text: string; icon: string };
+  /** Name of the view above the first row, scrolling with the list (none in search results). */
+  title?: string;
+  /** Content above the name of the view, scrolling with the list (e.g. sync banners). */
+  header?: ReactNode;
   /** Extended compose FAB: at the top of the list and while scrolling up, as in Gmail. */
   onFabExtendedChange?: (extended: boolean) => void;
 };
@@ -51,6 +61,8 @@ export function ThreadList({
   me,
   threadHref,
   empty,
+  title,
+  header,
   onFabExtendedChange,
 }: Props) {
   const theme = useAppTheme();
@@ -67,6 +79,9 @@ export function ThreadList({
   const [refreshing, setRefreshing] = useState(false);
   const lastY = useRef(0);
   const fabExtended = useRef(true);
+  const barScroll = useTopBarScroll();
+  // Room for the floating bar of MailShell above the first row.
+  const inset = barScroll ? TOP_BAR_HEIGHT : 0;
 
   const labelId = filter.labelId;
   const threads = useMemo(
@@ -113,7 +128,7 @@ export function ThreadList({
     }
   }, [query, qc, accountId]);
 
-  const onScroll = useCallback(
+  const onFabScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = e.nativeEvent.contentOffset.y;
       let next = fabExtended.current;
@@ -129,10 +144,23 @@ export function ThreadList({
     },
     [onFabExtendedChange],
   );
+  // Under MailShell the offset also drives the floating search bar (natively, see MailShell).
+  const scrollHandler = useMemo(
+    () =>
+      barScroll
+        ? // Animated.event only stores the listener (it reads refs on scroll events, not in render).
+          // eslint-disable-next-line react-hooks/refs
+          Animated.event([{ nativeEvent: { contentOffset: { y: barScroll } } }], {
+            useNativeDriver: true,
+            listener: onFabScroll,
+          })
+        : onFabScroll,
+    [barScroll, onFabScroll],
+  );
 
   if (query.isPending) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { paddingTop: inset }]}>
         <ActivityIndicator accessibilityLabel={t.loading} color={theme.colors.primary} />
       </View>
     );
@@ -140,7 +168,7 @@ export function ThreadList({
 
   if (query.isError && threads.length === 0) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { paddingTop: inset }]}>
         <Icon source="cloud-alert-outline" size={64} color={theme.colors.onSurfaceVariant} />
         <Text
           variant="bodyLarge"
@@ -155,13 +183,16 @@ export function ThreadList({
     );
   }
 
+  const allSelected = threads.length > 0 && threads.every((th) => selected.has(th.id));
+
   return (
-    <FlashList
+    <List
       testID="thread-list"
       data={threads}
       keyExtractor={(th) => th.id}
       extraData={selected}
-      renderItem={({ item }) => (
+      contentContainerStyle={{ paddingTop: inset }}
+      renderItem={({ item, index }) => (
         <SwipeableRow
           left={swipe.left}
           right={swipe.right}
@@ -171,6 +202,8 @@ export function ThreadList({
           <ThreadRow
             thread={item}
             selected={selected.has(item.id)}
+            first={index === 0}
+            last={index === threads.length - 1}
             selecting={selecting}
             labels={labels}
             viewLabelId={labelId}
@@ -184,8 +217,8 @@ export function ThreadList({
       )}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
-      onScroll={onScroll}
-      scrollEventThrottle={32}
+      onScroll={scrollHandler}
+      scrollEventThrottle={16}
       refreshControl={
         <RefreshControl
           testID="thread-list-refresh"
@@ -193,7 +226,32 @@ export function ThreadList({
           onRefresh={() => void onRefresh()}
           colors={[theme.colors.primary]}
           progressBackgroundColor={theme.colors.surfaceContainerHigh}
+          progressViewOffset={inset}
         />
+      }
+      ListHeaderComponent={
+        <>
+          {header}
+          {selecting ? (
+            <SelectAllRow
+              checked={allSelected}
+              onPress={() =>
+                allSelected
+                  ? useSelection.getState().clear()
+                  : useSelection.getState().selectAll(threads.map((th) => th.id))
+              }
+            />
+          ) : title ? (
+            <Text
+              variant="bodyMedium"
+              accessibilityRole="header"
+              numberOfLines={1}
+              style={[styles.title, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {title}
+            </Text>
+          ) : null}
+        </>
       }
       ListEmptyComponent={
         <View style={styles.empty} testID="thread-list-empty">
@@ -226,10 +284,52 @@ export function ThreadList({
   );
 }
 
+type SelectAllProps = { checked: boolean; onPress: () => void };
+
+/**
+ * "Zaznacz wszystko" under the selection bar, in place of the name of the view (Gmail 2026):
+ * selects every loaded thread, or clears the selection once all of them are selected.
+ */
+function SelectAllRow({ checked, onPress }: SelectAllProps) {
+  const theme = useAppTheme();
+  return (
+    <Pressable
+      testID="select-all"
+      accessibilityRole="checkbox"
+      accessibilityLabel={t.selectAll}
+      accessibilityState={{ checked }}
+      onPress={onPress}
+      style={styles.selectAll}
+    >
+      <Icon
+        source={checked ? "checkbox-marked" : "checkbox-blank-outline"}
+        size={24}
+        color={checked ? theme.colors.primary : theme.colors.onSurfaceVariant}
+      />
+      <Text variant="titleSmall" style={{ color: theme.colors.primary }}>
+        {t.selectAll}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
   empty: { alignItems: "center", paddingTop: 96, paddingHorizontal: 24, gap: 16 },
   message: { textAlign: "center" },
   footer: { alignItems: "center", paddingVertical: 16, paddingBottom: 88 },
   fabRoom: { height: 88 },
+  // Gmail 2026: a 20 dp line of regular grey text, 18 dp under the bar, 11 dp above the first card.
+  title: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 11 },
+  // Same height as the title, so the cards do not move when the selection starts.
+  selectAll: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 28,
+    minHeight: MIN_TOUCH,
+    marginBottom: 1,
+    paddingLeft: 28,
+    paddingRight: 16,
+  },
 });

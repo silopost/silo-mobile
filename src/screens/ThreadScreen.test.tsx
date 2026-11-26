@@ -208,8 +208,27 @@ describe("ThreadScreen", () => {
     expect(screen.queryByLabelText("Archiwizuj")).toBeNull();
   });
 
-  it("replies to the last message with POST /drafts and opens compose", async () => {
+  it("pins Odpowiedz and Przekaż dalej, without Odpowiedz wszystkim for one recipient", async () => {
     serve(three());
+    await renderApp("/u/0/inbox/t_1");
+
+    const bar = await screen.findByTestId("reply-bar");
+    expect(within(bar).getByRole("button", { name: "Odpowiedz" })).toBeOnTheScreen();
+    expect(within(bar).getByRole("button", { name: "Przekaż dalej" })).toBeOnTheScreen();
+    expect(within(bar).queryByRole("button", { name: "Odpowiedz wszystkim" })).toBeNull();
+  });
+
+  it("replies to all of the last message with POST /drafts and opens compose", async () => {
+    const more = [
+      { email: "ala@example.com", name: "Ala" },
+      { email: "ola@example.com", name: "Ola" },
+    ];
+    serve(
+      threadDetail([
+        message({ id: "m_1", snippet: "Pierwsza" }),
+        message({ id: "m_3", snippet: "Trzecia", to: more }),
+      ]),
+    );
     const app = await renderApp("/u/0/inbox/t_1");
 
     await fireEvent.press(await screen.findByText("Odpowiedz wszystkim"));
@@ -299,7 +318,8 @@ describe("ThreadScreen, phase 4", () => {
       `Odłożono do ${formatWhen(at)}`,
       { exact: false },
     );
-    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    // The thread's menu comes before the menus of its messages (all "Więcej opcji", as in Gmail).
+    await fireEvent.press(screen.getAllByLabelText("Więcej opcji")[0]!);
     expect(await screen.findByText("Anuluj odłożenie")).toBeOnTheScreen();
   });
 });

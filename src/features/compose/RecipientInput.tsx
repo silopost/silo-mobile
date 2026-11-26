@@ -196,7 +196,8 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  label: { width: 40, fontSize: 16 },
+  // Values start at 72 dp, as in the Gmail app.
+  label: { width: 56, fontSize: 16 },
   chips: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 },
   chip: {
     flexDirection: "row",
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   chipText: { flexShrink: 1, fontSize: 14 },
   chipClose: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
   input: { flexGrow: 1, minWidth: 80, minHeight: MIN_TOUCH, fontSize: 16, paddingVertical: 8 },
-  invalid: { paddingHorizontal: 56, paddingBottom: 4, fontSize: 12 },
+  invalid: { paddingHorizontal: 72, paddingBottom: 4, fontSize: 12 },
   suggestion: {
     flexDirection: "row",
     alignItems: "center",

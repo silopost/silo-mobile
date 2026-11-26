@@ -44,6 +44,8 @@ export function AccountSwitcher({ visible, onDismiss, ...props }: Props) {
       <Modal
         visible={visible}
         onDismiss={onDismiss}
+        // The scrim's spoken label (Paper's own is English).
+        overlayAccessibilityLabel={t.close}
         style={styles.modal}
         contentContainerStyle={[
           styles.sheet,

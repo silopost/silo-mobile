@@ -17,12 +17,13 @@ import {
   View,
   type ScrollViewInstance,
 } from "react-native";
-import { ActivityIndicator, Appbar, Button, Dialog, Menu, Portal, Text } from "react-native-paper";
+import { ActivityIndicator, Appbar, Button, Dialog, Portal, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createDraft } from "../api/drafts";
+import { DropdownMenu, MenuEntry } from "../components/DropdownMenu";
 import { metaQuery } from "../api/queries/meta";
 import { defaultAccount, useSession } from "../features/account";
-import { AttachSheet, AttachmentList } from "../features/compose/AttachmentList";
+import { AttachMenu, AttachmentList } from "../features/compose/AttachmentList";
 import { BodyEditor, EditorToolbar, useComposeEditor } from "../features/compose/Editor";
 import { RecipientInput } from "../features/compose/RecipientInput";
 import {
@@ -247,7 +248,7 @@ export function ComposeScreen() {
 
   if (!draftId)
     return (
-      <Shell title={t.compose} onBack={() => router.back()}>
+      <Shell onBack={() => router.back()}>
         {createFailed ? (
           <Bar tone="error" text={t.genericError} />
         ) : (
@@ -274,6 +275,14 @@ function ComposeDraft({ draftId }: { draftId: string }) {
   const canInline = useServerFeature("inlineImages");
   const { form } = state;
   const hasRecipients = form.to.length + form.cc.length + form.bcc.length > 0;
+  const clip = (
+    <Appbar.Action
+      icon="paperclip"
+      accessibilityLabel={t.attach}
+      disabled={!state.loaded}
+      onPress={() => setAttachOpen(true)}
+    />
+  );
 
   useEffect(() => {
     void session.ensureLoaded();
@@ -319,27 +328,34 @@ function ComposeDraft({ draftId }: { draftId: string }) {
 
   return (
     <Shell
-      title={t.compose}
       onBack={close}
       actions={
         <>
-          <Appbar.Action
-            icon="paperclip"
-            accessibilityLabel={t.attach}
-            disabled={!state.loaded}
-            onPress={() => setAttachOpen(true)}
-          />
+          {/* Menus mounted only while open (Paper's Menu hides itself on mount otherwise). */}
+          {attachOpen ? (
+            <AttachMenu
+              anchor={clip}
+              onDismiss={() => setAttachOpen(false)}
+              onFiles={(files) => session.addFiles(files)}
+              onInlineImages={
+                canInline ? (files) => files.forEach((f) => session.addInlineImage(f)) : undefined
+              }
+            />
+          ) : (
+            clip
+          )}
+          {/* Always active, as in Gmail: without recipients the send says so (session.send). */}
           <Appbar.Action
             icon="send-outline"
             accessibilityLabel={state.sending ? t.sending : t.send}
-            disabled={!state.loaded || !hasRecipients || state.sending}
+            disabled={!state.loaded || state.sending}
             onPress={() => void send()}
           />
-          {/* Mounted only while open (Paper's Menu hides itself on mount otherwise). */}
           {menu ? (
-            <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
+            <DropdownMenu onDismiss={() => setMenu(false)} anchor={more}>
               {canSchedule && (
-                <Menu.Item
+                <MenuEntry
+                  icon="send-clock-outline"
                   title={t.scheduleSend}
                   disabled={!state.loaded || !hasRecipients || state.sending}
                   onPress={() => {
@@ -348,21 +364,23 @@ function ComposeDraft({ draftId }: { draftId: string }) {
                   }}
                 />
               )}
-              <Menu.Item
+              <MenuEntry
+                icon="content-save-outline"
                 title={t.saveDraft}
                 onPress={() => {
                   setMenu(false);
                   close();
                 }}
               />
-              <Menu.Item
+              <MenuEntry
+                icon="delete-outline"
                 title={t.discard}
                 onPress={() => {
                   setMenu(false);
                   setConfirmDiscard(true);
                 }}
               />
-            </Menu>
+            </DropdownMenu>
           ) : (
             more
           )}
@@ -383,14 +401,6 @@ function ComposeDraft({ draftId }: { draftId: string }) {
         visible={scheduleOpen}
         onDismiss={() => setScheduleOpen(false)}
         onSelect={(sendAt) => void schedule(sendAt)}
-      />
-      <AttachSheet
-        visible={attachOpen}
-        onDismiss={() => setAttachOpen(false)}
-        onFiles={(files) => session.addFiles(files)}
-        onInlineImages={
-          canInline ? (files) => files.forEach((f) => session.addInlineImage(f)) : undefined
-        }
       />
       {confirmDiscard && (
         <Portal>
@@ -414,14 +424,12 @@ function ComposeDraft({ draftId }: { draftId: string }) {
   );
 }
 
-/** The screen frame: top bar, keyboard-avoiding content, the snackbar of compose. */
+/** The screen frame: top bar (no title, as in Gmail), keyboard-avoiding content, the snackbar. */
 function Shell({
-  title,
   onBack,
   actions,
   children,
 }: {
-  title: string;
   onBack: () => void;
   actions?: ReactNode;
   children: ReactNode;
@@ -434,7 +442,7 @@ function Shell({
     >
       <Appbar.Header statusBarHeight={0} style={{ backgroundColor: theme.colors.background }}>
         <Appbar.BackAction accessibilityLabel={t.saveAndClose} onPress={onBack} />
-        <Appbar.Content title={title} />
+        <Appbar.Content title="" />
         {actions}
       </Appbar.Header>
       <EditorKeyboardAvoidingView style={styles.fill}>{children}</EditorKeyboardAvoidingView>
@@ -463,7 +471,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  fieldLabel: { width: 40, fontSize: 16 },
+  // Values start at 72 dp, as in the Gmail app (RecipientInput's label too).
+  fieldLabel: { width: 56, fontSize: 16 },
   fromText: { flex: 1, fontSize: 16 },
   subject: {
     minHeight: MIN_TOUCH + 8,

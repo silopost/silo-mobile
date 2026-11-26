@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { Locale } from "../lib/plural";
 
 export type ThemePreference = "system" | "light" | "dark";
 /** What a swipe on a thread row does (the list of slice 3), as in Gmail's swipe actions. */
@@ -22,17 +23,24 @@ export type UiState = {
   /** Mark an unread thread read when it is opened; on as in Gmail. */
   markReadOnOpen: boolean;
   showRemoteImages: RemoteImages;
+  /**
+   * The UI language used last while signed in (the choice, or the server's settings.language),
+   * so the app starts in it before GET /settings answers; null: the device language (signed out).
+   */
+  language: Locale | null;
 };
 
 export const defaultUi: UiState = {
   theme: "system",
+  // Gmail archives with a swipe either way until the user picks another action.
   swipeLeftAction: "archive",
-  swipeRightAction: "trash",
+  swipeRightAction: "archive",
   density: "default",
   confirmTrash: false,
   confirmArchive: false,
   markReadOnOpen: true,
   showRemoteImages: "ask",
+  language: null,
 };
 
 /**

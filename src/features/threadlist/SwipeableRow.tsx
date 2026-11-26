@@ -10,7 +10,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { useAppTheme, type AppTheme } from "../../lib/theme";
 import type { ThreadAction } from "./actions";
+import { CARD_GAP, CARD_INSET } from "./ThreadRow";
 
 /** Share of the row width a swipe must pass to trigger its action (Gmail's full swipe). */
 export const SWIPE_THRESHOLD = 0.4;
@@ -23,18 +25,27 @@ const DRAWER_EDGE = 32;
 const ACTIVE_X = 16;
 const FAIL_Y = 12;
 
-/** Background of a swipe as in the Gmail app: green archive, red delete, blue snooze. */
-export function swipeLook(action: ThreadAction): { color: string; icon: string } {
+/** Space between the swipe pill and the moving card, in dp (Gmail 2026). */
+const PILL_GAP = 4;
+
+/**
+ * Colour and icon of a swipe as in the Gmail app: dark green archive (the tray with the arrow),
+ * red delete, blue snooze. The colours are roles of the current theme.
+ */
+export function swipeLook(
+  action: ThreadAction,
+  colors: AppTheme["colors"],
+): { color: string; icon: string } {
   switch (action) {
     case "archive":
-      return { color: "#188038", icon: "archive-outline" };
+      return { color: colors.swipeArchive, icon: "archive-arrow-down-outline" };
     case "trash":
-      return { color: "#d93025", icon: "delete-outline" };
+      return { color: colors.swipeTrash, icon: "delete-outline" };
     case "snooze":
     case "unsnooze":
-      return { color: "#1a73e8", icon: "clock-outline" };
+      return { color: colors.swipeSnooze, icon: "clock-outline" };
     default:
-      return { color: "#5f6368", icon: "email-outline" };
+      return { color: colors.swipeOther, icon: "email-outline" };
   }
 }
 
@@ -102,8 +113,15 @@ export function SwipeableRow({ left, right, enabled, onSwipe, children }: Props)
   });
 
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: tx.value }] }));
-  const rightBg = useAnimatedStyle(() => ({ opacity: tx.value > 0 ? 1 : 0 }));
-  const leftBg = useAnimatedStyle(() => ({ opacity: tx.value < 0 ? 1 : 0 }));
+  // The pill fills the uncovered strip between the card's inset and the moved card, minus a gap.
+  const rightBg = useAnimatedStyle(() => ({
+    width: Math.max(0, tx.value - PILL_GAP),
+    opacity: tx.value > PILL_GAP ? 1 : 0,
+  }));
+  const leftBg = useAnimatedStyle(() => ({
+    width: Math.max(0, -tx.value - PILL_GAP),
+    opacity: tx.value < -PILL_GAP ? 1 : 0,
+  }));
 
   return (
     <View onLayout={(e) => (width.value = e.nativeEvent.layout.width)}>
@@ -123,26 +141,36 @@ type BackgroundProps = {
   style: ReturnType<typeof useAnimatedStyle>;
 };
 
+/** Gmail 2026's pill behind a swiped card: fully rounded, in the action's colour, icon centred. */
 function Background({ action, side, style }: BackgroundProps) {
-  const look = swipeLook(action);
+  const theme = useAppTheme();
+  const look = swipeLook(action, theme.colors);
   return (
     <Animated.View
       importantForAccessibility="no-hide-descendants"
       style={[
-        StyleSheet.absoluteFill,
-        styles.background,
-        {
-          backgroundColor: look.color,
-          justifyContent: side === "left" ? "flex-start" : "flex-end",
-        },
+        styles.pill,
+        side === "left" ? styles.left : styles.right,
+        { backgroundColor: look.color },
         style,
       ]}
     >
-      <Icon source={look.icon} size={24} color="#ffffff" />
+      <Icon source={look.icon} size={24} color={theme.colors.onSwipe} />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  background: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24 },
+  // Same box as the card (ThreadRow): inset from the screen edges, the gap to the next card below.
+  pill: {
+    position: "absolute",
+    top: 0,
+    bottom: CARD_GAP,
+    borderRadius: 999,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  left: { left: CARD_INSET },
+  right: { right: CARD_INSET },
 });

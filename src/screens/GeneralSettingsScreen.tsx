@@ -4,11 +4,12 @@ import { Divider, Icon, Text } from "react-native-paper";
 import { usePatchSettings, useSettings } from "../api/queries/settings";
 import { ChoiceDialog, SectionTitle, SettingsItem, SwitchItem } from "../features/settings/items";
 import { SettingsSnackbar } from "../features/settings/SettingsSnackbar";
+import { useChangeLanguage } from "../features/settings/language";
 import { TextDialog } from "../features/settings/TextDialog";
 import { deviceTimeZone, TimezoneDialog } from "../features/settings/TimezoneDialog";
 import { swipeLook } from "../features/threadlist/SwipeableRow";
 import { useServerFeature } from "../lib/features";
-import { t } from "../lib/i18n";
+import { LOCALE_NAMES, LOCALES, t, useLocale } from "../lib/i18n";
 import { signatureToText, textToSignatureHtml } from "../lib/signature";
 import { useAppTheme } from "../lib/theme";
 import {
@@ -28,6 +29,7 @@ import {
 
 type DialogKind =
   | "theme"
+  | "language"
   | "density"
   | "swipeRight"
   | "swipeLeft"
@@ -49,7 +51,9 @@ const imageModes: RemoteImages[] = ["ask", "always"];
 function SwipePreview({ action }: { action: SwipeAction }) {
   const theme = useAppTheme();
   const look =
-    action === "none" ? { color: theme.colors.surfaceVariant, icon: "close" } : swipeLook(action);
+    action === "none"
+      ? { color: theme.colors.surfaceVariant, icon: "close" }
+      : swipeLook(action, theme.colors);
   return (
     <View
       style={[styles.preview, { backgroundColor: look.color }]}
@@ -77,6 +81,10 @@ export function GeneralSettingsScreen() {
   const synced = useServerFeature("settings");
   const settings = useSettings();
   const patch = usePatchSettings();
+  // The UI language: settings.language on a server that keeps it (synced section), else local.
+  const locale = useLocale();
+  const changeLanguage = useChangeLanguage();
+  const syncedLanguage = useServerFeature("language");
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const close = () => setDialog(null);
   const pick =
@@ -111,6 +119,15 @@ export function GeneralSettingsScreen() {
             >
               {t.syncedNote}
             </Text>
+            {syncedLanguage && (
+              <SettingsItem
+                title={t.languageTitle}
+                description={LOCALE_NAMES[locale]}
+                icon="translate"
+                testID="setting-language"
+                onPress={() => setDialog("language")}
+              />
+            )}
             <SettingsItem
               title={t.densityTitle}
               description={t.densities[settings.density]}
@@ -162,6 +179,15 @@ export function GeneralSettingsScreen() {
           testID="setting-theme"
           onPress={() => setDialog("theme")}
         />
+        {!(synced && settings && syncedLanguage) && (
+          <SettingsItem
+            title={t.languageTitle}
+            description={LOCALE_NAMES[locale]}
+            icon="translate"
+            testID="setting-language"
+            onPress={() => setDialog("language")}
+          />
+        )}
         {!synced && (
           <SettingsItem
             title={t.densityTitle}
@@ -250,6 +276,14 @@ export function GeneralSettingsScreen() {
         value={ui.theme}
         choices={themes.map((value) => ({ value, label: t.themes[value] }))}
         onSelect={pick(setTheme)}
+        onDismiss={close}
+      />
+      <ChoiceDialog
+        visible={dialog === "language"}
+        title={t.languageTitle}
+        value={locale}
+        choices={LOCALES.map((value) => ({ value, label: LOCALE_NAMES[value] }))}
+        onSelect={pick(changeLanguage)}
         onDismiss={close}
       />
       <ChoiceDialog

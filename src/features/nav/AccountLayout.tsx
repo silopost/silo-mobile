@@ -2,14 +2,15 @@ import { Redirect, useGlobalSearchParams, useRouter } from "expo-router";
 import { Drawer, type DrawerContentComponentProps } from "expo-router/drawer";
 import { useState } from "react";
 import { useLabels } from "../../api/queries/labels";
+import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { useAccountIndex, useActiveAccount, useSession } from "../account";
 import { CreateLabelDialog } from "../labels/CreateLabelDialog";
 import { ThreadActionsRoot } from "../threadlist/ThreadActionsRoot";
 import { MailDrawer } from "./MailDrawer";
 
-/** Width of the navigation drawer (Material 3: 360 dp at most; Gmail is about 300 dp). */
-export const DRAWER_WIDTH = 304;
+/** Width of the navigation drawer, as in the Gmail app (2026). */
+export const DRAWER_WIDTH = 320;
 
 /** The drawer of the account in the route: its labels, the shown one active. */
 function AccountDrawerContent({ navigation }: DrawerContentComponentProps) {
@@ -72,7 +73,15 @@ export function AccountLayout() {
           headerShown: false,
           drawerType: "front",
           swipeEdgeWidth: 32,
-          drawerStyle: { backgroundColor: theme.colors.surfaceContainerLow, width: DRAWER_WIDTH },
+          // The scrim's spoken label (the library's own is English).
+          overlayAccessibilityLabel: t.closeDrawer,
+          // Rectangular, as in Gmail (the library rounds the outer corners by default).
+          drawerStyle: {
+            backgroundColor: theme.colors.surfaceContainerLow,
+            width: DRAWER_WIDTH,
+            borderTopRightRadius: 0,
+            borderBottomRightRadius: 0,
+          },
         }}
       >
         <Drawer.Screen name="[label]" />

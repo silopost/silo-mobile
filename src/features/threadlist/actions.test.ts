@@ -1,5 +1,6 @@
 import { act } from "@testing-library/react-native";
 import { useSelection } from "../../state/selection";
+import { defaultUi } from "../../state/ui";
 import { swipeActionFor } from "./actions";
 
 describe("swipeActionFor", () => {
@@ -9,6 +10,11 @@ describe("swipeActionFor", () => {
     expect(swipeActionFor("left", "INBOX", ui)).toBe("archive");
     expect(swipeActionFor("right", "INBOX", ui)).toBe("trash");
     expect(swipeActionFor("left", undefined, ui)).toBe("archive");
+  });
+
+  it("archives both ways by default, as in Gmail", () => {
+    expect(swipeActionFor("left", "INBOX", defaultUi)).toBe("archive");
+    expect(swipeActionFor("right", "INBOX", defaultUi)).toBe("archive");
   });
 
   it("is off for 'none'", () => {

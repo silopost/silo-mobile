@@ -1,8 +1,9 @@
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { BackHandler, StyleSheet, View } from "react-native";
-import { IconButton, Menu, Text } from "react-native-paper";
+import { IconButton, Text } from "react-native-paper";
 import { keys, type ListFilter } from "../../api/keys";
+import { DropdownMenu, MenuDivider, MenuEntry } from "../../components/DropdownMenu";
 import type { ThreadPage } from "../../api/types";
 import { useServerFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
@@ -54,9 +55,10 @@ export function snoozeActions(labelId: string | undefined, enabled: boolean): Ba
 }
 
 /**
- * The contextual bar of multi-select, in place of the search bar as in the Gmail app: close and
- * the count on the left, archive, delete and read/unread on the right, more in the ⋮ menu. The
- * back button ends the selection.
+ * The contextual bar of multi-select, in place of the search bar as in the Gmail app (2026): a flat
+ * bar on the page background, "Gotowe" (arrow) and the count on the left, archive, delete and
+ * read/unread on the right, the rest (snooze among them) in the ⋮ menu. "Zaznacz wszystko" is the
+ * row under the bar (ThreadList). The back button ends the selection.
  */
 export function SelectionBar({ accountId, filter }: Props) {
   const theme = useAppTheme();
@@ -98,6 +100,7 @@ export function SelectionBar({ accountId, filter }: Props) {
       icon="dots-vertical"
       accessibilityLabel={t.moreActions}
       onPress={() => setMenu(true)}
+      style={styles.icon}
     />
   );
 
@@ -106,18 +109,15 @@ export function SelectionBar({ accountId, filter }: Props) {
     anyUnread
       ? { action: "read", icon: "email-open-outline", label: t.markRead }
       : { action: "unread", icon: "email-outline", label: t.markUnread },
-    ...snoozeActions(labelId, snooze),
   ];
 
   return (
-    <View
-      testID="selection-bar"
-      style={[styles.bar, { backgroundColor: theme.colors.surfaceContainerHigh }]}
-    >
+    <View testID="selection-bar" style={styles.bar}>
       <IconButton
-        icon="close"
+        icon="arrow-left"
         accessibilityLabel={t.endSelection}
         onPress={() => useSelection.getState().clear()}
+        style={styles.icon}
       />
       <Text
         variant="titleMedium"
@@ -133,31 +133,43 @@ export function SelectionBar({ accountId, filter }: Props) {
           icon={a.icon}
           accessibilityLabel={a.label}
           onPress={() => apply(a.action)}
+          style={styles.icon}
         />
       ))}
       {/* Mounted only while open: Paper's Menu runs a hide animation on mount whose end would
           close a menu opened right after the bar appeared. */}
       {menu ? (
-        <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
-          <Menu.Item title={t.moveTo} onPress={() => apply("moveTo")} />
-          <Menu.Item title={t.labels} onPress={() => apply("labels")} />
+        <DropdownMenu onDismiss={() => setMenu(false)} anchor={more}>
+          <MenuEntry icon="folder-move-outline" title={t.moveTo} onPress={() => apply("moveTo")} />
           {allStarred ? (
-            <Menu.Item title={t.unstar} onPress={() => apply("unstar")} />
+            <MenuEntry icon="star-off-outline" title={t.unstar} onPress={() => apply("unstar")} />
           ) : (
-            <Menu.Item title={t.star} onPress={() => apply("star")} />
+            <MenuEntry icon="star-outline" title={t.star} onPress={() => apply("star")} />
           )}
-          {labelId === "TRASH" && <Menu.Item title={t.untrash} onPress={() => apply("untrash")} />}
+          <MenuEntry icon="label-outline" title={t.changeLabels} onPress={() => apply("labels")} />
+          {/* Snooze moved here from the bar, in its own group as in Gmail 2026. */}
+          {snoozeActions(labelId, snooze).length > 0 && <MenuDivider />}
+          {snoozeActions(labelId, snooze).map((a) => (
+            <MenuEntry
+              key={a.action}
+              icon={a.icon}
+              title={a.label}
+              onPress={() => apply(a.action)}
+            />
+          ))}
+          {labelId !== "SPAM" && <MenuDivider />}
+          {labelId === "TRASH" && (
+            <MenuEntry icon="delete-restore" title={t.untrash} onPress={() => apply("untrash")} />
+          )}
           {labelId !== "SPAM" && labelId !== "TRASH" && (
-            <Menu.Item title={t.reportSpam} onPress={() => apply("spam")} />
+            <MenuEntry
+              icon="alert-octagon-outline"
+              title={t.reportSpam}
+              danger
+              onPress={() => apply("spam")}
+            />
           )}
-          <Menu.Item
-            title={t.selectAll}
-            onPress={() => {
-              setMenu(false);
-              useSelection.getState().selectAll(loaded().map((th) => th.id));
-            }}
-          />
-        </Menu>
+        </DropdownMenu>
       ) : (
         more
       )}
@@ -166,13 +178,16 @@ export function SelectionBar({ accountId, filter }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // Gmail 2026: 48 dp high, centred on the search pill it replaces (MailShell's TOP_BAR_HEIGHT).
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: MIN_TOUCH + 8,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 28,
+    height: MIN_TOUCH,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
-  count: { flex: 1, marginLeft: 4 },
+  icon: { margin: 0, width: MIN_TOUCH, height: MIN_TOUCH },
+  // The count at 72 dp from the edge.
+  count: { flex: 1, marginLeft: 20 },
 });

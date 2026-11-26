@@ -2,7 +2,8 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Keyboard, StyleSheet, View } from "react-native";
-import { Icon, IconButton, Menu, Text } from "react-native-paper";
+import { Icon, IconButton, Text } from "react-native-paper";
+import { DropdownMenu, MenuEntry } from "../components/DropdownMenu";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { isApiError } from "../api/errors";
 import { keys } from "../api/keys";
@@ -116,7 +117,7 @@ export function SearchScreen() {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      style={[styles.screen, { backgroundColor: theme.colors.background }]}
+      style={[styles.screen, { backgroundColor: theme.colors.listBackground }]}
     >
       {selecting && accountId ? (
         <SelectionBar accountId={accountId} filter={filter} />
@@ -124,10 +125,11 @@ export function SearchScreen() {
         <SearchField
           value={text}
           onChange={setText}
-          onSubmit={() => submit()}
+          onSubmit={submit}
           onBack={back}
-          onFocus={() => setEditing(true)}
+          onEdit={() => setEditing(true)}
           autoFocus={!q}
+          results={showResults}
           inputRef={input}
           menu={
             filters && showResults && accountId ? (
@@ -176,7 +178,7 @@ export function SearchScreen() {
       )}
       {showResults && first && (
         <Text
-          variant="labelLarge"
+          variant="bodyMedium"
           accessibilityRole="header"
           testID="search-count"
           style={[styles.count, { color: theme.colors.onSurfaceVariant }]}
@@ -225,13 +227,13 @@ function SearchMenu(props: {
   );
   if (!props.open) return anchor;
   return (
-    <Menu visible onDismiss={props.onDismiss} anchor={anchor}>
-      <Menu.Item
+    <DropdownMenu onDismiss={props.onDismiss} anchor={anchor}>
+      <MenuEntry
+        icon="filter-plus-outline"
         title={t.filterFromSearch}
-        leadingIcon="filter-plus-outline"
         onPress={props.onCreateFilter}
       />
-    </Menu>
+    </DropdownMenu>
   );
 }
 

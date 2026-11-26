@@ -1,9 +1,11 @@
 import { fireEvent, screen } from "@testing-library/react-native";
 import { queryClient } from "../../api/cache";
 import { keys } from "../../api/keys";
+import { useAuth } from "../../state/auth";
 import { useSelection } from "../../state/selection";
 import { thread, threadPage } from "../../test/fixtures";
 import { renderScreen } from "../../test/render";
+import { defaultMeta, SERVER_URL } from "../../test/server";
 import { ThreadActionsProvider } from "./actions";
 import { SelectionBar } from "./SelectionBar";
 
@@ -20,6 +22,12 @@ async function renderBar(labelId: string, threads: ReturnType<typeof thread>[]) 
       <SelectionBar accountId="acc_1" filter={{ labelId }} />
     </ThreadActionsProvider>,
   );
+}
+
+/** A signed-in 0.4.0 server (snooze), its GET /meta already cached. */
+function snoozeServer() {
+  useAuth.setState({ status: "signedIn", serverUrl: SERVER_URL, token: "tok_1" });
+  queryClient.setQueryData(keys.meta(SERVER_URL), { ...defaultMeta, serverVersion: "0.4.0" });
 }
 
 const openMenu = () => fireEvent.press(screen.getByLabelText("Więcej opcji"));
@@ -58,14 +66,32 @@ describe("SelectionBar", () => {
 
   it.each([
     ["Przenieś do", "moveTo"],
-    ["Etykiety", "labels"],
-    ["Oznacz gwiazdką", "star"],
+    ["Oznacz etykietą", "labels"],
+    ["Dodaj gwiazdkę", "star"],
     ["Zgłoś spam", "spam"],
   ])("menu '%s' runs %s", async (title, action) => {
     await renderBar("INBOX", [thread({ id: "t_1" })]);
     await openMenu();
     await fireEvent.press(await screen.findByText(title));
     expect(run).toHaveBeenCalledWith(action, ["t_1"], { labelId: "INBOX" });
+  });
+
+  it("snooze is in the menu, not on the bar; 'Zaznacz wszystko' is not in the menu", async () => {
+    snoozeServer();
+    await renderBar("INBOX", [thread({ id: "t_1" })]);
+    expect(screen.queryByLabelText("Odłóż")).toBeNull();
+    await openMenu();
+    expect(screen.queryByText("Zaznacz wszystko")).toBeNull();
+    await fireEvent.press(await screen.findByText("Odłóż"));
+    expect(run).toHaveBeenCalledWith("snooze", ["t_1"], { labelId: "INBOX" });
+  });
+
+  it("in Odłożone the menu also cancels the snooze", async () => {
+    snoozeServer();
+    await renderBar("SNOOZED", [thread({ id: "t_1", labelIds: ["SNOOZED"] })]);
+    await openMenu();
+    await fireEvent.press(await screen.findByText("Anuluj odłożenie"));
+    expect(run).toHaveBeenCalledWith("unsnooze", ["t_1"], { labelId: "SNOOZED" });
   });
 
   it("menu unstars when every selected thread is starred", async () => {

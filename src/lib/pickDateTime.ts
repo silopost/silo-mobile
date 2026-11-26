@@ -1,4 +1,5 @@
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
+import { getLocale } from "./i18n";
 
 type Mode = "date" | "time";
 
@@ -9,7 +10,8 @@ function open(mode: Mode, value: Date, minimumDate?: Date): Promise<Date | null>
       mode,
       value,
       minimumDate: mode === "date" ? minimumDate : undefined,
-      is24Hour: true,
+      // The clock of the UI language (Gmail: 7:31 PM in English, 19:31 in Polish).
+      is24Hour: getLocale() === "pl",
       onValueChange: (_event, date) => resolve(date),
       onDismiss: () => resolve(null),
     });

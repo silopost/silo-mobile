@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
-import { account, label, labels, sessionBody } from "../../test/fixtures";
+import { account, label, labels, sessionBody, thread, threadPage } from "../../test/fixtures";
 import { renderApp, signIn } from "../../test/router";
 import { API, serveMeta, server, setupMsw } from "../../test/server";
 import { resetAuth } from "../../test/utils";
@@ -42,7 +42,7 @@ describe("search bar", () => {
     const app = await renderApp("/u/0/inbox");
     const drawerOpen = () => JSON.stringify(app.getRouterState()).includes('"status":"open"');
     expect(drawerOpen()).toBe(false);
-    await fireEvent.press(await screen.findByRole("button", { name: "Otwórz menu nawigacji" }));
+    await fireEvent.press(await screen.findByRole("button", { name: "Otwórz panel nawigacji" }));
     await waitFor(() => expect(drawerOpen()).toBe(true));
   });
 
@@ -52,9 +52,10 @@ describe("search bar", () => {
     await waitFor(() => expect(app.getPathname()).toBe("/u/0/search"));
   });
 
-  it("names the section above the list outside the Inbox", async () => {
-    await renderApp("/u/0/starred");
-    expect(await screen.findByRole("header", { name: "Oznaczone gwiazdką" })).toBeOnTheScreen();
+  it("names the view above the first row, in the Inbox too", async () => {
+    server.use(http.get(`${API}/threads`, () => HttpResponse.json(threadPage([thread({})]))));
+    await renderApp("/u/0/inbox");
+    expect(await screen.findByRole("header", { name: "Odebrane" })).toBeOnTheScreen();
   });
 });
 
@@ -73,7 +74,7 @@ describe("account switcher", () => {
     // Counters of other accounts are fetched only once the switcher opens.
     expect(labelRequests).toEqual(["acc_1"]);
 
-    await fireEvent.press(screen.getByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(screen.getByRole("button", { name: /^Zalogowano jako ala@example.com/ }));
 
     expect(
       await screen.findByRole("button", {
@@ -92,11 +93,15 @@ describe("account switcher", () => {
 
   it("switches to the Inbox of the chosen account", async () => {
     const app = await renderApp("/u/0/inbox");
-    await fireEvent.press(await screen.findByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(
+      await screen.findByRole("button", { name: /^Zalogowano jako ala@example.com/ }),
+    );
     await fireEvent.press(await screen.findByRole("button", { name: /^Przełącz na dom@/ }));
 
     await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
-    expect(await screen.findByRole("button", { name: /^Konto dom@example.com/ })).toBeOnTheScreen();
+    expect(
+      await screen.findByRole("button", { name: /^Zalogowano jako dom@example.com/ }),
+    ).toBeOnTheScreen();
   });
 });
 
@@ -117,7 +122,9 @@ describe("account switcher on server 0.4.0", () => {
       }),
     );
     const app = await renderApp("/u/0/inbox");
-    await fireEvent.press(await screen.findByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(
+      await screen.findByRole("button", { name: /^Zalogowano jako ala@example.com/ }),
+    );
     await fireEvent.press(await screen.findByRole("button", { name: /^Przełącz na dom@/ }));
 
     await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
@@ -133,7 +140,9 @@ describe("account switcher on server 0.4.0", () => {
       }),
     );
     const app = await renderApp("/u/0/inbox");
-    await fireEvent.press(await screen.findByRole("button", { name: /^Konto ala@example.com/ }));
+    await fireEvent.press(
+      await screen.findByRole("button", { name: /^Zalogowano jako ala@example.com/ }),
+    );
     await fireEvent.press(await screen.findByRole("button", { name: /^Przełącz na dom@/ }));
     await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox"));
     expect(patched).toBe(false);

@@ -4,7 +4,13 @@ import { Icon, IconButton, Text } from "react-native-paper";
 import type { Label, Thread } from "../../api/types";
 import type { Density } from "../../state/ui";
 import { Avatar } from "../../components/Avatar";
-import { avatarAddress, formatListDate, formatWhen, participantNames } from "../../lib/format";
+import {
+  avatarAddress,
+  formatListDate,
+  formatWhen,
+  listDateLabel,
+  participantNames,
+} from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 import { PendingIcon } from "../sync/PendingIcon";
@@ -17,10 +23,48 @@ export const STAR_COLOR = "#f4b400";
  * (comfortable, server 0.4.0), or two lines in the compact density.
  */
 export const ROW_HEIGHT = { default: 72, comfortable: 64, compact: 56 } as const;
+/** Inset of a row card from the screen edges, and the gap between two cards, in dp (Gmail 2026). */
+export const CARD_INSET = 8;
+export const CARD_GAP = 1.5;
+/** Corners of the cards: the outer ones of the group, the inner ones between two cards. */
+const OUTER_RADIUS = 16;
+const INNER_RADIUS = 4;
+
+/**
+ * Corners of a card by its place in the list, as in Gmail: the first and the last card round the
+ * group's outer corners, the inner corners stay small, a selected card is fully rounded. One of
+ * four static styles, so a row only picks a reference.
+ */
+export function cardShape(first: boolean, last: boolean, selected: boolean) {
+  if (selected || (first && last)) return shapes.single;
+  if (first) return shapes.first;
+  if (last) return shapes.last;
+  return shapes.middle;
+}
+
+const shapes = StyleSheet.create({
+  single: { borderRadius: OUTER_RADIUS },
+  first: {
+    borderTopLeftRadius: OUTER_RADIUS,
+    borderTopRightRadius: OUTER_RADIUS,
+    borderBottomLeftRadius: INNER_RADIUS,
+    borderBottomRightRadius: INNER_RADIUS,
+  },
+  last: {
+    borderTopLeftRadius: INNER_RADIUS,
+    borderTopRightRadius: INNER_RADIUS,
+    borderBottomLeftRadius: OUTER_RADIUS,
+    borderBottomRightRadius: OUTER_RADIUS,
+  },
+  middle: { borderRadius: INNER_RADIUS },
+});
 
 type Props = {
   thread: Thread;
   selected: boolean;
+  /** First and last card of the list (rounded outer corners). */
+  first: boolean;
+  last: boolean;
   /** Selection mode: a tap toggles the row instead of opening it. */
   selecting: boolean;
   /** Labels of the account (chips of user labels). */
@@ -67,7 +111,7 @@ export function rowLabel(th: Thread, names: string, date: string): string {
 
 /**
  * One row of the list, laid out as in the Gmail app: avatar, senders and date, subject, snippet
- * and the star; unread rows bold on the plain surface, read rows on the tinted one.
+ * and the star; unread rows have bold senders, subject and date.
  */
 export const ThreadRow = memo(function ThreadRow(p: Props) {
   const theme = useAppTheme();
@@ -88,11 +132,9 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
   const strong = unread ? styles.bold : styles.normal;
   const muted = theme.colors.onSurfaceVariant;
   const ink = theme.colors.onSurface;
-  const background = p.selected
-    ? theme.colors.secondaryContainer
-    : unread
-      ? theme.colors.surface
-      : theme.colors.surfaceContainerLow;
+  // One card colour for every row, as in the Gmail app: unread differs by weight and the dot only.
+  // The colour is opaque, so a swiped card covers the pill behind it.
+  const background = p.selected ? theme.colors.secondaryContainer : theme.colors.listCard;
   const compact = p.density === "compact";
   const avatarSize = compact ? 32 : p.density === "comfortable" ? 36 : 40;
 
@@ -100,17 +142,23 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
     <Pressable
       testID={`thread-${th.id}`}
       accessibilityRole="button"
-      accessibilityLabel={rowLabel(th, names, date)}
+      accessibilityLabel={rowLabel(th, names, special ?? listDateLabel(th.lastMessageAt))}
       accessibilityState={{ selected: p.selected }}
       onPress={() => (p.selecting ? p.onToggleSelect(th.id) : p.onOpen(th))}
       onLongPress={() => p.onToggleSelect(th.id)}
-      android_ripple={{ color: theme.colors.surfaceVariant }}
+      android_ripple={{ color: theme.colors.surfaceVariant, foreground: true }}
+      // Android's tap timeout: the ripple waits until the touch is a tap, not the start of a
+      // swipe or scroll (the row's pan cancels the press, but a ripple already shown would fade
+      // over the moving row).
+      unstable_pressDelay={100}
       style={[
         styles.row,
+        cardShape(p.first, p.last, p.selected),
         {
           backgroundColor: background,
           minHeight: ROW_HEIGHT[p.density],
-          paddingVertical: p.density === "default" ? 12 : 8,
+          // Default: 16 + 20 + 3 + 18 + 3 + 18 + 16 = 94 dp, Gmail's card.
+          paddingVertical: p.density === "default" ? 16 : 8,
         },
       ]}
     >
@@ -148,7 +196,7 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
             testID={`thread-names-${th.id}`}
             numberOfLines={1}
             variant="bodyLarge"
-            style={[styles.grow, strong, { color: ink }]}
+            style={[styles.grow, styles.sender, strong, { color: ink }]}
           >
             {names}
             {th.messageCount > 1 && (
@@ -165,9 +213,15 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
           >
             {date}
           </Text>
+          {unread && (
+            <View
+              testID={`thread-unread-dot-${th.id}`}
+              style={[styles.dot, { backgroundColor: theme.colors.onSurfaceVariant }]}
+            />
+          )}
         </View>
 
-        <View style={styles.line}>
+        <View style={[styles.line, styles.next]}>
           {labelIds.includes("SCHEDULED") && (
             <Icon source="clock-outline" size={16} color={muted} />
           )}
@@ -175,7 +229,7 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
             testID={`thread-subject-${th.id}`}
             numberOfLines={1}
             variant="bodyMedium"
-            style={[styles.grow, strong, { color: ink }]}
+            style={[styles.grow, styles.small, strong, { color: ink }]}
           >
             {th.subject || t.noSubject}
           </Text>
@@ -183,7 +237,7 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
         </View>
 
         {!compact && (
-          <View style={styles.line}>
+          <View style={[styles.line, styles.next]}>
             <View style={[styles.grow, styles.line]}>
               {chips.map((l) => (
                 <Text
@@ -201,7 +255,11 @@ export const ThreadRow = memo(function ThreadRow(p: Props) {
                   {l.name}
                 </Text>
               ))}
-              <Text numberOfLines={1} variant="bodyMedium" style={[styles.grow, { color: muted }]}>
+              <Text
+                numberOfLines={1}
+                variant="bodyMedium"
+                style={[styles.grow, styles.small, { color: muted }]}
+              >
                 {th.snippet}
               </Text>
             </View>
@@ -236,13 +294,27 @@ function Star({ starred, id, onAction }: StarProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, gap: 12 },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    gap: 16,
+    marginHorizontal: CARD_INSET,
+    marginBottom: CARD_GAP,
+    overflow: "hidden",
+  },
   avatar: { paddingTop: 2 },
   check: { alignItems: "center", justifyContent: "center" },
   text: { flex: 1, minWidth: 0 },
   line: { flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 },
   grow: { flex: 1, minWidth: 0 },
+  // Gmail's lines: sender 20 dp, subject and snippet 18 dp, 3 dp apart.
+  sender: { lineHeight: 20 },
+  small: { lineHeight: 18 },
+  next: { marginTop: 3 },
   bold: { fontWeight: "700" },
+  // Gmail's unread dot right of the date.
+  dot: { width: 8, height: 8, borderRadius: 4, marginLeft: 4 },
   normal: { fontWeight: "400" },
   chip: { borderRadius: 4, paddingHorizontal: 6, overflow: "hidden", maxWidth: 120 },
   // The 48 dp touch target overlaps the row's padding; the visible star stays 20 dp.

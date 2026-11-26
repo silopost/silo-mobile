@@ -12,7 +12,8 @@ export type ServerFeature =
   | "filters"
   | "labels"
   | "thumbnails"
-  | "inlineImages";
+  | "inlineImages"
+  | "language";
 
 /**
  * The first server version of each feature. `GET /meta` has no feature flags (plan 5.1 lists
@@ -29,6 +30,8 @@ const SINCE: Record<ServerFeature, string> = {
   thumbnails: "0.4.0",
   // POST /uploads with inline=true answers a cid.
   inlineImages: "0.4.0",
+  // Settings.language (en | pl), the UI language shared by every client of the user.
+  language: "0.6.0",
 };
 
 /** MAJOR.MINOR.PATCH of a version ("v0.4.0", "0.4.0-rc.1", "0.4"); null when it is none. */

@@ -54,25 +54,31 @@ export type PrepareOptions = {
   showImages: boolean;
   /** Data URIs of inline images by attachment id (fetchInlineImages). */
   inline?: Record<string, string>;
+  /** Page, text and link colours of the card the message sits in (light theme by default). */
+  colors?: { background: string; text: string; link: string; dark?: boolean };
 };
+
+const LIGHT = { background: "#ffffff", text: "#1f1f1f", link: "#0b57d0", dark: false };
 
 /** The complete document the WebView loads for a message. */
 export function prepareHtml(html: string, opts: PrepareOptions): string {
   const inline = opts.inline ?? {};
+  const c = opts.colors ?? LIGHT;
   const body = html
     // Second line of defence; the server's sanitiser already removed them.
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
     .replace(/<\/?(script|iframe|object|embed|base|meta|link)\b[^>]*>/gi, "")
     .replace(INLINE_URL, (url, id: string) => inline[id] ?? url);
-  // Mail is designed for a white page (as Gmail shows it); wide mail scrolls sideways inside
-  // the card instead of being shrunk.
+  // The page takes the card's colours (mail without its own colours reads as the card); wide
+  // mail scrolls sideways inside the card instead of being shrunk.
   return (
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta http-equiv="Content-Security-Policy" content="${contentPolicy(opts.showImages)}">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<style>html,body{margin:0;padding:0;background:#ffffff}` +
-    `body{font:14px/1.5 Roboto,Arial,sans-serif;color:#1f1f1f;overflow-wrap:break-word;` +
-    `overflow-x:auto}a{color:#0b57d0}img{max-width:100%;height:auto}pre{white-space:pre-wrap}` +
+    `<meta name="color-scheme" content="${c.dark ? "dark" : "light"}">` +
+    `<style>html,body{margin:0;padding:0;background:${c.background}}` +
+    `body{font:14px/1.5 Roboto,Arial,sans-serif;color:${c.text};overflow-wrap:break-word;` +
+    `overflow-x:auto}a{color:${c.link}}img{max-width:100%;height:auto}pre{white-space:pre-wrap}` +
     `</style></head><body>${body}</body></html>`
   );
 }

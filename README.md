@@ -12,7 +12,7 @@ Expo app modelled on the Gmail app for Android (Material 3), talking to
 > **Status: unreleased, never run on a device.** Version 0.1.0 has mail feature parity with
 > silo-web 0.3.0, but it has been verified only by type checking, lint, 405 unit and screen tests,
 > an Android JavaScript bundle and a read-only smoke test against a live API – **not on a phone or
-> an emulator**. The UI is in Polish only for now. See [Status and roadmap](#status-and-roadmap).
+> an emulator**. The UI is in English and Polish. See [Status and roadmap](#status-and-roadmap).
 
 ## Contents
 
@@ -85,11 +85,11 @@ Deviations from parity are listed in [Differences from the Gmail app](#differenc
 `GET /meta` has no feature flags, so `src/lib/features.ts` (`hasServerFeature`,
 `useServerFeature`) compares `Meta.serverVersion` with the version each feature appeared in
 (`search`, `snooze`, `schedule`, `settings`, `filters`, `labels`, `thumbnails`, `inlineImages` – all
-0.4.0). Versions compare by MAJOR.MINOR.PATCH, a pre-release counts as the release, an unparsable
+0.4.0; `language` – 0.6.0). Versions compare by MAJOR.MINOR.PATCH, a pre-release counts as the release, an unparsable
 version (`dev`, empty, a commit) is treated as the newest, and until `/meta` is known no 0.4.0
 feature is available. Features the server lacks are hidden.
 
-The API schema is generated from the OpenAPI document of silo-server `v0.4.0` (`silo.serverRef` in
+The API schema is generated from the OpenAPI document of silo-server `v0.9.0` (`silo.serverRef` in
 `package.json`). Full table: [compatibility matrix](https://github.com/silopost/silo/blob/main/docs/compat-matrix.md#silo-mobile).
 
 ## Requirements
@@ -141,7 +141,7 @@ sign-in screen, and the app reads everything else from `GET /api/v1/meta`.
 | Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`) | not secret; they change only the look and which request is sent                                   |
 | Density, undo-send delay, signature, time zone, active account (server 0.4.0)                                        | server (`GET/PATCH /settings`)                         | shared with silo-web                                                                              |
 | App identity                                                                                                         | `app.json`                                             | name `Silo`, package `dev.silopost.mobile`, scheme `silopost`                                     |
-| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                      | currently `v0.4.0`                                                                                |
+| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                      | currently `v0.9.0`                                                                                |
 
 Environment variables are used only by the tooling: `SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD` and
 `SILO_DEVICE` for `npm run smoke:api` (see [Testing](#smoke-test-against-a-live-api)) and
@@ -531,9 +531,12 @@ Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relati
 - Routes are files in `app/` (expo-router); screens in `src/screens/`; per-area components and hooks
   in `src/features/`; the API layer in `src/api/`; stores in `src/state/`; pure functions in
   `src/lib/`.
-- UI strings, date formats and plural rules are in `src/lib/i18n.ts`, currently **Polish only**
-  (`pl-PL` formats). silo-web already has typed English and Polish dictionaries and follows
-  `settings.language`; bringing that to the app is planned.
+- UI strings are typed dictionaries in English (`src/lib/messages/en.ts`, the source of the type)
+  and Polish (`src/lib/messages/pl.ts`): a key missing in either is a type error, as in silo-web.
+  `t` in `src/lib/i18n.ts` reads the current language; date formats and plural rules follow it.
+  The language is the device's before sign-in, then the user's `settings.language` (server 0.6.0,
+  else a choice kept on the device), switched in General settings without a restart
+  (`src/state/language.ts`). Tests run in Polish (`jest.setup.ts`).
 - Icons: `assets/icon.svg` is a copy of `silo-web/public/icons/icon.svg` (keep them identical);
   `npm run gen:icons` regenerates the Expo PNGs referenced by `app.json`.
 - Before a pull request run `npm run typecheck && npm run lint && npm run format:check && npm test`
@@ -543,18 +546,18 @@ Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relati
 
 `src/api/schema.d.ts` is generated from silo-server's `api/openapi.yaml` and committed. The server
 release the app is built against is declared in `package.json`: `"silo": {"serverRef": ...}`
-(currently `v0.4.0`).
+(currently `v0.9.0`).
 
 ```sh
-npm run gen:api                          # openapi.yaml at silo.serverRef (v0.4.0) from GitHub
+npm run gen:api                          # openapi.yaml at silo.serverRef (v0.9.0) from GitHub
 npm run gen:api -- --server-ref v0.3.0   # another git ref
 npm run gen:api -- --local [path]        # a local file (default ../silo-server/api/openapi.yaml)
 ```
 
 The CI job `api-contract` checks out silo-server at `silo.serverRef`, regenerates the schema and
 fails when it differs from the committed one; it passes once the silo-server repository with the
-`v0.4.0` tag is public on GitHub. The committed schema is the 0.4.0 contract
-(`../silo-server/api/openapi.yaml` at tag `v0.4.0`).
+`v0.9.0` tag is public on GitHub. The committed schema is the 0.9.0 contract
+(`../silo-server/api/openapi.yaml` at tag `v0.9.0`).
 
 ## Testing
 
@@ -724,7 +727,8 @@ Platform:
 - The date/time picker is Android-only (`DateTimePickerAndroid`); iOS needs an inline component.
 - iOS is unverified (neither a build nor a device); Android is verified only by tests and the
   bundle, not on a device.
-- The UI is Polish-only (see [Development](#development)).
+- The UI has English and Polish only (see [Development](#development)); the native date and time
+  dialogs follow the device language, not the app's.
 
 ## Status and roadmap
 

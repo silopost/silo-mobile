@@ -18,6 +18,7 @@ const meta = (allowCustomServers: boolean): Meta => ({
   authMode: "imap",
   allowCustomServers,
   maxAttachmentBytes: 26214400,
+  oauthProviders: [],
 });
 
 const failed: TestResult = {
@@ -57,7 +58,7 @@ async function fill(email = "nowe@example.com", password = "tajne") {
 describe("add account", () => {
   it("opens from the account switcher", async () => {
     const app = await renderApp("/u/0/inbox");
-    await fireEvent.press(await screen.findByLabelText(/^Konto ala@example.com/));
+    await fireEvent.press(await screen.findByLabelText(/^Zalogowano jako ala@example.com/));
     await fireEvent.press(await screen.findByRole("button", { name: "Dodaj konto" }));
     await waitFor(() => expect(app.getPathname()).toBe("/settings/add-account"));
   });

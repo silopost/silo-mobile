@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Modal, Portal, Text } from "react-native-paper";
+import { t } from "../lib/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "../lib/theme";
 
@@ -13,6 +14,8 @@ type Props = {
   children: ReactNode;
   /** Fixed part below the rows, e.g. the buttons of the sheet. */
   footer?: ReactNode;
+  /** Spoken label of the scrim, "Zamknij" by default. */
+  closeLabel?: string;
 };
 
 /**
@@ -20,7 +23,15 @@ type Props = {
  * a drag handle and a title. No drag-to-dismiss: the scrim, the back button and the sheet's own
  * buttons close it. Mounted only while open (no hidden sheets in the tree).
  */
-export function BottomSheet({ visible, onDismiss, title, testID, children, footer }: Props) {
+export function BottomSheet({
+  visible,
+  onDismiss,
+  title,
+  testID,
+  children,
+  footer,
+  closeLabel = t.close,
+}: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   if (!visible) return null;
@@ -29,6 +40,8 @@ export function BottomSheet({ visible, onDismiss, title, testID, children, foote
       <Modal
         visible
         onDismiss={onDismiss}
+        // The scrim's spoken label (Paper's own is English).
+        overlayAccessibilityLabel={closeLabel}
         style={styles.modal}
         contentContainerStyle={[
           styles.sheet,

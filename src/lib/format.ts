@@ -1,7 +1,6 @@
 import { format, isSameDay, isSameYear } from "date-fns";
-import { pl } from "date-fns/locale";
 import type { Participant } from "../api/types";
-import { t } from "./i18n";
+import { dateFnsLocale, getLocale, intlLocale, t } from "./i18n";
 
 /** How the server names the user among the participants of a thread. */
 export const ME = "me";
@@ -28,34 +27,57 @@ export function avatarColor(email: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
 }
 
-/** Number with Polish digit grouping ("12 345"), for banners. */
+/**
+ * Number with the digit grouping of the UI language ("12,345", "12 345", but "2000" in Polish):
+ * the same rule as the counts inside the dictionaries' texts (messages/*.ts, formatNumber).
+ */
 export function formatNumber(n: number): string {
-  return n.toLocaleString("pl-PL");
+  return t.formatNumber(n);
 }
 
-/** List date as in Gmail (plan 6.1): "09:12" today, "4 lis" this year, "04.11.2025" otherwise. */
+/** date-fns pattern of the UI language (messages/*.ts, dateFormats). */
+function pattern(d: Date, key: keyof typeof t.dateFormats): string {
+  return format(d, t.dateFormats[key], { locale: dateFnsLocale() });
+}
+
+/**
+ * List date as in Gmail (plan 6.1): the time today ("7:31 PM", "19:31"), the day this year
+ * ("Nov 7", "7 lis"), the full date otherwise ("11/4/2025", "4.11.2025").
+ */
 export function formatListDate(iso: string, now = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  if (isSameDay(d, now)) return format(d, "HH:mm");
-  if (isSameYear(d, now)) return format(d, "d MMM", { locale: pl });
-  return format(d, "dd.MM.yyyy");
+  if (isSameDay(d, now)) return pattern(d, "time");
+  if (isSameYear(d, now)) return pattern(d, "dayMonth");
+  return pattern(d, "date");
 }
 
-/** Full date of a message, e.g. "4 lis 2026, 09:12" (the details of a message card). */
+/**
+ * The date of a list row as the end of its spoken label, as in Gmail: "at 7:31 PM" / "o 19:31"
+ * today, "on Nov 7" / "7 lis" before.
+ */
+export function listDateLabel(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const text = formatListDate(iso, now);
+  return isSameDay(d, now) ? t.rowAt(text) : t.rowOn(text);
+}
+
+/** Full date of a message, e.g. "Nov 4, 2026, 9:12 AM" / "4 lis 2026, 09:12" (message details). */
 export function formatFullDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : format(d, "d MMM yyyy, HH:mm", { locale: pl });
+  return Number.isNaN(d.getTime()) ? iso : pattern(d, "full");
 }
 
-/** Size of an attachment: "512 B", "18 KB", "2,4 MB" (as silo-web). */
+/** Size of an attachment: "512 B", "18 KB", "2.4 MB" / "2,4 MB" (as silo-web). */
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+  const mb = (bytes / (1024 * 1024)).toFixed(1);
+  return `${getLocale() === "pl" ? mb.replace(".", ",") : mb} MB`;
 }
 
-/** Name of an address; the server writes the user's own address as "me" ("ja"). */
+/** Name of an address; the server writes the user's own address as "me" (t.me). */
 export function displayName(a: { email: string; name?: string | null }): string {
   if (a.email === ME) return t.me;
   return a.name || a.email;
@@ -105,7 +127,8 @@ function zoned(options: Intl.DateTimeFormatOptions, locale: string, timeZone?: s
 
 /**
  * When a snoozed thread comes back or a scheduled message leaves, as Gmail writes it: "dziś,
- * 18:00", "jutro, 08:00", "pon., 10 lis, 08:00" (with the year when it is not this one). In
+ * 18:00", "jutro, 08:00", "pon., 10 lis, 08:00" ("today, 6:00 PM", "Mon, Nov 10, 8:00 AM"; with
+ * the year when it is not this one), in the UI language. In
  * `timeZone` (the zone of GET /snooze/presets), else in the device's. Display only: the server
  * keeps the time.
  */
@@ -115,16 +138,20 @@ export function formatWhen(iso: string, opts: { now?: Date; timeZone?: string } 
   const now = opts.now ?? new Date();
   const tz = opts.timeZone;
   const day = zoned({ year: "numeric", month: "2-digit", day: "2-digit" }, "en-CA", tz);
-  const time = zoned({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, "pl-PL", tz).format(
-    d,
-  );
+  const time = zoned(
+    getLocale() === "pl"
+      ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+      : { hour: "numeric", minute: "2-digit", hour12: true },
+    intlLocale(),
+    tz,
+  ).format(d);
   const key = day.format(d);
   if (key === day.format(now)) return `${t.today}, ${time}`;
   if (key === day.format(new Date(now.getTime() + 86_400_000))) return `${t.tomorrow}, ${time}`;
   const sameYear = key.slice(0, 4) === day.format(now).slice(0, 4);
   const date = zoned(
     { weekday: "short", day: "numeric", month: "short", year: sameYear ? undefined : "numeric" },
-    "pl-PL",
+    intlLocale(),
     tz,
   ).format(d);
   return `${date}, ${time}`;

@@ -13,6 +13,7 @@ export const defaultMeta = {
   allowCustomServers: true,
   maxAttachmentBytes: 25 * 1024 * 1024,
   minWebVersion: "0.3.0",
+  oauthProviders: [] as string[],
 };
 
 /**

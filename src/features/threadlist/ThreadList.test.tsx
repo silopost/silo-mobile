@@ -193,7 +193,7 @@ describe("selection bar", () => {
     await fireEvent.press(screen.getByTestId("thread-avatar-t_2"));
     expect(within(bar).getByLabelText("Zaznaczono: 2")).toBeOnTheScreen();
 
-    await fireEvent.press(within(bar).getByLabelText("Zakończ zaznaczanie"));
+    await fireEvent.press(within(bar).getByLabelText("Gotowe"));
     expect(screen.queryByTestId("selection-bar")).toBeNull();
     expect(screen.getByText("Szukaj w poczcie")).toBeOnTheScreen();
     expect(useSelection.getState().ids.size).toBe(0);
@@ -230,7 +230,7 @@ describe("selection bar", () => {
     await renderApp("/u/0/inbox");
     const bodies = recordModify();
     const row = await screen.findByTestId("thread-t_2");
-    await fireEvent.press(within(row).getByLabelText("Oznacz gwiazdką"));
+    await fireEvent.press(within(row).getByLabelText("Dodaj gwiazdkę"));
     expect(within(row).getByLabelText("Usuń gwiazdkę")).toBeOnTheScreen();
     await waitFor(() =>
       expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["STARRED"], removeLabelIds: [] }]),
@@ -252,13 +252,13 @@ describe("selection bar", () => {
     expect(bodies).toEqual([{ ids: ["t_2"], addLabelIds: ["l_1"], removeLabelIds: ["INBOX"] }]);
   });
 
-  it("'Etykiety' applies the checked labels with one request after OK", async () => {
+  it("'Oznacz etykietą' applies the checked labels with one request after OK", async () => {
     serve({ "": page1 });
     await renderApp("/u/0/inbox");
     const bodies = recordModify();
     await fireEvent(await screen.findByTestId("thread-t_2"), "longPress");
     await fireEvent.press(screen.getByLabelText("Więcej opcji"));
-    await fireEvent.press(await screen.findByRole("menuitem", { name: "Etykiety" }));
+    await fireEvent.press(await screen.findByText("Oznacz etykietą"));
     const sheet = await screen.findByTestId("labels-sheet");
     await fireEvent.press(within(sheet).getByRole("checkbox", { name: "Praca" }));
     await fireEvent.press(within(sheet).getByRole("checkbox", { name: "Rachunki" }));
@@ -295,13 +295,26 @@ describe("selection bar", () => {
     expect(deleted).toEqual([{ ids: ["t_1"] }]);
   });
 
-  it("'Zaznacz wszystko' selects every loaded row", async () => {
+  it("'Zaznacz wszystko' under the bar selects every loaded row and clears them again", async () => {
     serve({ "": page1 });
     await renderApp("/u/0/inbox");
+    expect(await screen.findByRole("header", { name: "Odebrane" })).toBeOnTheScreen();
     await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
 
+    // The row takes the place of the view's name (Gmail 2026); the menu no longer has it.
+    expect(screen.queryByRole("header", { name: "Odebrane" })).toBeNull();
+    const all = screen.getByRole("checkbox", { name: "Zaznacz wszystko" });
+    expect(all).not.toBeChecked();
     await fireEvent.press(screen.getByLabelText("Więcej opcji"));
-    await fireEvent.press(await screen.findByText("Zaznacz wszystko"));
+    expect(await screen.findByText("Przenieś do")).toBeOnTheScreen();
+    expect(screen.queryAllByText("Zaznacz wszystko")).toHaveLength(1);
+
+    await fireEvent.press(all);
     expect([...useSelection.getState().ids].sort()).toEqual(["t_1", "t_2"]);
+    expect(screen.getByRole("checkbox", { name: "Zaznacz wszystko" })).toBeChecked();
+
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Zaznacz wszystko" }));
+    expect(useSelection.getState().ids.size).toBe(0);
+    expect(screen.queryByTestId("selection-bar")).toBeNull();
   });
 });

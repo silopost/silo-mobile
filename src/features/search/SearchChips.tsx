@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { Button, Chip, List } from "react-native-paper";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Button, Icon, List, Text } from "react-native-paper";
 import { useLabels } from "../../api/queries/labels";
 import { BottomSheet } from "../../components/BottomSheet";
 import { t } from "../../lib/i18n";
@@ -29,9 +29,9 @@ const PREFIXES: Record<SheetKind, string[]> = {
 
 /** On/off chips: one exact piece of text each. */
 const TOGGLES = [
-  { key: "attachment", part: "has:attachment", icon: "paperclip" },
-  { key: "unread", part: "is:unread", icon: "email-outline" },
-  { key: "starred", part: "is:starred", icon: "star-outline" },
+  { key: "attachment", part: "has:attachment" },
+  { key: "unread", part: "is:unread" },
+  { key: "starred", part: "is:starred" },
 ] as const;
 
 /** Relative dates of the "Data" chip, as Gmail's search language writes them. */
@@ -77,19 +77,14 @@ export function SearchChips({ accountId, query, onChange, variant = "search" }: 
   const sheetChip = (kind: SheetKind) => {
     const active = hasPrefix(query, PREFIXES[kind]);
     return (
-      <Chip
+      <FilterChip
         key={kind}
         testID={`search-chip-${kind}`}
-        mode={active ? "flat" : "outlined"}
-        selected={active}
-        showSelectedCheck={false}
-        icon="menu-down"
-        accessibilityRole="button"
+        label={t.searchChips[kind]}
+        active={active}
+        menu
         onPress={() => setSheet(kind)}
-        style={styles.chip}
-      >
-        {t.searchChips[kind]}
-      </Chip>
+      />
     );
   };
 
@@ -111,19 +106,13 @@ export function SearchChips({ accountId, query, onChange, variant = "search" }: 
         {toggles.map((c) => {
           const active = hasPart(query, c.part);
           return (
-            <Chip
+            <FilterChip
               key={c.key}
               testID={`search-chip-${c.key}`}
-              mode={active ? "flat" : "outlined"}
-              selected={active}
-              icon={active ? "check" : c.icon}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: active }}
+              label={t.searchChips[c.key]}
+              active={active}
               onPress={() => onChange(togglePart(query, c.part))}
-              style={styles.chip}
-            >
-              {t.searchChips[c.key]}
-            </Chip>
+            />
           );
         })}
       </ScrollView>
@@ -160,6 +149,51 @@ export function SearchChips({ accountId, query, onChange, variant = "search" }: 
   );
 }
 
+type FilterChipProps = {
+  label: string;
+  active: boolean;
+  /** Opens a sheet: a button with ▾ after the text; otherwise an on/off switch (✓ when on). */
+  menu?: boolean;
+  onPress: () => void;
+  testID: string;
+};
+
+/**
+ * A filter chip of Gmail's search: outlined, 8 dp corners, the ▾ of a sheet chip right of the
+ * text (Paper's Chip only has a leading icon). The visible chip is 32 dp high in a 48 dp touch
+ * target; an active chip is filled.
+ */
+function FilterChip({ label, active, menu, onPress, testID }: FilterChipProps) {
+  const theme = useAppTheme();
+  const color = active ? theme.colors.onSecondaryContainer : theme.colors.onSurfaceVariant;
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole={menu ? "button" : "switch"}
+      accessibilityLabel={label}
+      accessibilityState={menu ? { selected: active } : { checked: active }}
+      onPress={onPress}
+      style={styles.chipTouch}
+    >
+      <View
+        style={[
+          styles.chip,
+          menu && styles.chipMenu,
+          active
+            ? { backgroundColor: theme.colors.secondaryContainer, borderColor: "transparent" }
+            : { borderColor: theme.colors.outline },
+        ]}
+      >
+        {!menu && active && <Icon source="check" size={18} color={color} />}
+        <Text variant="bodyMedium" style={{ color }}>
+          {label}
+        </Text>
+        {menu && <Icon source="menu-down" size={18} color={color} />}
+      </View>
+    </Pressable>
+  );
+}
+
 type SheetProps = {
   active: boolean;
   onDismiss: () => void;
@@ -187,6 +221,7 @@ function LabelsChipSheet({
   return (
     <BottomSheet
       visible
+      closeLabel={t.exitSearchFilter}
       onDismiss={onDismiss}
       title={t.searchChips.labels}
       testID="search-labels-sheet"
@@ -218,6 +253,7 @@ function AddressChipSheet({
   return (
     <BottomSheet
       visible
+      closeLabel={t.exitSearchFilter}
       onDismiss={onDismiss}
       title={kind === "from" ? t.chipFromTitle : kind === "to" ? t.chipToTitle : t.chipSubjectTitle}
       testID={`search-${kind}-sheet`}
@@ -255,7 +291,13 @@ function DateChipSheet({
   onPickDay,
 }: SheetProps & { onPickDay: (key: "after" | "before") => void }) {
   return (
-    <BottomSheet visible onDismiss={onDismiss} title={t.dateChipTitle} testID="search-date-sheet">
+    <BottomSheet
+      visible
+      closeLabel={t.exitSearchFilter}
+      onDismiss={onDismiss}
+      title={t.dateChipTitle}
+      testID="search-date-sheet"
+    >
       {active && <ClearItem onPick={onPick} />}
       {DATE_PARTS.map((part) => (
         <List.Item
@@ -280,8 +322,18 @@ function DateChipSheet({
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0 },
-  row: { gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
-  chip: { borderRadius: 8 },
+  row: { gap: 8, paddingHorizontal: 16 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 32,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  chipMenu: { paddingRight: 8 },
+  chipTouch: { minHeight: MIN_TOUCH, justifyContent: "center" },
   footer: { flexDirection: "row", justifyContent: "flex-end", gap: 8, padding: 16 },
   touch: { minHeight: MIN_TOUCH },
   input: {

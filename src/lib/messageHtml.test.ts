@@ -48,6 +48,18 @@ describe("prepareHtml", () => {
     expect(doc).toContain("<p>a</p>");
   });
 
+  it("takes the colours of the card: white by default, the dark card in dark mode", () => {
+    expect(prepareHtml("<p/>", { showImages: false })).toContain("background:#ffffff");
+    const dark = prepareHtml("<p/>", {
+      showImages: false,
+      colors: { background: "#1e1f20", text: "#e3e3e3", link: "#a8c7fa", dark: true },
+    });
+    expect(dark).toContain("background:#1e1f20");
+    expect(dark).toContain("color:#e3e3e3");
+    expect(dark).toContain("a{color:#a8c7fa}");
+    expect(dark).toContain('name="color-scheme" content="dark"');
+  });
+
   it("sizes to the device width so wide mail scrolls sideways", () => {
     expect(prepareHtml("<p/>", { showImages: false })).toContain(
       'name="viewport" content="width=device-width, initial-scale=1"',

@@ -31,7 +31,8 @@ export function attachmentIcon(contentType: string, filename: string): string {
 }
 
 /** A file name safe for the cache directory. */
-const safeName = (name: string) => name.replace(/[/\\?%*:|"<>\u0000-\u001f]/g, "_") || "plik";
+const safeName = (name: string) =>
+  name.replace(/[/\\?%*:|"<>\u0000-\u001f]/g, "_") || t.fileFallback;
 
 /**
  * Downloads an attachment into the cache with the bearer header (ADR 0007: never a token in the

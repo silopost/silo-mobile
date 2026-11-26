@@ -14,7 +14,7 @@ describe("formatListDate", () => {
   });
 
   it("shows the full date for earlier years", () => {
-    expect(formatListDate(new Date(2025, 10, 4, 8, 0).toISOString(), now)).toBe("04.11.2025");
+    expect(formatListDate(new Date(2025, 10, 4, 8, 0).toISOString(), now)).toBe("4.11.2025");
   });
 
   it("is empty for an invalid date", () => {

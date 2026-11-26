@@ -26,6 +26,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounts/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Find the server settings of an address
+         * @description Looks the address up in the Thunderbird ISPDB, the autoconfig file of its domain (autoconfig.<domain>, /.well-known/autoconfig), its SRV records (RFC 6186) and, last, the usual host names checked by a TLS handshake (no login), within 8 s. The response is 200 even when nothing is found (`imap` and `smtp` null, reasons in `sources`). `params` plus a password is a ConnectionParams body for POST /accounts/test. When the instance only allows its default servers (SILO_ALLOW_CUSTOM_SERVERS=false in mode imap) it answers with them at once (`source: default`) without contacting anything. Limited per user (10 per minute): 429 rate_limited.
+         */
+        post: operations["discoverAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounts/test": {
         parameters: {
             query?: never;
@@ -128,6 +148,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every mail account with its state */
+        get: operations["adminListAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List queued jobs
+         * @description The newest 200 jobs matching the filters, without their payloads.
+         */
+        get: operations["adminListJobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Discard a job
+         * @description Drops a job that is not running, e.g. a dead write-back operation (its local change is given up). 404 for running or unknown jobs.
+         */
+        delete: operations["adminDeleteJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a job again
+         * @description A dead (or waiting) job becomes pending, due now, with its attempt count reset. 404 for running or unknown jobs.
+         */
+        post: operations["adminRetryJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List users with their accounts */
+        get: operations["adminListUsers"];
+        put?: never;
+        /**
+         * Create a user
+         * @description Mode local only (409 not_available in mode imap, where users appear on their first sign-in). No mail account is created; the user adds accounts after signing in. 409 user_exists for a taken email.
+         */
+        post: operations["adminCreateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a user
+         * @description Removes the user with their accounts and everything Silo cached for them; mail servers are not touched. Admins cannot delete themselves (409 admin_self_change).
+         */
+        delete: operations["adminDeleteUser"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a user
+         * @description Disable or enable, grant or revoke admin rights, rename, set a new password (mode local; 409 not_available in mode imap). Admins cannot disable or demote themselves (409 admin_self_change).
+         */
+        patch: operations["adminUpdateUser"];
+        trace?: never;
+    };
+    "/admin/users/{id}/totp/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a user's TOTP off
+         * @description For a lost device: the user signs in with the password alone and may set TOTP up again.
+         */
+        post: operations["adminResetUserTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/attachments/{id}": {
         parameters: {
             query?: never;
@@ -222,7 +384,7 @@ export interface paths {
         get: operations["getDraft"];
         /**
          * Save a draft (autosave)
-         * @description Replaces the editable fields. version must be the version the client edited, else 409 draft_version_conflict (another window saved meanwhile). The draft and its thread are updated at once (thread.updated, draft.updated); the copy in the server's Drafts folder follows at least 30 s after the last save (right away with syncNow, when the compose window closes), always as exactly one message. The 409 carries currentVersion and current (the draft as saved meanwhile). An invalid address is 400 validation_failed with address and field.
+         * @description Replaces the editable fields. version must be the version the client edited, else 409 draft_version_conflict (another window saved meanwhile). The draft and its thread are updated at once (thread.updated, draft.updated); the copy in the server's Drafts folder follows at least 30 s after the last save (right away with syncNow, when the compose window closes), always as exactly one message. The 409 carries currentVersion and current (the draft as saved meanwhile). With accountId of another account the draft moves there and the response has new ids (see accountId). An invalid address is 400 validation_failed with address and field.
          */
         put: operations["updateDraft"];
         post?: never;
@@ -265,7 +427,7 @@ export interface paths {
         };
         /**
          * Server-Sent Events stream
-         * @description Pushes changes of the mailbox as they are committed. After a reconnect with Last-Event-ID the missed events (24 h retained) are replayed first; an id older than the retention yields a resync event. A ': ping' comment is sent every 25 s. A client that cannot keep up is disconnected and replays on reconnect.
+         * @description Pushes changes of the mailbox as they are committed. After a reconnect with Last-Event-ID the missed events (24 h retained) are replayed first; an id older than the retention yields a resync event. A ': ping' comment is sent every 25 s; with it the session is checked, and a stream whose session ended gets session.expired and is closed. A client that cannot keep up is disconnected and replays on reconnect. At most 8 streams per user are open at once; a stream over the limit answers 200 with a single stream.limit event ({retryAfter: 30}, seconds; a retry: 30000 field slows down an EventSource that is not closed) and ends: close the EventSource and use /events/poll.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -490,6 +652,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/oauth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * OAuth2 redirect URI (browser only)
+         * @description The provider redirects the browser here; no session is needed (the state identifies the user, the cookie set by start the browser). The code is exchanged, the account tested with XOAUTH2 and created (or its authorization renewed), then 303 to SILO_PUBLIC_URL + returnTo with `?oauth=ok&accountId=acc_X` or `?oauth=error&code=<code>`: oauth_denied, oauth_state_invalid, oauth_exchange_failed, oauth_no_email, oauth_account_mismatch, account_limit_reached, account_test_failed, internal_error. The admin registers SILO_PUBLIC_URL + /api/v1/oauth/{provider}/callback with the provider.
+         */
+        get: operations["oauthCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start adding (or re-authorizing) an account with OAuth2
+         * @description Returns the provider's authorization URL (authorization code flow with PKCE). The browser opens it; the provider sends it back to GET /oauth/{provider}/callback, which adds the account and redirects to SILO_PUBLIC_URL + returnTo. 404 when the provider is not configured on the instance, or for an accountId that is not an OAuth account of the user with this provider.
+         */
+        post: operations["startOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/operations/{id}/undo": {
         parameters: {
             query?: never;
@@ -582,11 +784,31 @@ export interface paths {
         put?: never;
         /**
          * Sign in
-         * @description In imap mode the credentials are verified with LOGIN on the default mail server. A new user and first account are created on first success. When the mail server is unreachable, a known user with the right password is let in and the account reports state `backoff`. Every failure answers 401 invalid_credentials after a constant minimum time. Browsers get the silo_session cookie; with client.kind=bearer (native clients) no cookie is set and the body carries a token for the Authorization: Bearer header instead (shown once).
+         * @description In imap mode the credentials are verified with LOGIN on the default mail server. A new user and first account are created on first success. When the mail server is unreachable, a known user with the right password is let in and the account reports state `backoff`. In local mode the Silo password is checked (no mail server, no user or account is created); a user with TOTP enabled must also send totpCode: without it a correct password answers 401 totp_required, with a wrong code 401 invalid_credentials (a backup code works once). Every failure answers 401 invalid_credentials after a constant minimum time. Browsers get the silo_session cookie; with client.kind=bearer (native clients) no cookie is set and the body carries a token for the Authorization: Bearer header instead (shown once).
          */
         post: operations["login"];
         /** Sign out */
         delete: operations["logout"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the Silo password
+         * @description Mode local only (409 not_available in mode imap, where the mailbox password is used). A wrong currentPassword is 403 invalid_credentials (throttled like sign-in). Every other session of the user is signed out; the current one stays.
+         */
+        post: operations["changePassword"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -603,7 +825,11 @@ export interface paths {
         get: operations["listSessions"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Sign out everywhere else
+         * @description Revokes every session of the user except the current one (their open event streams get session.expired). others=true is required.
+         */
+        delete: operations["revokeOtherSessions"];
         options?: never;
         head?: never;
         patch?: never;
@@ -645,7 +871,7 @@ export interface paths {
         head?: never;
         /**
          * Change settings
-         * @description JSON merge: only the fields sent change; activeAccountId null clears it. The answer is the whole settings object with updatedAt; the other sessions of the user get settings.updated {updatedAt} and reload GET /settings. 422 invalid_setting (density, undoSendSeconds, signature over 32 KiB, an activeAccountId that is not the user's) or invalid_timezone.
+         * @description JSON merge: only the fields sent change; activeAccountId null clears it. The answer is the whole settings object with updatedAt; the other sessions of the user get settings.updated {updatedAt} and reload GET /settings. 422 invalid_setting (density, undoSendSeconds, signature over 32 KiB, an activeAccountId that is not the user's, an unsupported language or theme, over 1000 trustedImageSenders) or invalid_timezone.
          */
         patch: operations["updateSettings"];
         trace?: never;
@@ -814,6 +1040,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disable TOTP
+         * @description Needs the password and a TOTP or backup code; a wrong one is 403 invalid_credentials.
+         */
+        delete: operations["disableTotp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/totp/backup-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the TOTP backup codes
+         * @description Needs the password and a TOTP or backup code; the previous backup codes stop working. The new ones are shown only this once.
+         */
+        post: operations["regenerateTotpBackupCodes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/totp/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable TOTP
+         * @description Confirms the secret of POST /totp/setup with a current code and turns TOTP on. Returns the backup codes, shown only this once. A wrong code is 422 invalid_totp_code.
+         */
+        post: operations["enableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/totp/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start TOTP setup
+         * @description Mode local only. Generates a new secret (replacing one whose setup was not finished); TOTP is enforced only after POST /totp/enable. 409 totp_enabled when it is already on.
+         */
+        post: operations["setupTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads": {
         parameters: {
             query?: never;
@@ -839,6 +1145,11 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Account: {
+            /**
+             * @description How Silo signs in to the servers: the stored password, or OAuth2 (XOAUTH2; re-authorize with POST /oauth/{provider}/start and accountId after auth_failed).
+             * @enum {string}
+             */
+            authType: "password" | "xoauth2";
             displayName: string;
             email: string;
             error: string | null;
@@ -878,6 +1189,134 @@ export interface components {
         Address: {
             email: string;
             name: string;
+        };
+        AdminAccount: {
+            /**
+             * @description How Silo signs in to the servers (see Account.authType).
+             * @enum {string}
+             */
+            authType: "password" | "xoauth2";
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: int64
+             * @description Jobs of the account that failed for good (see GET /admin/jobs?status=dead).
+             */
+            deadOps: number;
+            displayName: string;
+            email: string;
+            error: string | null;
+            /** @example acc_1 */
+            id: string;
+            imapHost: string;
+            /** Format: date-time */
+            lastSyncAt: string | null;
+            /**
+             * Format: int64
+             * @description Operations waiting for write-back to the mail server.
+             */
+            pendingOps: number;
+            /** @enum {string} */
+            state: "connecting" | "discovering" | "initial_sync" | "live" | "backoff" | "auth_failed" | "disabled";
+            userEmail: string;
+            /** @example u_1 */
+            userId: string;
+        };
+        AdminAccountsOutputBody: {
+            accounts: components["schemas"]["AdminAccount"][] | null;
+        };
+        AdminCreateUserInputBody: {
+            displayName?: string;
+            /** Format: email */
+            email: string;
+            isAdmin?: boolean;
+            /** @description Silo password; generated and returned once as temporaryPassword when omitted. */
+            password?: string;
+        };
+        AdminCreatedUser: {
+            accounts: components["schemas"]["AdminUserAccount"][] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A disabled user cannot sign in; their sessions and account syncs are stopped. */
+            disabled: boolean;
+            displayName: string;
+            email: string;
+            /** @example u_1 */
+            id: string;
+            isAdmin: boolean;
+            /** @description Generated password when none was given; shown only this once. */
+            temporaryPassword?: string;
+            totpEnabled: boolean;
+        };
+        AdminJob: {
+            /** @description Account the job belongs to; null for instance-wide jobs (sending, cleanup). */
+            accountId: string | null;
+            /** Format: int64 */
+            attempts: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @example job_1 */
+            id: string;
+            /** @example imap_op */
+            kind: string;
+            lastError: string | null;
+            /** Format: int64 */
+            maxAttempts: number;
+            /** Format: date-time */
+            runAt: string;
+            /**
+             * @description pending also covers a job being run (claimed by a worker).
+             * @enum {string}
+             */
+            status: "pending" | "running" | "done" | "dead";
+            /** @description Owner of the account; null for instance-wide jobs. */
+            userId: string | null;
+        };
+        AdminJobsOutputBody: {
+            jobs: components["schemas"]["AdminJob"][] | null;
+        };
+        AdminPatchUserInputBody: {
+            /** @description true signs the user out everywhere and stops their account syncs; false restarts them. */
+            disabled?: boolean;
+            displayName?: string;
+            isAdmin?: boolean;
+            /** @description New Silo password (mode local); signs the user out everywhere. */
+            password?: string;
+        };
+        AdminUser: {
+            accounts: components["schemas"]["AdminUserAccount"][] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A disabled user cannot sign in; their sessions and account syncs are stopped. */
+            disabled: boolean;
+            displayName: string;
+            email: string;
+            /** @example u_1 */
+            id: string;
+            isAdmin: boolean;
+            totpEnabled: boolean;
+        };
+        AdminUserAccount: {
+            email: string;
+            error: string | null;
+            /** @example acc_1 */
+            id: string;
+            /** Format: date-time */
+            lastSyncAt: string | null;
+            /** @enum {string} */
+            state: "connecting" | "discovering" | "initial_sync" | "live" | "backoff" | "auth_failed" | "disabled";
+        };
+        AdminUsersOutputBody: {
+            users: components["schemas"]["AdminUser"][] | null;
+        };
+        BackupCodesBody: {
+            /** @description 10 single-use codes of 10 characters; only their hashes are stored. */
+            backupCodes: string[] | null;
+        };
+        ChangePasswordInputBody: {
+            currentPassword: string;
+            /** @description At least 10 characters. */
+            newPassword: string;
         };
         ConnectionParams: {
             /** @description Sender address. */
@@ -948,6 +1387,66 @@ export interface components {
              * @enum {string}
              */
             type: "user" | "folder";
+        };
+        DiscoverRequest: {
+            /** @description Address of the account to configure. */
+            email: string;
+        };
+        DiscoveredParams: {
+            email: string;
+            imapHost?: string;
+            /** Format: int64 */
+            imapPort?: number;
+            /** @enum {string} */
+            imapTls?: "implicit" | "starttls" | "none";
+            smtpHost?: string;
+            /** Format: int64 */
+            smtpPort?: number;
+            /** @enum {string} */
+            smtpTls?: "implicit" | "starttls" | "none";
+            username: string;
+        };
+        DiscoveredServer: {
+            host: string;
+            /** Format: int64 */
+            port: number;
+            /**
+             * @description none only for the default servers of the instance (source default); discovery never returns an unencrypted server.
+             * @enum {string}
+             */
+            tls: "implicit" | "starttls" | "none";
+        } | null;
+        Discovery: {
+            /** @description Name of the mail provider, when the source gives one. */
+            displayName?: string;
+            domain: string;
+            email: string;
+            /** @description Null when no source found an IMAP server. */
+            imap: components["schemas"]["DiscoveredServer"];
+            /** @enum {string} */
+            loginFormat: "email" | "localpart";
+            /** @description The same settings as ConnectionParams fields. */
+            params: components["schemas"]["DiscoveredParams"];
+            /**
+             * @description gmail and microsoft are the providers with OAuth2 and provider-specific sync.
+             * @enum {string}
+             */
+            provider: "generic" | "gmail" | "microsoft";
+            /** @description Null when no source found an SMTP server. */
+            smtp: components["schemas"]["DiscoveredServer"];
+            /** @description ispdb, autoconfig, srv, guess or default: the source of the IMAP server (else of the SMTP server); null when nothing was found. */
+            source: string | null;
+            /** @description Every source consulted, in order of preference. */
+            sources: components["schemas"]["DiscoverySource"][] | null;
+            /** @description Login name to use (the address or its local part). */
+            username: string;
+        };
+        DiscoverySource: {
+            /** @description What was found, or why the source gave nothing (for people, not for parsing). */
+            detail: string;
+            ok: boolean;
+            /** @enum {string} */
+            source: "ispdb" | "autoconfig" | "srv" | "guess" | "default";
         };
         Draft: {
             /** @example acc_1 */
@@ -1198,6 +1697,8 @@ export interface components {
             /** @description Mailbox address (or local part, per SILO_DEFAULT_LOGIN_FORMAT). */
             email: string;
             password: string;
+            /** @description Mode local: 6-digit TOTP code or a backup code, for users with TOTP enabled (send it after a 401 totp_required). */
+            totpCode?: string;
         };
         Message: {
             attachments: components["schemas"]["MessageAttachment"][] | null;
@@ -1274,6 +1775,8 @@ export interface components {
              * @example 0.3.0
              */
             minWebVersion: string;
+            /** @description OAuth2 providers configured on the instance (google, microsoft): silo-web offers "Sign in with ..." for them (POST /oauth/{provider}/start). Empty when none. */
+            oauthProviders: string[] | null;
             /**
              * @description Version of silo-server.
              * @example 0.3.0
@@ -1285,6 +1788,24 @@ export interface components {
             /** @description t_ ids (threads/modify) or m_ ids (messages/modify). */
             ids: string[] | null;
             removeLabelIds?: string[] | null;
+        };
+        OAuthStart: {
+            /**
+             * @description An OAuth account of the user to authorize again (after auth_failed); its address must be the one signed in with. Omitted: add an account.
+             * @example acc_1
+             */
+            accountId?: string;
+            /**
+             * @description Path of silo-web the browser returns to after the callback (default /); a relative path starting with a single /.
+             * @example /settings/accounts
+             */
+            returnTo?: string;
+        };
+        OauthStartOutputBody: {
+            /** @description Opaque state of this authorization (valid 10 minutes, single use). */
+            state: string;
+            /** @description Authorization URL of the provider; open it in the browser (top-level navigation). */
+            url: string;
         };
         OperationResult: {
             /** @description Id of the operation (undo); null when nothing had to be sent to the server. */
@@ -1390,7 +1911,7 @@ export interface components {
         };
         Resync: {
             /**
-             * @description incremental: sync all folders now; full: also compare every flag; rebuild: drop the cache of the account and run the initial sync from scratch (labels, filters, settings, search history and local drafts stay; snoozes and labels that are local only are re-attached by Message-ID and size; user labels come back from the IMAP keywords). Refused with 409 rebuild_blocked while a send is queued or operations wait for write-back.
+             * @description incremental: sync all folders now; full: also compare every flag; rebuild: drop the cache of the account and run the initial sync from scratch (labels, filters, settings, search history and local drafts stay; snoozes and labels that are local only are re-attached by Message-ID and size; user labels come back from the IMAP keywords). Scheduled mail stays; refused with 409 rebuild_blocked while a send is in flight or due within a minute, or operations wait for write-back.
              * @default incremental
              * @enum {string}
              */
@@ -1415,6 +1936,11 @@ export interface components {
         };
         SearchSuggestions: {
             suggestions: components["schemas"]["SearchSuggestion"][] | null;
+        };
+        SecondFactorInputBody: {
+            /** @description TOTP code or a backup code (consumed). */
+            code: string;
+            password: string;
         };
         SendDraftBody: {
             /**
@@ -1482,12 +2008,24 @@ export interface components {
             /** @description Whether the user wants desktop/system notifications of new mail; each client asks the system for its own permission. */
             desktopNotifications: boolean;
             keyboardShortcutsEnabled: boolean;
+            /**
+             * @description UI language shared by every client of the user (BCP 47 code of a supported language); en until the user chooses one.
+             * @enum {string}
+             */
+            language: "en" | "pl";
             signature: string;
+            /**
+             * @description Colour theme of the silo-web client; other clients may ignore it. default until the user chooses one.
+             * @enum {string}
+             */
+            theme: "default" | "dark" | "soft-gray" | "blue" | "lavender" | "rose" | "mint" | "seafoam";
             /**
              * @description IANA time zone name.
              * @example Europe/Warsaw
              */
             timezone: string;
+            /** @description Sender addresses (lowercase) whose messages show external images without asking; always an array. */
+            trustedImageSenders: string[];
             /**
              * Format: int64
              * @description Delay before a sent message leaves, in seconds.
@@ -1510,13 +2048,25 @@ export interface components {
             density?: string;
             desktopNotifications?: boolean;
             keyboardShortcutsEnabled?: boolean;
+            /**
+             * @description UI language: en or pl; else 422 invalid_setting.
+             * @example pl
+             */
+            language?: string;
             /** @description HTML, at most 32 KiB (else 422 invalid_setting); stored sanitized like message HTML. */
             signature?: string;
+            /**
+             * @description Colour theme of silo-web: default, dark, soft-gray, blue, lavender, rose, mint or seafoam; else 422 invalid_setting.
+             * @example dark
+             */
+            theme?: string;
             /**
              * @description IANA time zone name; else 422 invalid_timezone. Used by before:/after: of search and filters and by GET /snooze/presets.
              * @example Europe/Warsaw
              */
             timezone?: string;
+            /** @description Replaces the whole list. Addresses are trimmed and lowercased; empty, invalid and duplicate ones are dropped. More than 1000: 422 invalid_setting. */
+            trustedImageSenders?: string[] | null;
             /**
              * Format: int64
              * @description 5, 10, 20 or 30; else 422 invalid_setting. Sets undoUntil of POST /drafts/{id}/send.
@@ -1625,6 +2175,18 @@ export interface components {
             /** @enum {string} */
             state: "connecting" | "discovering" | "initial_sync" | "live" | "backoff" | "auth_failed" | "disabled";
         };
+        TOTPSetupBody: {
+            /**
+             * @description otpauth:// URI to show as a QR code.
+             * @example otpauth://totp/Silo:ala@example.com?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=Silo&algorithm=SHA1&digits=6&period=30
+             */
+            otpauthUrl: string;
+            /**
+             * @description Base32 secret (no padding) for manual entry.
+             * @example JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
+             */
+            secret: string;
+        };
         TestResult: {
             imap: components["schemas"]["ProtocolResult"];
             smtp: components["schemas"]["ProtocolResult"];
@@ -1632,6 +2194,11 @@ export interface components {
         Thread: {
             /** @example acc_1 */
             accountId: string;
+            /**
+             * Format: int64
+             * @description Number of drafts in the thread (messages with the DRAFT label; a queued or sending message is SCHEDULED, not a draft); 0 without one. The list shows it as Draft / Drafts (n).
+             */
+            draftCount: number;
             /**
              * @description d_ id of the newest draft in the thread (a message with the DRAFT label), for opening it in compose; null without one.
              * @example d_4k2
@@ -1703,7 +2270,13 @@ export interface components {
             resultSizeEstimate: number;
             threads: components["schemas"]["Thread"][] | null;
         };
+        TotpEnableInputBody: {
+            /** @description Current code of the authenticator app. */
+            code: string;
+        };
         UpdateDraftBody: {
+            /** @description acc_ id: send the draft from another account of the user (the From choice). Only for a new message: a reply or forward is 409 draft_account_locked; another user's or an unknown account is 404. The draft then gets new ids (id, messageId, threadId: a new thread of that account; the old ones are gone, thread.deleted) and its copy in the old account's Drafts folder is removed; use the ids of the response from now on. draft.updated carries previousDraftId. */
+            accountId?: string;
             /** @description u_ ids of uploads to attach, inline pictures included (and the attachments a forward carries); uploads left out are detached. */
             attachmentIds?: string[] | null;
             bcc?: components["schemas"]["Recipient"][] | null;
@@ -1763,6 +2336,8 @@ export interface components {
             /** @example u_1 */
             id: string;
             isAdmin: boolean;
+            /** @description Whether sign-in asks for a TOTP code (mode local). */
+            totpEnabled: boolean;
         };
     };
     responses: never;
@@ -1862,6 +2437,84 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    discoverAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoverRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Discovery"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2305,6 +2958,608 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminListAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminListJobs: {
+        parameters: {
+            query?: {
+                /** @description Only jobs in this state; all when omitted. */
+                status?: "pending" | "dead";
+                /** @description Only jobs of this account. */
+                accountId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJobsOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminDeleteJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminRetryJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJob"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminListUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUsersOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateUserInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCreatedUser"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminDeleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminUpdateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPatchUserInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adminResetUserTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2981,7 +4236,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A Server-Sent Events stream. Each event has id (sequence number), event (type) and data (JSON); types: message.new, thread.updated, thread.deleted, thread.merged, label.counts, label.changed, operation.failed, filter.applied ({filterId, accountId, messages, threads}: POST /filters/{id}/apply is done), settings.updated ({updatedAt}: reload GET /settings), account.status, account.sync_progress, account.error, resync. Events caused by a request that carried X-Silo-Client have origin set to that id. */
+            /** @description A Server-Sent Events stream. Each event has id (sequence number), event (type) and data (JSON); types: message.new, thread.updated (draftId and draftCount as in the thread list), thread.deleted, thread.merged, label.counts, label.changed, operation.failed, filter.applied ({filterId, accountId, messages, threads}: POST /filters/{id}/apply is done), settings.updated ({updatedAt}: reload GET /settings), account.status, account.sync_progress, account.error, resync, session.expired (the session was signed out, revoked, expired or its user disabled: the stream ends; sign in again), stream.limit ({retryAfter}: too many open streams of the user, the stream ends; fall back to /events/poll). Events caused by a request that carried X-Silo-Client have origin set to that id. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4073,6 +5328,146 @@ export interface operations {
             };
         };
     };
+    oauthCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                /** @description Set by the provider instead of code when the user declined or the request failed. */
+                error?: string;
+                error_description?: string;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: {
+                silo_oauth_state?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description See Other */
+            303: {
+                headers: {
+                    "Cache-Control"?: string;
+                    Location?: string;
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    startOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description google or microsoft (as listed by GET /meta oauthProviders). */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OAuthStart"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthStartOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     undoOperation: {
         parameters: {
             query?: never;
@@ -4541,6 +5936,91 @@ export interface operations {
             };
         };
     };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordInputBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     listSessions: {
         parameters: {
             query?: never;
@@ -4561,6 +6041,72 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revokeOtherSessions: {
+        parameters: {
+            query: {
+                /** @description Must be true: revoke every session but the current one. */
+                others: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5422,6 +6968,312 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecondFactorInputBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    regenerateTotpBackupCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecondFactorInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupCodesBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    enableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpEnableInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupCodesBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    setupTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TOTPSetupBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

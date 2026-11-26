@@ -67,7 +67,7 @@ describe("general settings", () => {
     await renderApp("/settings/general");
 
     const item = await screen.findByTestId("setting-theme");
-    expect(within(item).getByText("Systemowy")).toBeOnTheScreen();
+    expect(within(item).getByText("Domyślny systemowy")).toBeOnTheScreen();
     await fireEvent.press(item);
     await fireEvent.press(await screen.findByTestId("choice-dark"));
 
@@ -81,8 +81,9 @@ describe("general settings", () => {
     await renderApp("/settings/general");
 
     const right = await screen.findByTestId("setting-swipe-right");
-    expect(within(right).getByText("Usuń")).toBeOnTheScreen();
-    expect(within(right).getByTestId("swipe-preview-trash")).toBeOnTheScreen();
+    // Both sides archive by default, as in Gmail.
+    expect(within(right).getByText("Archiwizuj")).toBeOnTheScreen();
+    expect(within(right).getByTestId("swipe-preview-archive")).toBeOnTheScreen();
     await fireEvent.press(right);
     await fireEvent.press(await screen.findByTestId("choice-none"));
     expect(useUi.getState()).toMatchObject({
@@ -109,7 +110,7 @@ describe("general settings", () => {
   it("toggles the confirmations, marking read and remote images", async () => {
     await renderApp("/settings/general");
 
-    const trash = await screen.findByRole("switch", { name: /Potwierdzaj przed usunięciem/ });
+    const trash = await screen.findByRole("switch", { name: /Potwierdź usuwanie/ });
     expect(trash).not.toBeChecked();
     await fireEvent.press(trash);
     expect(useUi.getState().confirmTrash).toBe(true);

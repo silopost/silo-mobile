@@ -34,7 +34,7 @@ describe("account drawer", () => {
     expect(labelRequests).toContain("acc_1");
   });
 
-  it("'Utwórz nową' creates a label with POST /labels and refetches the labels", async () => {
+  it("'Utwórz etykietę' creates a label with POST /labels and refetches the labels", async () => {
     const created: unknown[] = [];
     server.use(
       http.post(`${API}/labels`, async ({ request }) => {
@@ -43,7 +43,7 @@ describe("account drawer", () => {
       }),
     );
     await renderApp("/u/0/inbox");
-    await fireEvent.press(await screen.findByRole("button", { name: "Utwórz nową" }));
+    await fireEvent.press(await screen.findByRole("button", { name: "Utwórz etykietę" }));
     await fireEvent.changeText(await screen.findByLabelText("Nazwa etykiety"), "Nowa");
     const before = labelRequests.length;
     await fireEvent.press(within(screen.getByTestId("create-label-dialog")).getByText("Utwórz"));

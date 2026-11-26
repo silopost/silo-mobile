@@ -48,12 +48,21 @@ export function MessageHtml({ message }: { message: Message }) {
   const remote = useMemo(() => (html.data ? hasRemoteImages(html.data) : false), [html.data]);
   // The inline images are swapped in once fetched; until then the document waits for them.
   const waitingInline = inline.isLoading;
+  // The body takes the colours of its card (ThreadScreen) in both themes.
+  const background = theme.colors.listCard;
+  const text = theme.colors.onSurface;
+  const link = theme.colors.primary;
+  const dark = theme.dark;
   const doc = useMemo(
     () =>
       html.data === undefined || waitingInline
         ? undefined
-        : prepareHtml(html.data, { showImages, inline: inline.data }),
-    [html.data, showImages, inline.data, waitingInline],
+        : prepareHtml(html.data, {
+            showImages,
+            inline: inline.data,
+            colors: { background, text, link, dark },
+          }),
+    [html.data, showImages, inline.data, waitingInline, background, text, link, dark],
   );
 
   // While a 503 is retried after Retry-After the query stays pending: one spinner for both.
@@ -115,7 +124,7 @@ export function MessageHtml({ message }: { message: Message }) {
         testID={`message-html-${message.id}`}
         accessibilityLabel={t.messageBody}
         source={{ html: doc }}
-        style={[styles.web, { height }]}
+        style={[styles.web, { height, backgroundColor: background }]}
         // Only the app's height script runs: the server removed the message's scripts and the
         // CSP of the document allows inline script for the injected one alone (NOTES).
         javaScriptEnabled
@@ -146,5 +155,5 @@ const styles = StyleSheet.create({
   status: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
   images: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   grow: { flex: 1 },
-  web: { width: "100%", backgroundColor: "#ffffff" },
+  web: { width: "100%" },
 });

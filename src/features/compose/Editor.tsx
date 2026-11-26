@@ -19,23 +19,25 @@ import { t } from "../../lib/i18n";
 import { useAppTheme } from "../../lib/theme";
 
 /**
- * The buttons of the toolbar above the keyboard, in this order, with Polish labels: bold,
- * italic, underline, bullet and numbered list, link, quote (the formatting of silo-web's editor).
+ * The buttons of the toolbar above the keyboard, in this order, with labels of the UI language:
+ * bold, italic, underline, bullet and numbered list, link, quote (the formatting of silo-web's
+ * editor). Keyed by TenTap's own (English) labels; built on render so they follow the language.
  */
-const TOOLBAR: [string, string][] = [
-  ["Bold", t.bold],
-  ["Italic", t.italic],
-  ["Underline", t.underline],
-  ["Bullet list", t.bulletList],
-  ["Ordered list", t.orderedList],
-  ["Link", t.link],
-  ["Quote", t.quote],
-];
-
-export const toolbarItems: ToolbarItem[] = TOOLBAR.flatMap(([name, label]) => {
-  const item = DEFAULT_TOOLBAR_ITEMS.find((i) => i.label === name);
-  return item ? [{ ...item, label }] : [];
-});
+export function toolbarItems(): ToolbarItem[] {
+  const toolbar: [string, string][] = [
+    ["Bold", t.bold],
+    ["Italic", t.italic],
+    ["Underline", t.underline],
+    ["Bullet list", t.bulletList],
+    ["Ordered list", t.orderedList],
+    ["Link", t.link],
+    ["Quote", t.quote],
+  ];
+  return toolbar.flatMap(([name, label]) => {
+    const item = DEFAULT_TOOLBAR_ITEMS.find((i) => i.label === name);
+    return item ? [{ ...item, label }] : [];
+  });
+}
 
 type Options = {
   /** TipTap JSON (Draft.bodyJson), or HTML (the server's prefill of a reply) when there is none. */
@@ -51,10 +53,21 @@ type EditorTheme = EditorBridgeOptions["theme"];
 
 type AnyBridge = BridgeExtension<unknown, unknown, unknown>;
 
-/** TenTap's starter kit (StarterKit, Link, Underline, …) and the placeholder. */
-const extensions: AnyBridge[] = [
+/**
+ * TenTap's starter kit (StarterKit, Link, Underline, …) and the placeholder, drawn in the colour
+ * of the placeholders of Do and Temat (the library's own CSS paints it a fixed grey).
+ */
+const bridgeExtensions = (placeholderColor: string): AnyBridge[] => [
   ...(TenTapStartKit as AnyBridge[]),
-  PlaceholderBridge.configureExtension({ placeholder: t.bodyPlaceholder }) as AnyBridge,
+  PlaceholderBridge.configureExtension({ placeholder: t.bodyPlaceholder }).configureCSS(`
+    .is-editor-empty:first-child::before {
+      color: ${placeholderColor};
+      content: attr(data-placeholder);
+      float: left;
+      height: 0;
+      pointer-events: none;
+    }
+  `) as AnyBridge,
 ];
 
 /** HTML and JSON of the current content (two calls into the WebView). */
@@ -83,7 +96,7 @@ export function useComposeEditor({ content, loadSeq, onChange, scrollRef }: Opti
     initialContent: initial(content),
     // The editor grows with its text inside the screen's ScrollView, below the header fields.
     dynamicHeight: true,
-    bridgeExtensions: extensions,
+    bridgeExtensions: bridgeExtensions(theme.colors.onSurfaceVariant),
     // The library's dark theme; cast because checking it against RecursivePartial<EditorTheme>
     // exceeds the compiler's instantiation depth.
     theme: (theme.dark ? darkEditorTheme : undefined) as unknown as EditorTheme,
@@ -127,12 +140,13 @@ export function EditorToolbar({ editor }: { editor: EditorBridge }) {
       accessibilityLabel={t.formatting}
       style={[styles.toolbar, { borderTopColor: theme.colors.outlineVariant }]}
     >
-      <Toolbar editor={editor} items={toolbarItems} />
+      <Toolbar editor={editor} items={toolbarItems()} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { minHeight: 200, paddingHorizontal: 8 },
+  // The WebView's text starts at its edge: 16 dp lines it up with Od, Do and Temat.
+  body: { minHeight: 200, paddingHorizontal: 16 },
   toolbar: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth },
 });

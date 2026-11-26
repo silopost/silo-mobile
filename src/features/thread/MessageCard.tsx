@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { IconButton, Menu, Text } from "react-native-paper";
+import { IconButton, Text } from "react-native-paper";
 import type { Address, CreateDraftBody, Message } from "../../api/types";
 import { Avatar } from "../../components/Avatar";
+import { DropdownMenu, MenuDivider, MenuEntry } from "../../components/DropdownMenu";
 import { displayName, formatFullDate, formatListDate } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
@@ -28,6 +29,9 @@ type Props = {
 const names = (as: Address[] | null) => (as ?? []).map(displayName).join(", ");
 const emails = (as: Address[] | null) => (as ?? []).map((a) => a.email).join(", ");
 
+/** Avatar of a message, as in the Gmail app (2026). */
+const AVATAR = 48;
+
 /** Spoken label of a card: "Jan Kowalski, 4 lis, rozwinięta". */
 export function cardLabel(m: Message, expanded: boolean): string {
   return [
@@ -37,59 +41,54 @@ export function cardLabel(m: Message, expanded: boolean): string {
   ].join(", ");
 }
 
-/** "do mnie ▾" and the details panel (Od / Do / DW / Data) of the Gmail app. */
-function Recipients({ message, me }: { message: Message; me: string }) {
+/** Whether "Odpowiedz wszystkim" makes sense: the message went to more than one recipient. */
+export function hasManyRecipients(m: Message): boolean {
+  return (m.to ?? []).length + (m.cc ?? []).length > 1;
+}
+
+/**
+ * The details panel of "do mnie ▾" (Od / Do / DW / Data): a frame the full width of the card,
+ * labels in one column and the values in a second one that starts after the longest label.
+ */
+function Details({ message }: { message: Message }) {
   const theme = useAppTheme();
-  const [open, setOpen] = useState(false);
-  const to = message.to ?? [];
-  const short =
-    to.length === 1 && to[0]!.email.toLowerCase() === me.toLowerCase()
-      ? t.toMe
-      : `${t.to} ${names(to)}`;
+  const [labelWidth, setLabelWidth] = useState(0);
   const muted = theme.colors.onSurfaceVariant;
   const row = (label: string, value: string) => (
-    <View style={styles.detail}>
-      <Text variant="bodySmall" style={[styles.detailKey, { color: muted }]}>
+    <View key={label} style={styles.detail}>
+      <Text
+        variant="bodyMedium"
+        onLayout={(e) => {
+          const w = Math.ceil(e.nativeEvent.layout.width);
+          setLabelWidth((old) => Math.max(old, w));
+        }}
+        style={[styles.detailKey, { color: muted, minWidth: labelWidth }]}
+      >
         {label}
       </Text>
-      <Text variant="bodySmall" style={[styles.grow, { color: theme.colors.onSurface }]}>
+      <Text variant="bodyMedium" style={[styles.grow, { color: theme.colors.onSurface }]}>
         {value}
       </Text>
     </View>
   );
   return (
-    <View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${short}. ${t.recipients}`}
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((o) => !o)}
-        hitSlop={8}
-        style={styles.recipients}
-      >
-        <Text numberOfLines={1} variant="bodySmall" style={{ color: muted }}>
-          {short} ▾
-        </Text>
-      </Pressable>
-      {open && (
-        <View
-          testID={`details-${message.id}`}
-          style={[styles.details, { borderColor: theme.colors.outlineVariant }]}
-        >
-          {row(t.from, `${displayName(message.from)} <${message.from.email}>`)}
-          {row(t.toLabel, emails(message.to))}
-          {(message.cc ?? []).length > 0 && row(t.cc, emails(message.cc))}
-          {row(t.date, formatFullDate(message.date))}
-        </View>
-      )}
+    <View
+      testID={`details-${message.id}`}
+      style={[styles.details, { backgroundColor: theme.colors.listBackground }]}
+    >
+      {row(t.from, `${displayName(message.from)} • ${message.from.email}`)}
+      {row(t.toLabel, emails(message.to))}
+      {(message.cc ?? []).length > 0 && row(t.cc, emails(message.cc))}
+      {row(t.date, formatFullDate(message.date))}
     </View>
   );
 }
 
 /**
- * One message of a thread as in the Gmail app: collapsed to avatar, sender, snippet and date, or
- * expanded with the header ("do mnie ▾", star, reply, ⋮), the HTML body and the attachments. A
- * draft is a row that opens it in compose.
+ * One message of a thread as in the Gmail app (2026), the content of a card of the thread
+ * (ThreadScreen draws the card): collapsed to avatar, sender, snippet and date, or expanded with
+ * the header ("do mnie ▾", star, reply, ⋮), the details panel, the HTML body and the attachments.
+ * A draft is a row that opens it in compose.
  */
 export function MessageCard(p: Props) {
   const theme = useAppTheme();
@@ -100,9 +99,10 @@ export function MessageCard(p: Props) {
   const unread = labelIds.includes("UNREAD");
   const [menu, setMenu] = useState(false);
   const [fullDate, setFullDate] = useState(false);
+  const [details, setDetails] = useState(false);
   const muted = theme.colors.onSurfaceVariant;
   const ink = theme.colors.onSurface;
-  const border = { borderTopColor: theme.colors.outlineVariant };
+  const ripple = { color: theme.colors.surfaceVariant };
 
   const draftId = m.draftId;
   if (draftId || labelIds.includes("DRAFT")) {
@@ -112,10 +112,10 @@ export function MessageCard(p: Props) {
         accessibilityRole="button"
         accessibilityLabel={`${t.draftLabel}, ${m.snippet}`}
         onPress={() => draftId && p.onOpenDraft(draftId)}
-        android_ripple={{ color: theme.colors.surfaceVariant }}
-        style={[styles.collapsed, styles.border, border]}
+        android_ripple={ripple}
+        style={styles.collapsed}
       >
-        <Avatar address={m.from} size={40} />
+        <Avatar address={m.from} size={AVATAR} />
         <View style={styles.grow}>
           <Text variant="labelLarge" style={{ color: theme.colors.error }}>
             {t.draftLabel}
@@ -129,10 +129,11 @@ export function MessageCard(p: Props) {
     );
   }
 
+  // Silo keeps a star per message (Gmail has it in the ⋮ menu only).
   const star = (
     <IconButton
       icon={starred ? "star" : "star-outline"}
-      size={20}
+      size={24}
       iconColor={starred ? STAR_COLOR : muted}
       accessibilityLabel={starred ? t.unstar : t.star}
       accessibilityState={{ checked: starred }}
@@ -149,10 +150,10 @@ export function MessageCard(p: Props) {
         accessibilityLabel={cardLabel(m, false)}
         accessibilityState={{ expanded: false }}
         onPress={p.onToggle}
-        android_ripple={{ color: theme.colors.surfaceVariant }}
-        style={[styles.collapsed, styles.border, border]}
+        android_ripple={ripple}
+        style={styles.collapsed}
       >
-        <Avatar address={m.from} size={40} />
+        <Avatar address={m.from} size={AVATAR} />
         <View style={styles.grow}>
           <View style={styles.line}>
             <Text
@@ -179,7 +180,7 @@ export function MessageCard(p: Props) {
   const more = (
     <IconButton
       icon="dots-vertical"
-      size={20}
+      size={24}
       accessibilityLabel={t.messageMenu}
       onPress={() => setMenu(true)}
       style={styles.icon}
@@ -189,11 +190,31 @@ export function MessageCard(p: Props) {
     setMenu(false);
     fn();
   };
+  // The short date beside the name; the full one (a tap on it) on its own line under the name,
+  // so the name always keeps its width.
+  const date = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={formatFullDate(m.date)}
+      onPress={() => setFullDate((f) => !f)}
+      hitSlop={8}
+      style={fullDate ? styles.date : null}
+    >
+      <Text variant="bodySmall" numberOfLines={fullDate ? undefined : 1} style={{ color: muted }}>
+        {fullDate ? formatFullDate(m.date) : formatListDate(m.date)}
+      </Text>
+    </Pressable>
+  );
+  const to = m.to ?? [];
+  const short =
+    to.length === 1 && to[0]!.email.toLowerCase() === p.me.toLowerCase()
+      ? t.toMe
+      : `${t.to} ${names(to)}`;
 
   return (
-    <View testID={`message-${m.id}`} style={[styles.expanded, styles.border, border]}>
+    <View testID={`message-${m.id}`} style={styles.expanded}>
       <View style={styles.header}>
-        <Avatar address={m.from} size={40} />
+        <Avatar address={m.from} size={AVATAR} />
         <View style={styles.grow}>
           <Pressable
             accessibilityRole="button"
@@ -202,53 +223,72 @@ export function MessageCard(p: Props) {
             onPress={p.onToggle}
             style={styles.line}
           >
-            <Text
-              numberOfLines={1}
-              variant="bodyLarge"
-              style={[styles.shrink, styles.bold, { color: ink }]}
-            >
+            <Text numberOfLines={1} variant="bodyLarge" style={[styles.name, { color: ink }]}>
               {displayName(m.from)}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={formatFullDate(m.date)}
-              onPress={() => setFullDate((f) => !f)}
-              hitSlop={8}
-            >
-              <Text variant="labelMedium" style={{ color: muted }}>
-                {fullDate ? formatFullDate(m.date) : formatListDate(m.date)}
-              </Text>
-            </Pressable>
+            {!fullDate && date}
           </Pressable>
-          <Recipients message={m} me={p.me} />
+          {fullDate && date}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${short}. ${t.recipients}`}
+            accessibilityState={{ expanded: details }}
+            onPress={() => setDetails((o) => !o)}
+            hitSlop={8}
+            style={styles.recipients}
+          >
+            <Text numberOfLines={1} variant="bodyMedium" style={{ color: muted }}>
+              {short} {details ? "▴" : "▾"}
+            </Text>
+          </Pressable>
         </View>
         <PendingIcon pending={m.pendingSync} />
         {star}
         {!sending && (
           <IconButton
             icon="reply"
-            size={20}
+            size={24}
             accessibilityLabel={t.reply}
             onPress={() => p.onReply("reply")}
             style={styles.icon}
           />
         )}
-        {/* Mounted only while open (Paper's Menu hides itself on mount otherwise). */}
         {menu ? (
-          <Menu visible onDismiss={() => setMenu(false)} anchor={more}>
+          <DropdownMenu onDismiss={() => setMenu(false)} anchor={more}>
             {!sending && (
               <>
-                <Menu.Item title={t.reply} onPress={pick(() => p.onReply("reply"))} />
-                <Menu.Item title={t.replyAll} onPress={pick(() => p.onReply("replyAll"))} />
-                <Menu.Item title={t.forward} onPress={pick(() => p.onReply("forward"))} />
+                <MenuEntry icon="reply" title={t.reply} onPress={pick(() => p.onReply("reply"))} />
+                {hasManyRecipients(m) && (
+                  <MenuEntry
+                    icon="reply-all"
+                    title={t.replyAll}
+                    onPress={pick(() => p.onReply("replyAll"))}
+                  />
+                )}
+                <MenuEntry
+                  icon="share"
+                  title={t.forward}
+                  onPress={pick(() => p.onReply("forward"))}
+                />
+                <MenuDivider />
               </>
             )}
-            <Menu.Item title={t.unreadFromHere} onPress={pick(p.onUnreadFromHere)} />
-          </Menu>
+            <MenuEntry
+              icon={starred ? "star-off-outline" : "star-outline"}
+              title={starred ? t.unstar : t.star}
+              onPress={pick(() => p.onStar(!starred))}
+            />
+            <MenuEntry
+              icon="email-outline"
+              title={t.unreadFromHere}
+              onPress={pick(p.onUnreadFromHere)}
+            />
+          </DropdownMenu>
         ) : (
           more
         )}
       </View>
+      {details && <Details message={m} />}
       {sending && (
         <View style={styles.badges}>
           <Text
@@ -268,28 +308,36 @@ export function MessageCard(p: Props) {
 }
 
 const styles = StyleSheet.create({
-  border: { borderTopWidth: StyleSheet.hairlineWidth },
+  // Avatar 16 dp from the card's edge, the text 16 dp after it (88 dp from the screen's edge).
   collapsed: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
     paddingLeft: 16,
-    paddingRight: 4,
-    paddingVertical: 8,
-    minHeight: MIN_TOUCH + 16,
+    paddingVertical: 12,
+    minHeight: AVATAR + 24,
   },
-  expanded: { paddingVertical: 8 },
-  header: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingLeft: 16 },
+  expanded: { paddingTop: 12, paddingBottom: 16 },
+  // The icons reach the card's right edge, 48 dp each, as in Gmail.
+  header: { flexDirection: "row", alignItems: "flex-start", gap: 16, paddingLeft: 16 },
   line: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
+  name: { flexShrink: 1 },
+  // The full date on its own line, under the name.
+  date: { alignSelf: "flex-start" },
   grow: { flex: 1, minWidth: 0 },
-  shrink: { flexShrink: 1 },
   bold: { fontWeight: "700" },
-  icon: { margin: 0 },
+  icon: { margin: 0, width: MIN_TOUCH, height: MIN_TOUCH },
   recipients: { alignSelf: "flex-start", minHeight: 24, justifyContent: "center" },
-  details: { borderWidth: 1, borderRadius: 8, padding: 8, marginTop: 4, gap: 2 },
-  detail: { flexDirection: "row", gap: 8 },
-  detailKey: { width: 40 },
-  badges: { flexDirection: "row", paddingLeft: 68, paddingTop: 4 },
+  details: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  detail: { flexDirection: "row", gap: 16, paddingVertical: 4 },
+  detailKey: { alignSelf: "flex-start" },
+  badges: { flexDirection: "row", paddingLeft: 80, paddingTop: 4 },
   badge: { borderRadius: 4, paddingHorizontal: 6, overflow: "hidden" },
-  body: { paddingHorizontal: 16, paddingTop: 8 },
+  body: { paddingHorizontal: 16, paddingTop: 12 },
 });

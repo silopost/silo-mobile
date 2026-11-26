@@ -18,7 +18,8 @@ type Props = {
 
 type Item = { id: string; name: string; icon: string; color?: string };
 
-const FIXED: Item[] = [
+/** The fixed places, named in the current language. */
+const fixed = (): Item[] => [
   { id: "INBOX", name: t.locations.INBOX!, icon: "inbox" },
   { id: "SPAM", name: t.locations.SPAM!, icon: "alert-octagon-outline" },
   { id: "TRASH", name: t.locations.TRASH!, icon: "delete-outline" },
@@ -48,7 +49,7 @@ function MoveToContent({
   const theme = useAppTheme();
   const labels = useLabels(accountId);
   const items: Item[] = [
-    ...FIXED,
+    ...fixed(),
     ...labels
       .filter((l) => l.type === "folder")
       .map((l) => ({ id: l.id, name: l.name, icon: "folder-outline" })),

@@ -128,7 +128,7 @@ jest.mock("@10play/tentap-editor", () => {
       createElement(View, props),
     EditorKeyboardAvoidingView: Fake,
     TenTapStartKit: [],
-    PlaceholderBridge: { configureExtension: () => ({}) },
+    PlaceholderBridge: { configureExtension: () => ({ configureCSS: () => ({}) }) },
     DEFAULT_TOOLBAR_ITEMS: [],
     darkEditorTheme: {},
   };
@@ -143,4 +143,10 @@ jest.mock("@react-native-community/datetimepicker", () => {
     default: View,
     DateTimePickerAndroid: { open: jest.fn(), dismiss: jest.fn() },
   };
+});
+
+// The UI language of the tests is Polish (the assertions use the Polish texts); a test of English
+// switches it itself. Every test starts in Polish again.
+beforeEach(() => {
+  (jest.requireActual("./src/lib/i18n") as typeof import("./src/lib/i18n")).setLocale("pl");
 });

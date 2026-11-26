@@ -41,6 +41,6 @@ rules specific to this repository.
 ## Accessibility
 
 - Touch targets are at least 48 × 48 dp (use `hitSlop` where the visible control is smaller).
-- Every icon-only control has an `accessibilityLabel` (in Polish, like the UI) and the right
+- Every icon-only control has an `accessibilityLabel` (in both dictionaries, `src/lib/messages/`) and the right
   `accessibilityRole`; selected and checked states are announced (`accessibilityState`). A list
   row reads as one label.

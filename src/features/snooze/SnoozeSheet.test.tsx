@@ -1,5 +1,5 @@
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
-import { act, fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import { formatWhen } from "../../lib/format";
 import { hideToast, useToasts } from "../../state/toasts";
@@ -77,11 +77,17 @@ beforeEach(() => {
   );
 });
 
-/** Selects t_1 in the Inbox and opens "Odłóż do…" from the selection bar. */
+/** Picks an item of the selection bar's ⋮ menu (snooze lives there, as in Gmail 2026). */
+async function fromMenu(title: string) {
+  await fireEvent.press(await screen.findByLabelText("Więcej opcji"));
+  await fireEvent.press(await screen.findByText(title));
+}
+
+/** Selects t_1 in the Inbox and opens "Odłóż do…" from the selection menu. */
 async function openSheet() {
   await renderApp("/u/0/inbox");
   await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
-  await fireEvent.press(await screen.findByLabelText("Odłóż"));
+  await fromMenu("Odłóż");
   return screen.findByTestId("snooze-sheet");
 }
 
@@ -143,7 +149,7 @@ describe("SnoozeSheet", () => {
       `Odłożono do ${formatWhen(TOMORROW)}`,
     );
     await fireEvent(screen.getByTestId("thread-t_5"), "longPress");
-    await fireEvent.press(await screen.findByLabelText("Anuluj odłożenie"));
+    await fromMenu("Anuluj odłożenie");
     await waitFor(() => expect(unsnoozes).toEqual(["t_5"]));
     await waitFor(() =>
       expect(useToasts.getState().current?.message).toBe("Wątek wrócił do Odebranych"),
@@ -156,9 +162,8 @@ describe("SnoozeSheet", () => {
     await renderApp("/u/0/inbox");
     await fireEvent(await screen.findByTestId("thread-t_1"), "longPress");
     await screen.findByTestId("selection-bar");
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-    expect(screen.queryByLabelText("Odłóż")).toBeNull();
+    await fireEvent.press(await screen.findByLabelText("Więcej opcji"));
+    expect(await screen.findByText("Przenieś do")).toBeOnTheScreen();
+    expect(screen.queryByText("Odłóż")).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react-native";
 import { Text } from "react-native";
+import { darkTheme, lightTheme } from "../../lib/theme";
 import { renderScreen } from "../../test/render";
 import { SwipeableRow, swipeLook } from "./SwipeableRow";
 
@@ -15,7 +16,11 @@ test("renders the row over the backgrounds of its actions", async () => {
   expect(screen.getByText("Wiersz")).toBeOnTheScreen();
 });
 
-test("archive is green and trash red, as in Gmail", () => {
-  expect(swipeLook("archive")).toEqual({ color: "#188038", icon: "archive-outline" });
-  expect(swipeLook("trash").icon).toBe("delete-outline");
+test("archive is dark green with the tray and arrow, trash red, in the theme's colours", () => {
+  expect(swipeLook("archive", lightTheme.colors)).toEqual({
+    color: lightTheme.colors.swipeArchive,
+    icon: "archive-arrow-down-outline",
+  });
+  expect(swipeLook("trash", lightTheme.colors).icon).toBe("delete-outline");
+  expect(swipeLook("trash", darkTheme.colors).color).toBe(darkTheme.colors.swipeTrash);
 });

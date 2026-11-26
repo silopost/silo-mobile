@@ -5,11 +5,12 @@ import { Text } from "react-native-paper";
 import { useLabels } from "../api/queries/labels";
 import { useAccountIndex, useActiveAccount } from "../features/account";
 import { MailShell } from "../features/shell/MailShell";
+import { TOP_BAR_HEIGHT } from "../features/shell/topBarScroll";
 import { Banners } from "../features/sync/Banners";
 import { SelectionBar } from "../features/threadlist/SelectionBar";
 import { ThreadList } from "../features/threadlist/ThreadList";
 import { t } from "../lib/i18n";
-import { INBOX_SLUG, resolveLabelSlug, viewName, type ResolvedLabel } from "../lib/labels";
+import { resolveLabelSlug, viewName, type ResolvedLabel } from "../lib/labels";
 import { useAppTheme } from "../lib/theme";
 import { useSelection } from "../state/selection";
 
@@ -56,30 +57,27 @@ export function LabelScreen() {
   }, [label, account?.id]);
 
   return (
-    // Gmail names the section above the list everywhere but in the Inbox.
     <MailShell
-      title={label === INBOX_SLUG ? undefined : known ? viewName(label, labels) : t.unknownLabel}
       fabExtended={fabExtended}
       topBar={
         selecting && account ? <SelectionBar accountId={account.id} filter={filter} /> : undefined
       }
     >
       {known && account ? (
-        <>
-          <Banners />
-          <ThreadList
-            // A new list (label or account) starts at the top with the FAB extended.
-            key={`${account.id}/${label}`}
-            accountId={account.id}
-            filter={filter}
-            me={{ email: account.email, name: account.displayName }}
-            threadHref={threadHref}
-            empty={emptyState(resolved)}
-            onFabExtendedChange={setFabExtended}
-          />
-        </>
+        <ThreadList
+          // A new list (label or account) starts at the top with the FAB extended.
+          key={`${account.id}/${label}`}
+          accountId={account.id}
+          filter={filter}
+          me={{ email: account.email, name: account.displayName }}
+          threadHref={threadHref}
+          empty={emptyState(resolved)}
+          title={viewName(label, labels)}
+          header={<Banners />}
+          onFabExtendedChange={setFabExtended}
+        />
       ) : (
-        <View style={styles.center}>
+        <View style={[styles.center, { paddingTop: TOP_BAR_HEIGHT }]}>
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
             {known ? t.loading : t.unknownLabel}
           </Text>

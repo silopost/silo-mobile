@@ -1,6 +1,7 @@
-import { fireEvent, screen, waitFor } from "expo-router/testing-library";
+import { act, fireEvent, screen, waitFor } from "expo-router/testing-library";
 import { http, HttpResponse } from "msw";
 import type { components } from "../api/schema";
+import { setLocale } from "../lib/i18n";
 import { labels, sessionBody, thread, threadPage } from "../test/fixtures";
 import { renderApp, signIn } from "../test/router";
 import { API, server, serveMeta, setupMsw } from "../test/server";
@@ -180,5 +181,53 @@ describe("SearchScreen", () => {
       "Nieprawidłowe zapytanie",
     );
     expect(screen.queryByTestId("thread-list")).toBeNull();
+  });
+
+  it("keeps the results when the language changes while they are shown", async () => {
+    await renderApp("/u/0/search?q=faktura");
+    expect(await screen.findByTestId("search-count")).toHaveTextContent("Około 42 wyniki");
+    expect(await screen.findByText("Faktura 11/2026")).toBeOnTheScreen();
+
+    // The new language remounts the screens (app/_layout.tsx); Android may then give the focus
+    // back to the field.
+    await act(async () => setLocale("en"));
+    await fireEvent(screen.getByTestId("search-input"), "focus");
+
+    expect(await screen.findByTestId("search-count")).toHaveTextContent("About 42 results");
+    expect(await screen.findByText("Faktura 11/2026")).toBeOnTheScreen();
+    expect(screen.getByTestId("search-input")).toHaveDisplayValue("faktura");
+  });
+
+  it("starts editing the query on a tap in the field, not on a focus alone", async () => {
+    await renderApp("/u/0/search?q=faktura");
+    const input = await screen.findByTestId("search-input");
+    expect(await screen.findByText("Faktura 11/2026")).toBeOnTheScreen();
+
+    await fireEvent(input, "focus");
+    expect(screen.getByTestId("search-count")).toBeOnTheScreen();
+
+    await fireEvent(input, "pressIn");
+    await waitFor(() => expect(screen.queryByTestId("search-count")).toBeNull());
+    expect(screen.getByLabelText("Wyczyść")).toBeOnTheScreen();
+  });
+
+  it("searches a new query after the language changed", async () => {
+    const app = await renderApp("/u/0/search");
+    await act(async () => setLocale("en"));
+    const input = await screen.findByTestId("search-input");
+    await fireEvent.changeText(input, "jan");
+    await fireEvent(input, "submitEditing");
+    await waitFor(() => expect(app.getSearchParams()).toMatchObject({ q: "jan" }));
+    expect(await screen.findByTestId("search-count")).toHaveTextContent("About 42 results");
+  });
+
+  it("searches the text of the field even when the last keystrokes have not reached the screen", async () => {
+    const app = await renderApp("/u/0/search");
+    const input = await screen.findByTestId("search-input");
+    await fireEvent.changeText(input, "fak");
+    // Enter right after typing: the native field already holds the whole query.
+    await fireEvent(input, "submitEditing", { nativeEvent: { text: "faktura" } });
+    await waitFor(() => expect(app.getSearchParams()).toMatchObject({ q: "faktura" }));
+    expect(await screen.findByTestId("search-count")).toBeOnTheScreen();
   });
 });

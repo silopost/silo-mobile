@@ -4,7 +4,9 @@ import { queryClient } from "../../api/cache";
 import { useAuth } from "../../state/auth";
 import { renderScreen } from "../../test/render";
 import { serveMeta, SERVER_URL, setupMsw } from "../../test/server";
-import { AttachSheet, AttachmentList } from "./AttachmentList";
+import { useState } from "react";
+import { Pressable, Text } from "react-native";
+import { AttachMenu, AttachmentList } from "./AttachmentList";
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 jest.mock("expo-image-picker", () => ({ launchImageLibraryAsync: jest.fn() }));
@@ -15,6 +17,17 @@ beforeEach(() => {
   queryClient.clear();
   useAuth.setState({ status: "signedIn", serverUrl: SERVER_URL, token: "tok_1" });
 });
+
+/** The paperclip and its menu, opened by a tap as in compose. */
+function Clip(props: Omit<Parameters<typeof AttachMenu>[0], "anchor">) {
+  const [open, setOpen] = useState(false);
+  const clip = (
+    <Pressable accessibilityRole="button" onPress={() => setOpen(true)}>
+      <Text>clip</Text>
+    </Pressable>
+  );
+  return open ? <AttachMenu {...props} anchor={clip} /> : clip;
+}
 
 describe("AttachmentList", () => {
   it("shows the server thumbnail of an uploaded picture (server 0.4.0)", async () => {
@@ -78,15 +91,26 @@ describe("AttachmentList", () => {
     expect(onRemoveUpload).toHaveBeenCalledWith(7);
   });
 
-  it("'Załącz plik' hands the picked documents over", async () => {
+  it("the paperclip menu: Zdjęcia, Pliki, Wstaw obraz w treści", async () => {
+    await renderScreen(
+      <Clip onDismiss={jest.fn()} onFiles={jest.fn()} onInlineImages={jest.fn()} />,
+    );
+    await fireEvent.press(screen.getByText("clip"));
+    expect(await screen.findByText("Zdjęcia")).toBeOnTheScreen();
+    expect(screen.getByText("Pliki")).toBeOnTheScreen();
+    expect(screen.getByText("Wstaw obraz w treści")).toBeOnTheScreen();
+  });
+
+  it("'Pliki' hands the picked documents over", async () => {
     (DocumentPicker.getDocumentAsync as jest.Mock).mockResolvedValue({
       canceled: false,
       assets: [{ uri: "file:///a.pdf", name: "a.pdf", mimeType: "application/pdf", size: 5 }],
     });
     const onFiles = jest.fn();
     const onDismiss = jest.fn();
-    await renderScreen(<AttachSheet visible onDismiss={onDismiss} onFiles={onFiles} />);
-    await fireEvent.press(screen.getByRole("button", { name: "Załącz plik" }));
+    await renderScreen(<Clip onDismiss={onDismiss} onFiles={onFiles} />);
+    await fireEvent.press(screen.getByText("clip"));
+    await fireEvent.press(await screen.findByText("Pliki"));
     await new Promise((r) => setTimeout(r, 0));
     expect(DocumentPicker.getDocumentAsync).toHaveBeenCalledWith(
       expect.objectContaining({ multiple: true }),

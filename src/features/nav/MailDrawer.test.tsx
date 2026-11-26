@@ -48,6 +48,22 @@ describe("MailDrawer", () => {
     expect(within(screen.getByTestId("nav-spam")).getByText("99+")).toBeOnTheScreen();
   });
 
+  it("puts 'Wszystkie etykiety' after the Inbox and 'Utwórz etykietę' after the labels", async () => {
+    await renderDrawer("inbox");
+
+    const order = screen
+      .getAllByText(/^(Odebrane|Wszystkie etykiety|Oznaczone gwiazdką|Rachunki|Utwórz etykietę)$/)
+      .map((el) => el.props.children);
+    expect(order).toEqual([
+      "Odebrane",
+      "Wszystkie etykiety",
+      "Oznaczone gwiazdką",
+      "Rachunki",
+      "Utwórz etykietę",
+    ]);
+    expect(screen.getByRole("header", { name: "Wszystkie etykiety" })).toBeOnTheScreen();
+  });
+
   it("lists the listed user labels with unread counters", async () => {
     await renderDrawer("inbox");
 
@@ -55,7 +71,7 @@ describe("MailDrawer", () => {
     expect(screen.getByRole("button", { name: "Praca, 3 nieprzeczytane" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Rachunki" })).toBeOnTheScreen();
     expect(screen.queryByText("Ukryta")).toBeNull();
-    expect(screen.getByRole("button", { name: "Utwórz nową" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Utwórz etykietę" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Ustawienia" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Pomoc i opinie" })).toBeDisabled();
   });
@@ -73,7 +89,7 @@ describe("MailDrawer", () => {
     await fireEvent.press(screen.getByRole("button", { name: /^Oznaczone gwiazdką/ }));
     await fireEvent.press(screen.getByRole("button", { name: /^Praca/ }));
     await fireEvent.press(screen.getByRole("button", { name: "Ustawienia" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Utwórz nową" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Utwórz etykietę" }));
 
     expect(onSelect.mock.calls).toEqual([["starred"], ["l_1"]]);
     expect(onSettings).toHaveBeenCalledTimes(1);

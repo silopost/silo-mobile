@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Icon, IconButton, ProgressBar, Text } from "react-native-paper";
 import type { PickedFile } from "../../api/drafts";
 import type { UploadInfo } from "../../api/types";
-import { BottomSheet } from "../../components/BottomSheet";
+import { DropdownMenu, MenuEntry } from "../../components/DropdownMenu";
 import { formatSize } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import { MIN_TOUCH, useAppTheme } from "../../lib/theme";
@@ -175,49 +176,41 @@ export async function pickImages(): Promise<PickedFile[]> {
 }
 
 /**
- * The sheet of the paperclip icon: "Załącz plik" / "Wstaw z galerii", as in the Gmail app, and
- * with server 0.4.0 "Wstaw obraz w treści" (an inline picture, as pasted into silo-web's editor).
+ * The menu of the paperclip icon, as in the Gmail app (2026): "Zdjęcia", "Pliki" and, with
+ * server 0.4.0, "Wstaw obraz w treści" (an inline picture, as pasted into silo-web's editor).
+ * Mounted only while open, over `anchor`.
  */
-export function AttachSheet({
-  visible,
+export function AttachMenu({
+  anchor,
   onDismiss,
   onFiles,
   onInlineImages,
 }: {
-  visible: boolean;
+  anchor: ReactNode;
   onDismiss: () => void;
   onFiles: (files: PickedFile[]) => void;
   onInlineImages?: (files: PickedFile[]) => void;
 }) {
-  const theme = useAppTheme();
-  const pick = (picker: () => Promise<PickedFile[]>, done = onFiles) => {
-    onDismiss();
-    void picker()
-      .then((files) => files.length > 0 && done(files))
-      .catch(() => undefined);
-  };
-  const rows: [string, string, () => void][] = [
-    ["paperclip", t.attachFile, () => pick(pickDocuments)],
-    ["image-outline", t.insertFromGallery, () => pick(pickImages)],
-  ];
-  if (onInlineImages)
-    rows.push(["image-text", t.insertInlineImage, () => pick(pickImages, onInlineImages)]);
+  const pick =
+    (picker: () => Promise<PickedFile[]>, done = onFiles) =>
+    () => {
+      onDismiss();
+      void picker()
+        .then((files) => files.length > 0 && done(files))
+        .catch(() => undefined);
+    };
   return (
-    <BottomSheet visible={visible} onDismiss={onDismiss} title={t.attach}>
-      {rows.map(([icon, label, picker]) => (
-        <Pressable
-          key={label}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={picker}
-          android_ripple={{ color: theme.colors.surfaceVariant }}
-          style={styles.sheetRow}
-        >
-          <Icon source={icon} size={24} color={theme.colors.onSurfaceVariant} />
-          <Text variant="bodyLarge">{label}</Text>
-        </Pressable>
-      ))}
-    </BottomSheet>
+    <DropdownMenu anchor={anchor} onDismiss={onDismiss}>
+      <MenuEntry icon="image-outline" title={t.insertFromGallery} onPress={pick(pickImages)} />
+      <MenuEntry icon="file-outline" title={t.attachFile} onPress={pick(pickDocuments)} />
+      {onInlineImages && (
+        <MenuEntry
+          icon="image-text"
+          title={t.insertInlineImage}
+          onPress={pick(pickImages, onInlineImages)}
+        />
+      )}
+    </DropdownMenu>
   );
 }
 
@@ -228,11 +221,4 @@ const styles = StyleSheet.create({
   tileText: { flex: 1 },
   progress: { marginRight: 12, marginBottom: 8 },
   error: { paddingRight: 12, paddingBottom: 8 },
-  sheetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 24,
-    minHeight: 56,
-    paddingHorizontal: 24,
-  },
 });

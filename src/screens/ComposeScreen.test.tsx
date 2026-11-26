@@ -96,8 +96,22 @@ describe("ComposeScreen", () => {
     expect(created).toEqual([{ accountId: "acc_1" }]);
     expect(app.getPathname()).toBe("/compose");
     expect(app.getSearchParams()).toMatchObject({ draftId: "d_1" });
-    // No recipient yet: send is disabled.
-    expect(screen.getByLabelText("Wyślij")).toBeDisabled();
+    // No recipient yet: send stays active, as in Gmail, and says so after a tap.
+    expect(screen.getByLabelText("Wyślij")).toBeEnabled();
+    await fireEvent.press(screen.getByLabelText("Wyślij"));
+    expect(await screen.findByText("Dodaj co najmniej jednego odbiorcę.")).toBeOnTheScreen();
+    expect(app.getPathname()).toBe("/compose");
+  });
+
+  it("focuses Do in a new message", async () => {
+    await renderApp("/u/0/inbox");
+    await fireEvent.press(await screen.findByLabelText("Utwórz"));
+    expect(await screen.findByLabelText("Dodaj odbiorców: Do")).toHaveProp("autoFocus", true);
+  });
+
+  it("leaves the focus alone in a draft that has recipients (a reply)", async () => {
+    await renderApp("/compose?draftId=d_1");
+    expect(await screen.findByLabelText("Dodaj odbiorców: Do")).toHaveProp("autoFocus", false);
   });
 
   it("closing a new draft nobody wrote in deletes it", async () => {
@@ -161,7 +175,7 @@ describe("ComposeScreen", () => {
     expect(await screen.findByText("Wysyłanie cofnięte")).toBeOnTheScreen();
   });
 
-  it("Zaplanuj wysyłkę sends with sendAt, says when, and Cofnij cancels it", async () => {
+  it("Zaplanuj wysłanie sends with sendAt, says when, and Cofnij cancels it", async () => {
     serveMeta("0.4.0");
     const bodies: unknown[] = [];
     server.use(
@@ -179,8 +193,8 @@ describe("ComposeScreen", () => {
     );
     const app = await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
-    await fireEvent.press(await screen.findByText("Zaplanuj wysyłkę"));
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
+    await fireEvent.press(await screen.findByText("Zaplanuj wysłanie"));
     const preset = schedulePresets()[0]!.at.toISOString();
     expect(await screen.findByText("Jutro rano")).toBeOnTheScreen();
     expect(screen.getByText("Poniedziałek rano")).toBeOnTheScreen();
@@ -198,12 +212,12 @@ describe("ComposeScreen", () => {
     await waitFor(() => expect(app.getPathname()).toBe("/compose"));
   });
 
-  it("Zaplanuj wysyłkę is not offered by a 0.3.0 server", async () => {
+  it("Zaplanuj wysłanie is not offered by a 0.3.0 server", async () => {
     await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
     await screen.findByText("Odrzuć");
-    expect(screen.queryByText("Zaplanuj wysyłkę")).toBeNull();
+    expect(screen.queryByText("Zaplanuj wysłanie")).toBeNull();
   });
 
   it("Cofnij too late says the message was sent", async () => {
@@ -247,7 +261,7 @@ describe("ComposeScreen", () => {
   it("Odrzuć asks first, then deletes the draft", async () => {
     await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Więcej opcji wiadomości"));
+    await fireEvent.press(screen.getByLabelText("Więcej opcji"));
     await fireEvent.press(await screen.findByText("Odrzuć"));
     expect(await screen.findByText("Odrzucić wersję roboczą?")).toBeOnTheScreen();
 
@@ -332,8 +346,8 @@ describe("inline pictures (server 0.4.0)", () => {
   it("uploads with inline=true, shows the picture and saves <img src=cid:>", async () => {
     await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Załącz"));
-    await fireEvent.press(await screen.findByRole("button", { name: "Wstaw obraz w treści" }));
+    await fireEvent.press(screen.getByLabelText("Załącz pliki"));
+    await fireEvent.press(await screen.findByText("Wstaw obraz w treści"));
 
     await waitFor(() => expect(FakeXhr.last?.method).toBe("POST"));
     const xhr = FakeXhr.last!;
@@ -354,8 +368,8 @@ describe("inline pictures (server 0.4.0)", () => {
   it("removing the picture from the text unpins its upload", async () => {
     await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Załącz"));
-    await fireEvent.press(await screen.findByRole("button", { name: "Wstaw obraz w treści" }));
+    await fireEvent.press(screen.getByLabelText("Załącz pliki"));
+    await fireEvent.press(await screen.findByText("Wstaw obraz w treści"));
     await waitFor(() => expect(FakeXhr.last?.method).toBe("POST"));
     FakeXhr.last!.respond(201, pic);
     await waitFor(() => expect(editorHtml()).toContain(preview));
@@ -396,8 +410,8 @@ describe("inline pictures (server 0.4.0)", () => {
     serveMeta("0.3.0");
     await renderApp("/compose?draftId=d_1");
     await screen.findByDisplayValue("Oferta");
-    await fireEvent.press(screen.getByLabelText("Załącz"));
-    expect(await screen.findByRole("button", { name: "Załącz plik" })).toBeOnTheScreen();
-    expect(screen.queryByRole("button", { name: "Wstaw obraz w treści" })).toBeNull();
+    await fireEvent.press(screen.getByLabelText("Załącz pliki"));
+    expect(await screen.findByText("Zdjęcia")).toBeOnTheScreen();
+    expect(screen.queryByText("Wstaw obraz w treści")).toBeNull();
   });
 });

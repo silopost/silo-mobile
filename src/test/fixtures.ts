@@ -7,6 +7,7 @@ export const account: Schemas["Account"] = {
   email: "ala@example.com",
   displayName: "Ala",
   provider: "generic",
+  authType: "password",
   imapHost: "imap.example.com",
   imapPort: 993,
   imapTls: "implicit",
@@ -23,7 +24,13 @@ export const account: Schemas["Account"] = {
 
 /** GET /session (and POST /session without the token). */
 export const sessionBody: Schemas["SessionBody"] = {
-  user: { id: "u_1", email: "ala@example.com", displayName: "Ala", isAdmin: false },
+  user: {
+    id: "u_1",
+    email: "ala@example.com",
+    displayName: "Ala",
+    isAdmin: false,
+    totpEnabled: false,
+  },
   csrfToken: "",
   settings: {
     density: "default",
@@ -35,6 +42,10 @@ export const sessionBody: Schemas["SessionBody"] = {
     activeAccountId: null,
     desktopNotifications: false,
     updatedAt: null,
+    // Polish, as the test runner (jest.setup.ts): a server with settings.language applies it.
+    language: "pl",
+    theme: "default",
+    trustedImageSenders: [],
   },
   accounts: [account],
 };
@@ -75,6 +86,7 @@ export const labels: Schemas["Label"][] = [
 export function thread(over: Partial<Schemas["Thread"]>): Schemas["Thread"] {
   return {
     accountId: "acc_1",
+    draftCount: 0,
     draftId: null,
     hasAttachments: false,
     id: "t_1",

@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFeature } from "../../lib/features";
-import { t } from "../../lib/i18n";
+import { isLocale, t } from "../../lib/i18n";
+import { setLanguage } from "../../state/language";
 import { setDensity, useUi, type Density } from "../../state/ui";
 import { toast } from "../../state/toasts";
 import { api } from "../client";
@@ -72,8 +73,10 @@ export function usePatchSettings() {
       qc.setQueryData(keys.settings, cacheLocally(s));
       qc.setQueryData<Session>(keys.session, (old) => (old ? { ...old, settings: s } : old));
     },
-    onError: (err, _patch, ctx) => {
+    onError: (err, patch, ctx) => {
       if (ctx?.prev) qc.setQueryData(keys.settings, ctx.prev);
+      // A refused language: back to the previous one first, so the message is in it.
+      if ("language" in patch && isLocale(ctx?.prev?.language)) setLanguage(ctx.prev.language);
       toast(settingsErrorMessage(err));
     },
   });
