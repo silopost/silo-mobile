@@ -2,6 +2,9 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 import { hasServerPush, type MetaMaybePush } from "../../lib/features";
 
+/** The Android channel of new-mail notifications (the server names it in every push). */
+export const MAIL_CHANNEL = "mail";
+
 /** What this build knows about push (app.config.js → `extra`). */
 export type PushBuild = {
   /** The Expo project push tokens are issued for (SILO_EAS_PROJECT_ID). */

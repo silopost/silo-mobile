@@ -13,7 +13,8 @@ export type ServerFeature =
   | "labels"
   | "thumbnails"
   | "inlineImages"
-  | "language";
+  | "language"
+  | "notificationContent";
 
 /**
  * The first server version of each feature. `GET /meta` has no feature flags (plan 5.1 lists
@@ -32,6 +33,9 @@ const SINCE: Record<ServerFeature, string> = {
   inlineImages: "0.4.0",
   // Settings.language (en | pl), the UI language shared by every client of the user.
   language: "0.6.0",
+  // GET /messages?ids= and POST /devices with dataOnly: the app presents new-mail notifications
+  // with sender, subject and snippet (src/features/push/present.ts).
+  notificationContent: "0.11.0",
 };
 
 /** MAJOR.MINOR.PATCH of a version ("v0.4.0", "0.4.0-rc.1", "0.4"); null when it is none. */

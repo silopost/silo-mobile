@@ -448,6 +448,11 @@ export const pl: Messages = {
   pushLastError: (error: string) => `Ostatni błąd doręczenia: ${error}`,
   pushChannelName: "Nowa poczta",
   pushChannelDescription: "Powiadomienia o nowych wiadomościach w Odebranych",
+  pushNewMessages: (n: number) =>
+    n === 1
+      ? "Nowa wiadomość"
+      : `${num(n)} ${p3(n, "nowa wiadomość", "nowe wiadomości", "nowych wiadomości")}`,
+  pushUnknownSender: "(nieznany nadawca)",
   localSettingsNote:
     "Te ustawienia dotyczą tylko tego urządzenia. Ustawienia wspólne dla wszystkich urządzeń pojawią się z nową wersją serwera.",
   generalSectionDisplay: "Wyświetlanie",

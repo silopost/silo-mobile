@@ -452,6 +452,10 @@ export const en = {
   pushLastError: (error: string) => `Last delivery error: ${error}`,
   pushChannelName: "New mail",
   pushChannelDescription: "Notifications about new messages in the Inbox",
+  // a new-mail notification: the generic one (content not fetched, or a burst) and the sender
+  // placeholder of a message without a From name or address
+  pushNewMessages: (n: number) => (n === 1 ? "New message" : `${n} new messages`),
+  pushUnknownSender: "(unknown sender)",
   localSettingsNote:
     "These settings apply only to this device. Settings shared by all your devices come with a newer server version.",
   generalSectionDisplay: "Display",

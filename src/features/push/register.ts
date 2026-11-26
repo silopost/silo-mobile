@@ -9,10 +9,13 @@ import { sessionQuery } from "../../api/queries/session";
 import type { Device } from "../../api/types";
 import { t } from "../../lib/i18n";
 import { usePush } from "../../state/push";
-import { pushBuild } from "./config";
+import { metaQuery } from "../../api/queries/meta";
+import { hasServerFeature } from "../../lib/features";
+import { useAuth } from "../../state/auth";
+import { backgroundTaskReady } from "./background";
+import { MAIL_CHANNEL, pushBuild } from "./config";
 
-/** The Android channel the server names in every push (`channelId: "mail"`). */
-export const MAIL_CHANNEL = "mail";
+export { MAIL_CHANNEL } from "./config";
 
 /**
  * Creates (or renames) the "mail" channel. Android shows no notification for a channel that does
@@ -61,10 +64,33 @@ async function expoPushToken(): Promise<string> {
   }
 }
 
+/**
+ * Whether the app asks for data-only pushes and presents notifications itself (present.ts): the
+ * background task is registered in this build and the server offers the content (0.11.0). An
+ * older server keeps sending the titled push, which the system shows.
+ */
+async function presentsItself(): Promise<boolean> {
+  if (!(await backgroundTaskReady)) return false;
+  const serverUrl = useAuth.getState().serverUrl;
+  if (!serverUrl) return false;
+  try {
+    const meta = await queryClient.fetchQuery(metaQuery(serverUrl));
+    return hasServerFeature(meta, "notificationContent");
+  } catch {
+    return false;
+  }
+}
+
 /** POST /devices with a fresh token; remembers the device (local id, query cache). */
 async function register(accountIds: string[] | null): Promise<Device> {
   const pushToken = await expoPushToken();
-  const device = await registerDevice({ provider: "expo", pushToken, accountIds });
+  const dataOnly = await presentsItself();
+  const device = await registerDevice({
+    provider: "expo",
+    pushToken,
+    accountIds,
+    ...(dataOnly && { dataOnly }),
+  });
   usePush.setState({ deviceId: device.id });
   queryClient.setQueryData(keys.pushDevice, device);
   return device;

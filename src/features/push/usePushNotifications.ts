@@ -77,8 +77,10 @@ export function usePushNotifications(): void {
   useEffect(() => {
     if (status === "loading") return;
     if (status === "signedOut") {
-      // A tap from before sign-out must not open anything after the next sign-in.
+      // A tap from before sign-out must not open anything after the next sign-in, and the
+      // notifications show mail (sender, subject, snippet): none stays after sign-out.
       Notifications.clearLastNotificationResponse();
+      Notifications.dismissAllNotificationsAsync().catch(() => undefined);
       return;
     }
     const open = (href: string) => {

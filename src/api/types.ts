@@ -53,3 +53,4 @@ export type DraftWarning = NonNullable<Schemas["Draft"]["warnings"]>[number];
 export type PushMeta = Schemas["PushMeta"];
 export type Device = Schemas["Device"];
 export type RegisterDevice = Schemas["RegisterDevice"];
+export type MessageSummary = Schemas["MessageSummary"];

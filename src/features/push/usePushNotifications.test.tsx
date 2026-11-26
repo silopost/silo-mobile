@@ -136,6 +136,20 @@ describe("registration while signed in", () => {
     expect(notifications().requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
+  it("asks a server with notification content (0.11.0) for data-only pushes", async () => {
+    servePushMeta(["expo"], "0.11.0");
+    usePush.setState({ enabled: true, accountIds: null, deviceId: "dev_1" });
+    await renderApp("/settings");
+
+    await waitFor(() => expect(registered).toHaveLength(1));
+    expect(registered[0]).toEqual({
+      provider: "expo",
+      pushToken: "ExponentPushToken[test-1]",
+      accountIds: null,
+      dataOnly: true,
+    });
+  });
+
   it("forgets the choice on sign-out, so the next sign-in registers nothing", async () => {
     usePush.setState({ enabled: true, accountIds: null, deviceId: "dev_1" });
     await renderApp("/settings");
@@ -143,6 +157,8 @@ describe("registration while signed in", () => {
 
     await act(() => logout());
     expect(usePush.getState()).toEqual(defaultPush);
+    // Notifications show mail now: none stays after sign-out.
+    await waitFor(() => expect(notifications().__calls).toContain("dismissAll"));
     // The server deletes the device with the session; the app sends no DELETE /devices.
     expect(deleted).toEqual([]);
 
@@ -172,6 +188,18 @@ describe("tapping a notification", () => {
     await act(async () => notifications().__emitResponse(tap(mail({}))));
 
     await waitFor(() => expect(app.getPathname()).toBe("/u/0/inbox/t_1"));
+  });
+
+  it("opens the thread of a notification the app presented itself", async () => {
+    const app = await renderApp("/settings");
+    await screen.findByTestId("settings-general");
+
+    // As present.ts writes it for one message of a burst (count 1, its own thread).
+    await act(async () =>
+      notifications().__emitResponse(tap(mail({ accountId: "acc_2", threadId: "t_1", count: 1 }))),
+    );
+
+    await waitFor(() => expect(app.getPathname()).toBe("/u/1/inbox/t_1"));
   });
 
   it("opens the Inbox of the account for several messages", async () => {

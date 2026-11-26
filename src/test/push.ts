@@ -15,12 +15,17 @@ export type NotificationsMock = {
     deviceToken: string;
     lastResponse: unknown;
   };
+  /** What the app presented itself (scheduleNotificationAsync requests), in order. */
+  __presented: { identifier: string; content: Record<string, unknown>; trigger: unknown }[];
   __emitToken: (token: unknown) => void;
   __emitResponse: (response: unknown) => void;
   setNotificationChannelAsync: jest.Mock;
   setNotificationHandler: jest.Mock;
   getExpoPushTokenAsync: jest.Mock;
   requestPermissionsAsync: jest.Mock;
+  scheduleNotificationAsync: jest.Mock;
+  dismissAllNotificationsAsync: jest.Mock;
+  registerTaskAsync: jest.Mock;
 };
 
 export function notifications(): NotificationsMock {

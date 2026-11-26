@@ -46,6 +46,8 @@ jest.mock("expo-notifications", () => {
     deviceToken: "fcm-1",
     lastResponse: null as unknown,
   };
+  /** Notifications the app presented itself (scheduleNotificationAsync), in order. */
+  const presented: unknown[] = [];
   const permission = (status: string) => ({
     status,
     granted: status === "granted",
@@ -84,16 +86,28 @@ jest.mock("expo-notifications", () => {
     clearLastNotificationResponse: jest.fn(() => {
       state.lastResponse = null;
     }),
+    scheduleNotificationAsync: jest.fn(async (request: { identifier?: string }) => {
+      calls.push(`present:${request.identifier}`);
+      presented.push(request);
+      return request.identifier ?? "n";
+    }),
+    dismissAllNotificationsAsync: jest.fn(async () => {
+      calls.push("dismissAll");
+    }),
+    registerTaskAsync: jest.fn(async () => null),
   };
   return {
     ...fns,
     __calls: calls,
     __state: state,
+    __presented: presented,
     __emitToken: (token: unknown) => tokenListeners.forEach((l) => l(token)),
     __emitResponse: (response: unknown) => responseListeners.forEach((l) => l(response)),
     __reset: () => {
       calls.length = 0;
-      Object.values(fns).forEach((fn) => fn.mockClear());
+      presented.length = 0;
+      // registerTaskAsync runs once, when the entry imports the task module: its call is kept.
+      Object.values(fns).forEach((fn) => fn !== fns.registerTaskAsync && fn.mockClear());
       tokenListeners.clear();
       responseListeners.clear();
       Object.assign(state, {
@@ -105,12 +119,33 @@ jest.mock("expo-notifications", () => {
       });
     },
     AndroidImportance: { MIN: 1, LOW: 2, DEFAULT: 3, HIGH: 4, MAX: 5 },
+    AndroidNotificationPriority: {
+      MIN: "min",
+      LOW: "low",
+      DEFAULT: "default",
+      HIGH: "high",
+      MAX: "max",
+    },
     DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
   };
 });
 
 afterEach(() => {
   (jest.requireMock("expo-notifications") as { __reset: () => void }).__reset();
+});
+
+// The background task of data-only pushes (src/features/push/background.ts): defineTask keeps the
+// executor, which tests run with `__run` as expo-task-manager would.
+/** A task executor of the fake expo-task-manager. */
+type MockTask = (body: { data: unknown; error: null }) => Promise<unknown>;
+jest.mock("expo-task-manager", () => {
+  const tasks = new Map<string, MockTask>();
+  return {
+    defineTask: jest.fn((name: string, executor: MockTask) => {
+      tasks.set(name, executor);
+    }),
+    __run: (name: string, data: unknown) => tasks.get(name)?.({ data, error: null }),
+  };
 });
 
 // AsyncStorage (UI preferences) as the package's in-memory mock.

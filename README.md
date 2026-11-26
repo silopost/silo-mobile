@@ -249,20 +249,23 @@ app runs in Expo Go.
   reported its token as invalid, which `GET /devices/current` answers with 404); a rotated token is
   registered at once. A permission taken away in the system settings switches push off.
 - In the foreground no notification is shown (the event stream refreshes the lists). A tap opens
-  the thread (`count` 1) or the Inbox of the account (`count` > 1), also when the tap started the
-  app; another payload, or an account the user no longer has, opens the app as usual.
+  the thread (`count` 1, as each per-message notification is) or the Inbox of the account
+  (`count` > 1), also when the tap started the app; another payload, or an account the user no
+  longer has, opens the app as usual.
 - Signing out forgets the choice (the server deletes the device with the session), so signing in
-  again, perhaps to another server, registers nothing until the user switches push on.
+  again, perhaps to another server, registers nothing until the user switches push on; it also
+  removes the app's notifications from the tray.
 
 **What is sent where.** To silo-server: the Expo push token and the chosen account ids. Getting the
 token contacts Google (FCM registration) and Expo (`exp.host`, which turns the FCM token into an
 Expo push token for the project id and app id). Each notification travels silo-server → Expo →
-Google → phone with a generic title ("Nowa wiadomość" / "N nowych wiadomości"), the account and
-thread ids and a count; no sender, subject or text. Expo and Google see the token, those ids and
-the time.
+Google → phone with the account, thread and message ids and a count, and either a generic title
+("Nowa wiadomość" / "N nowych wiadomości") or none at all (`dataOnly`); never a sender, subject,
+text or address. Expo and Google see the token, those ids and the time. The sender, subject and
+snippet a notification shows come straight from silo-server (`GET /messages`) to the app.
 
-**API types.** `/devices`, `Device`, `RegisterDevice` and `Meta.push` come from the generated schema
-(contract `v0.10.0`); `src/api/types.ts` aliases them and `src/api/devices.ts` calls the endpoints
+**API types.** `/devices`, `Device`, `RegisterDevice`, `Meta.push`, `GET /messages` and
+`MessageSummary` come from the generated schema (`dataOnly` and `GET /messages` arrived in silo-server 0.11.0, the contract of `silo.serverRef`); `src/api/types.ts` aliases them and `src/api/devices.ts` calls the endpoints
 through the same typed client as the rest of the API. `Meta.push` is required in the contract, but
 servers before 0.10.0 do not send it, so `hasServerPush` (`src/lib/features.ts`) still treats a
 missing field as "no push".
@@ -312,6 +315,21 @@ name>}` ([ADR 0007](https://github.com/silopost/silo/blob/main/docs/adr/0007-bea
   ignored.
 - Sign-out: `DELETE /session`, and on an error other than 401 (for example offline) locally anyway
   (the session can be revoked from another device). Sign out everywhere: `DELETE /sessions/{id}`
+- **Notifications like Gmail's** (server 0.11.0, `notificationContent` in `src/lib/features.ts`):
+  the app registers with `dataOnly: true`, so the push has no title and the system shows nothing
+  by itself. expo-notifications runs the background task of `src/features/push/background.ts`
+  (`expo-task-manager`; defined in the entry `index.ts`, so it also runs when the push starts a
+  killed app without a screen). The task (`present.ts`) asks the user's own server for the
+  messages the push names (`GET /messages?ids=`, bearer token from the secure store, at most 4 s)
+  and presents one notification per message: the sender as the title, the subject and the snippet
+  as the text (Android shows the subject collapsed and both lines expanded), the account's address
+  as sub-text when there are several accounts, grouped per account, only the first one of a push
+  with sound. A burst of more than five messages is one "N new messages" for the account. When the
+  server cannot be reached in time (offline, unreachable, timeout, session ended) the app shows the
+  generic "Nowa wiadomość" / "N nowych wiadomości" instead; signed out it shows nothing. Mail text
+  is shown as plain text (control and bidi characters removed, cut with "…"); a missing sender or
+  subject gets a placeholder. With an older server (or a build without the task) the device
+  registers without `dataOnly` and gets the titled push the system shows, as before.
   for every other session from `GET /sessions` (404 = already expired), then `DELETE /session`; if
   one could not be revoked, the device stays signed in and shows an error.
 - Errors: `ApiError` (`src/api/errors.ts`) with `status`, `code` (the stable field to branch on),
@@ -684,7 +702,8 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
   in-memory fakes in `jest.setup.ts`, as are AsyncStorage, NetInfo, gesture-handler, worklets and
   the safe-area insets (library mocks). `expo-notifications` is a fake in `jest.setup.ts` too
   (permission answer, token, token rotation and taps are steered through `src/test/push.ts`, which
-  also sets the push build config and a `GET /meta` with `push`). `jest.setup.ts` also replaces `fetchEventSource` with a
+  also sets the push build config and a `GET /meta` with `push`; notifications the app presents are
+  recorded in `__presented`), and `expo-task-manager` keeps the task executor for `__run`. `jest.setup.ts` also replaces `fetchEventSource` with a
   source that never opens, so screen tests make no SSE requests; `src/api/sse.test.ts` tests the
   real reader on an msw stream, and the `connectEvents`/`useEvents` tests inject a fake through
   `eventsConfig.createEventSource` (short intervals instead of fake timers).
