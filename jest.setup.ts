@@ -29,6 +29,90 @@ afterEach(() => {
   (jest.requireMock("expo-secure-store") as { __store: Map<string, string> }).__store.clear();
 });
 
+// Notifications: channels, permission, Expo push token and the listeners as jest.fns. Tests
+// steer them through src/test/push.ts (permission answer, token, emitting a token change or a
+// tap); every call is recorded in `__calls` in order (channel before permission before token).
+/** A listener of the fake expo-notifications (outside the factory: jest.mock hoisting). */
+type MockListener = (value: unknown) => void;
+jest.mock("expo-notifications", () => {
+  const calls: string[] = [];
+  const tokenListeners = new Set<MockListener>();
+  const responseListeners = new Set<MockListener>();
+  const state = {
+    permission: "granted" as "granted" | "denied" | "undetermined",
+    answer: "granted" as "granted" | "denied",
+    token: "ExponentPushToken[test-1]",
+    /** The FCM token every token fetch emits to addPushTokenListener, as the native module does. */
+    deviceToken: "fcm-1",
+    lastResponse: null as unknown,
+  };
+  const permission = (status: string) => ({
+    status,
+    granted: status === "granted",
+    canAskAgain: status !== "denied",
+    expires: "never",
+  });
+  const subscribe = (set: Set<MockListener>) => (listener: MockListener) => {
+    set.add(listener);
+    return { remove: () => set.delete(listener) };
+  };
+  const fns = {
+    setNotificationHandler: jest.fn(),
+    setNotificationChannelAsync: jest.fn(async (id: string) => {
+      calls.push(`channel:${id}`);
+      return null;
+    }),
+    getPermissionsAsync: jest.fn(async () => {
+      calls.push("getPermissions");
+      return permission(state.permission);
+    }),
+    requestPermissionsAsync: jest.fn(async () => {
+      calls.push("requestPermissions");
+      state.permission = state.answer;
+      return permission(state.answer);
+    }),
+    getExpoPushTokenAsync: jest.fn(async (options: { projectId?: string }) => {
+      calls.push(`token:${options.projectId}`);
+      // PushTokenModule.kt resolves the device token and then emits it (onNewToken).
+      const device = { type: "android", data: state.deviceToken };
+      setTimeout(() => tokenListeners.forEach((l) => l(device)), 0);
+      return { type: "expo", data: state.token };
+    }),
+    addPushTokenListener: jest.fn(subscribe(tokenListeners)),
+    addNotificationResponseReceivedListener: jest.fn(subscribe(responseListeners)),
+    getLastNotificationResponse: jest.fn(() => state.lastResponse),
+    clearLastNotificationResponse: jest.fn(() => {
+      state.lastResponse = null;
+    }),
+  };
+  return {
+    ...fns,
+    __calls: calls,
+    __state: state,
+    __emitToken: (token: unknown) => tokenListeners.forEach((l) => l(token)),
+    __emitResponse: (response: unknown) => responseListeners.forEach((l) => l(response)),
+    __reset: () => {
+      calls.length = 0;
+      Object.values(fns).forEach((fn) => fn.mockClear());
+      tokenListeners.clear();
+      responseListeners.clear();
+      Object.assign(state, {
+        permission: "granted",
+        answer: "granted",
+        token: "ExponentPushToken[test-1]",
+        deviceToken: "fcm-1",
+        lastResponse: null,
+      });
+    },
+    AndroidImportance: { MIN: 1, LOW: 2, DEFAULT: 3, HIGH: 4, MAX: 5 },
+    DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
+  };
+});
+
+afterEach(() => {
+  (jest.requireMock("expo-notifications") as { __reset: () => void }).__reset();
+});
+
 // AsyncStorage (UI preferences) as the package's in-memory mock.
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"),

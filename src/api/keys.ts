@@ -31,4 +31,6 @@ export const keys = {
   settings: ["settings"] as const,
   /** GET /filters of an account (server 0.4.0). */
   filters: (accountId: string) => ["filters", accountId] as const,
+  /** GET /devices/current: the push device of this session. */
+  pushDevice: ["pushDevice"] as const,
 };

@@ -429,7 +429,29 @@ export const en = {
   on: "On",
   off: "Off",
   pushTitle: "Notifications",
-  pushUnavailable: "Unavailable: the server doesn't support push notifications",
+  pushUnavailable: {
+    loading: "Checking whether the server supports notifications…",
+    server: "Unavailable: the server doesn't support push notifications or has them turned off",
+    build: "Unavailable: this version of the app was built without push notification settings",
+    expoGo: "Unavailable in Expo Go: push notifications need a built app",
+  },
+  pushNewMail: "Inbox notifications",
+  pushOnDescription: "On for this device",
+  pushAccounts: "Accounts with notifications",
+  pushAllAccounts: "All accounts",
+  pushSomeAccounts: (n: number, total: number) => `${n} of ${total}`,
+  pushAccountsSave: "Save",
+  pushAccountsHint: "Choose the accounts whose new mail you want to be notified about",
+  pushPermissionDenied:
+    "Notifications aren't allowed. You can allow them in the system settings (Apps → Silo → Notifications).",
+  pushServerDisabled: "The server has push notifications turned off.",
+  pushInvalidAccount:
+    "The server doesn't know one of the chosen accounts. Refresh the account list.",
+  pushTokenFailed:
+    "Couldn't get the notification ID of this device (Google Play services and internet are needed).",
+  pushLastError: (error: string) => `Last delivery error: ${error}`,
+  pushChannelName: "New mail",
+  pushChannelDescription: "Notifications about new messages in the Inbox",
   localSettingsNote:
     "These settings apply only to this device. Settings shared by all your devices come with a newer server version.",
   generalSectionDisplay: "Display",
@@ -454,7 +476,7 @@ export const en = {
   timezoneSearch: "Search time zones",
   desktopNotificationsTitle: "Desktop notifications",
   desktopNotificationsNote:
-    "A browser setting; notifications on this phone need push support on the server.",
+    "A browser setting for Silo on the web; set notifications on this phone under Notifications.",
   invalidSetting: "The server rejected this value.",
   invalidTimezone: "Unknown time zone.",
 

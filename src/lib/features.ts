@@ -62,6 +62,18 @@ export function hasServerFeature(
   return compareVersions(meta.serverVersion ?? "", SINCE[feature]) >= 0;
 }
 
+/**
+ * Whether the server pushes new mail through Expo: unlike the features above it is a flag of
+ * `GET /meta` (`push.providers` contains "expo"), because an instance can switch push off
+ * (SILO_PUSH_ENABLED=false answers `[]`). Servers before push have no `push` field at all.
+ * The type is structural until `Meta.push` is in the generated schema (src/features/push/api.ts).
+ */
+export function hasServerPush(
+  meta: { push?: { providers?: string[] | null } | null } | undefined,
+): boolean {
+  return !!meta?.push?.providers?.includes("expo");
+}
+
 /** hasServerFeature for the instance the user is signed in to (GET /meta, cached for good). */
 export function useServerFeature(feature: ServerFeature): boolean {
   const serverUrl = useAuth((s) => s.serverUrl) ?? "";

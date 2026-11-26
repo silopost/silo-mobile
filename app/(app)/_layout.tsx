@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 import { View } from "react-native";
 import { ActivityIndicator } from "react-native-paper";
 import { t } from "../../src/lib/i18n";
+import { usePushNotifications } from "../../src/features/push/usePushNotifications";
 import { useServerLanguage } from "../../src/features/settings/language";
 import { useEvents } from "../../src/features/sync/useEvents";
 import { useAppTheme } from "../../src/lib/theme";
@@ -13,6 +14,8 @@ export default function AppLayout() {
   const theme = useAppTheme();
   // Server events while signed in and in the foreground (one stream for every screen).
   useEvents();
+  // Push registration and taps on new-mail notifications.
+  usePushNotifications();
   // The UI language of the user (settings.language on servers that keep it).
   useServerLanguage();
 

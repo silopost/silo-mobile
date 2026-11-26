@@ -25,6 +25,7 @@ Expo app modelled on the Gmail app for Android (Material 3), talking to
 - [Configuration](#configuration)
 - [Scripts](#scripts)
 - [Building for production](#building-for-production)
+- [Push notifications](#push-notifications)
 - [Architecture](#architecture)
 - [Screens and endpoints](#screens-and-endpoints)
 - [Development](#development)
@@ -118,7 +119,7 @@ npx expo run:android    # development build (needs the Android SDK)
 ```
 
 - **Expo Go (Android)**: install Expo Go on the phone and scan the QR code from `npx expo start`.
-  Every native module of the app is available in Expo Go, including the WebView
+  Every native module of the app except push notifications is available in Expo Go, including the WebView
   (`react-native-webview`), the TenTap editor (its optional `TenTapKeyboard` module is only for
   custom keyboards) and the date/time picker.
 - **Instance address** on the sign-in screen: `http://10.0.2.2:8080` in the Android emulator (the
@@ -135,15 +136,19 @@ npx expo run:android    # development build (needs the Android SDK)
 There is no build-time configuration of the instance: the user enters the instance address on the
 sign-in screen, and the app reads everything else from `GET /api/v1/meta`.
 
-| Setting                                                                                                              | Where                                                  | Notes                                                                                             |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Instance address, bearer token, installation id                                                                      | `expo-secure-store` (Android Keystore / iOS Keychain)  | the token is also kept in memory (zustand `src/state/auth.ts`); never in a URL or the query cache |
-| Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`) | not secret; they change only the look and which request is sent                                   |
-| Density, undo-send delay, signature, time zone, active account (server 0.4.0)                                        | server (`GET/PATCH /settings`)                         | shared with silo-web                                                                              |
-| App identity                                                                                                         | `app.json`                                             | name `Silo`, package `dev.silopost.mobile`, scheme `silopost`                                     |
-| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                      | currently `v0.9.0`                                                                                |
+| Setting                                                                                                              | Where                                                     | Notes                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Instance address, bearer token, installation id                                                                      | `expo-secure-store` (Android Keystore / iOS Keychain)     | the token is also kept in memory (zustand `src/state/auth.ts`); never in a URL or the query cache |
+| Device preferences: theme, swipe actions, density (server 0.3.0), confirmations, mark as read on open, remote images | AsyncStorage via zustand `persist` (`src/state/ui.ts`)    | not secret; they change only the look and which request is sent                                   |
+| Density, undo-send delay, signature, time zone, active account (server 0.4.0)                                        | server (`GET/PATCH /settings`)                            | shared with silo-web                                                                              |
+| App identity                                                                                                         | `app.config.js`                                           | name `Silo`, package `dev.silopost.mobile`, scheme `silopost`                                     |
+| Push notifications on this device (on/off, accounts, device id)                                                      | AsyncStorage via zustand `persist` (`src/state/push.ts`)  | reset on every sign-out; the server is the source of truth (`GET /devices/current`)               |
+| Push build configuration                                                                                             | environment when the config is resolved (`app.config.js`) | `SILO_GOOGLE_SERVICES_JSON`, `SILO_EAS_PROJECT_ID`, see [Push notifications](#push-notifications) |
+| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                         | currently `v0.9.0`                                                                                |
 
-Environment variables are used only by the tooling: `SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD` and
+Environment variables are used only by the tooling: `SILO_GOOGLE_SERVICES_JSON` and
+`SILO_EAS_PROJECT_ID` when the app config is resolved (`expo start`, `expo prebuild`; see
+[Push notifications](#push-notifications)), `SILO_URL`, `SILO_EMAIL`, `SILO_PASSWORD` and
 `SILO_DEVICE` for `npm run smoke:api` (see [Testing](#smoke-test-against-a-live-api)) and
 Expo's own `EXPO_PUBLIC_USE_RN_FETCH`, which switches the global `fetch` back to React Native's instead of
 `expo/fetch` (without a streaming body, so live events fall back to polling).
@@ -172,9 +177,91 @@ npx expo prebuild --platform android    # generates android/
 cd android && ./gradlew assembleRelease   # on Windows: gradlew.bat assembleRelease
 ```
 
-`npm run export:android` produces the Hermes JavaScript bundle (`dist/`, about 8.4 MB), the same
+A build with push notifications needs two environment variables at `prebuild`; see
+[Push notifications](#push-notifications).
+
+`npm run export:android` produces the Hermes JavaScript bundle (`dist/`, about 8.5 MB), the same
 step a release build runs; CI runs it on every push. Signing, store distribution and F-Droid are
 not set up.
+
+## Push notifications
+
+New mail in an Inbox can raise an Android notification while the app is in the background. The
+server sends it through the [Expo Push Service](https://docs.expo.dev/push-notifications/overview/),
+which forwards it to Firebase Cloud Messaging (FCM). The server needs no Firebase keys, but **the
+app build does**: Expo push tokens are issued for an Expo project, and FCM on the phone needs the
+Firebase configuration of the app (`google-services.json`). Neither is in the repository.
+
+**Requirements**
+
+- silo-server with push: `GET /meta` answers `push.providers` containing `"expo"` (the release
+  after 0.4.0; an instance with `SILO_PUSH_ENABLED=false` answers `[]`).
+- A build of the app (`npx expo run:android`, or `prebuild` + Gradle) with both variables below.
+  Push does not work in Expo Go: remote notifications were removed from Expo Go on Android in
+  SDK 53.
+- A phone (or an emulator image) with Google Play services. Android 13+ asks for the notification
+  permission.
+
+**Configuration**, read by `app.config.js` whenever the config is resolved:
+
+| Variable                    | Value                                                                                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SILO_GOOGLE_SERVICES_JSON` | path to `google-services.json` of an Android app `dev.silopost.mobile` in your Firebase project (Firebase console → Project settings → Your apps → Add app → Android); becomes `android.googleServicesFile` |
+| `SILO_EAS_PROJECT_ID`       | the id (UUID) of your project on expo.dev (`npx eas init` creates one, or expo.dev → Projects → Create a project); becomes `extra.eas.projectId`                                                            |
+
+The Expo project also needs the FCM V1 service account key of the same Firebase project as its
+Android push credentials (expo.dev → the project → Credentials → Android → FCM V1, or
+`eas credentials`), see
+[Add Android FCM V1 credentials](https://docs.expo.dev/push-notifications/fcm-credentials/). Keep
+`google-services.json` outside the repository (it is in `.gitignore` too).
+
+**Build an APK with push**
+
+```sh
+export SILO_GOOGLE_SERVICES_JSON=/secure/path/google-services.json   # PowerShell: $env:SILO_GOOGLE_SERVICES_JSON = "..."
+export SILO_EAS_PROJECT_ID=00000000-0000-0000-0000-000000000000
+npx expo config --type prebuild   # check android.googleServicesFile and extra.eas.projectId
+npx expo prebuild --platform android   # applies the Firebase config and the notification icon to android/
+cd android && ./gradlew assembleRelease        # or, for a debug build: npx expo run:android
+```
+
+`--clean` regenerates `android/` from scratch, which also drops local files there such as
+`android/local.properties`. Set the same variables for `npx expo start` when you run a development build: the JavaScript reads
+`extra` from the config the dev server serves. A changed `SILO_GOOGLE_SERVICES_JSON` needs a new
+`prebuild`; a path to a missing file stops the config with an error.
+
+**Without the configuration** the app builds and runs as before; General settings → "Powiadomienia"
+stays inactive and says whether the server has no push, the build lacks the configuration or the
+app runs in Expo Go.
+
+**What the app does**
+
+- Settings → General → "Powiadomienia o nowej poczcie": switching on creates the Android channel
+  `mail` (importance high), asks for the system permission, gets the Expo push token
+  (`getExpoPushTokenAsync({projectId})`) and registers it with `POST /devices` (`accountIds`:
+  `null` for all accounts, or the accounts chosen under "Konta z powiadomieniami"). Switching off
+  sends `DELETE /devices/{id}`. A refused permission leaves it off with a message. `lastError` of
+  `GET /devices/current` is shown under the switch.
+- With push on, every start (and every signed-in session) creates the channel again and registers
+  the token again (idempotent; this also brings back a device the server deleted after Expo
+  reported its token as invalid, which `GET /devices/current` answers with 404); a rotated token is
+  registered at once. A permission taken away in the system settings switches push off.
+- In the foreground no notification is shown (the event stream refreshes the lists). A tap opens
+  the thread (`count` 1) or the Inbox of the account (`count` > 1), also when the tap started the
+  app; another payload, or an account the user no longer has, opens the app as usual.
+- Signing out forgets the choice (the server deletes the device with the session), so signing in
+  again, perhaps to another server, registers nothing until the user switches push on.
+
+**What is sent where.** To silo-server: the Expo push token and the chosen account ids. Getting the
+token contacts Google (FCM registration) and Expo (`exp.host`, which turns the FCM token into an
+Expo push token for the project id and app id). Each notification travels silo-server → Expo →
+Google → phone with a generic title ("Nowa wiadomość" / "N nowych wiadomości"), the account and
+thread ids and a count; no sender, subject or text. Expo and Google see the token, those ids and
+the time.
+
+**API types.** `/devices` and `Meta.push` are not in a released server contract yet (the schema is
+generated from `v0.9.0`), so `src/features/push/api.ts` declares them, mirroring silo-server's
+`api/openapi.yaml`; they move to `src/api/types.ts` when `silo.serverRef` is bumped.
 
 ## Architecture
 
@@ -494,8 +581,8 @@ Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relati
   and Monday morning 8:00 (device clock, suggestions only) plus a custom date and time; its
   snackbar with Undo lasts at most 10 s (the message can be cancelled from Scheduled).
 - **General settings** (`/settings/general`): device section (theme, list density, swipe actions,
-  confirmations before delete/archive, mark as read on open, images ask/always, notifications –
-  disabled, no push yet). On 0.4.0 a synced section: density (default/comfortable/compact),
+  confirmations before delete/archive, mark as read on open, images ask/always, new-mail push
+  notifications – see [Push notifications](#push-notifications)). On 0.4.0 a synced section: density (default/comfortable/compact),
   undo-send delay (5/10/20/30 s), signature (multi-line text dialog), time zone (IANA list from
   `Intl.supportedValuesOf("timeZone")` with search, or a text field without `Intl`). One field per
   `PATCH`, optimistic `setQueryData`; `422 invalid_setting`/`invalid_timezone` → snackbar and the
@@ -538,7 +625,7 @@ Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relati
   else a choice kept on the device), switched in General settings without a restart
   (`src/state/language.ts`). Tests run in Polish (`jest.setup.ts`).
 - Icons: `assets/icon.svg` is a copy of `silo-web/public/icons/icon.svg` (keep them identical);
-  `npm run gen:icons` regenerates the Expo PNGs referenced by `app.json`.
+  `npm run gen:icons` regenerates the Expo PNGs referenced by `app.config.js`.
 - Before a pull request run `npm run typecheck && npm run lint && npm run format:check && npm test`
   (the CI `check` job also runs `npm run export:android` with `CI=1`).
 
@@ -591,7 +678,9 @@ Tests talk to the API through [msw](https://mswjs.io) (`setupServer` from `msw/n
   read `source.html` and call `onMessage`); `expo-file-system/legacy`, `expo-sharing`,
   `expo-web-browser`, `expo-linking` – mocked per file. `expo-secure-store` and `expo-device` are
   in-memory fakes in `jest.setup.ts`, as are AsyncStorage, NetInfo, gesture-handler, worklets and
-  the safe-area insets (library mocks). `jest.setup.ts` also replaces `fetchEventSource` with a
+  the safe-area insets (library mocks). `expo-notifications` is a fake in `jest.setup.ts` too
+  (permission answer, token, token rotation and taps are steered through `src/test/push.ts`, which
+  also sets the push build config and a `GET /meta` with `push`). `jest.setup.ts` also replaces `fetchEventSource` with a
   source that never opens, so screen tests make no SSE requests; `src/api/sse.test.ts` tests the
   real reader on an msw stream, and the `connectEvents`/`useEvents` tests inject a fake through
   `eventsConfig.createEventSource` (short intervals instead of fake timers).
@@ -720,7 +809,8 @@ Settings:
 - The labels screen manages user labels only; server folders (create, delete, roles, `syncMode`)
   are not managed from the phone.
 - Failed operations only as a counter (no list in the API); `rebuild` is not offered (501).
-- Notifications are disabled (no push).
+- Notifications: new mail in the Inbox only, one switch for the device plus an account choice; no
+  per-label notifications, no sender or subject in the notification, no badge counter.
 
 Platform:
 
@@ -742,9 +832,11 @@ API.
 
 Out of scope for 0.1.0, planned:
 
-- **Push**: after sign-in, register the device for the current bearer session (`POST /devices` on
-  the server, not implemented yet), unregister on sign-out; the notifications setting becomes
-  active. Local notifications for `message.new` (hook point in `applyEvent`) come with push too.
+- **Push**: implemented for Android (see [Push notifications](#push-notifications)) and checked
+  on an Android 15 emulator with Google Play services (debug build, 2026-11-26: background, killed
+  app, foreground, taps), not yet on a physical device or in a release build; iOS needs APNs
+  credentials in the Expo project. Local notifications for
+  `message.new` (hook point in `applyEvent`) are still planned.
 - **Offline cache and `/changes`**: today the cache lives in memory only and after more than 24 h
   offline the server answers `resync`; the plan is `expo-sqlite` for the TanStack Query cache and a
   delta endpoint `GET /changes?cursor=`.

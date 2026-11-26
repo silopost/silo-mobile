@@ -1,5 +1,7 @@
-import { deviceLocale, setLocale, type Locale } from "../lib/i18n";
+import { ensureMailChannel } from "../features/push/register";
+import { deviceLocale, setLocale, subscribeLocale, type Locale } from "../lib/i18n";
 import { useAuth } from "./auth";
+import { usePush } from "./push";
 import { useUi } from "./ui";
 
 /**
@@ -16,8 +18,9 @@ export function setLanguage(locale: Locale): void {
 }
 
 /**
- * Applies the stored language once the device preferences are read and goes back to the device
- * language at every sign-out. Returns the cleanup.
+ * Applies the stored language once the device preferences are read, goes back to the device
+ * language at every sign-out, and renames the notification channel when the language changes
+ * (Android keeps the name a channel was created with). Returns the cleanup.
  */
 export function startLanguage(): () => void {
   const applyStored = () => {
@@ -34,8 +37,12 @@ export function startLanguage(): () => void {
       setLocale(deviceLocale());
     }
   });
+  const unlocale = subscribeLocale(() => {
+    if (usePush.getState().enabled) ensureMailChannel().catch(() => {});
+  });
   return () => {
     unhydrated();
     unauth();
+    unlocale();
   };
 }

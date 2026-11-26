@@ -426,7 +426,28 @@ export const pl: Messages = {
   on: "Włączone",
   off: "Wyłączone",
   pushTitle: "Powiadomienia",
-  pushUnavailable: "Niedostępne: serwer nie obsługuje powiadomień push",
+  pushUnavailable: {
+    loading: "Sprawdzanie, czy serwer obsługuje powiadomienia…",
+    server: "Niedostępne: serwer nie obsługuje powiadomień push lub ma je wyłączone",
+    build: "Niedostępne: ta wersja aplikacji została zbudowana bez konfiguracji powiadomień push",
+    expoGo: "Niedostępne w Expo Go: powiadomienia push wymagają zbudowanej aplikacji",
+  },
+  pushNewMail: "Powiadomienia z Odebranych",
+  pushOnDescription: "Włączone na tym urządzeniu",
+  pushAccounts: "Konta z powiadomieniami",
+  pushAllAccounts: "Wszystkie konta",
+  pushSomeAccounts: (n: number, total: number) => `${n} z ${total}`,
+  pushAccountsSave: "Zapisz",
+  pushAccountsHint: "Wybierz konta, o których nowej poczcie chcesz dostawać powiadomienia",
+  pushPermissionDenied:
+    "Brak zgody na powiadomienia. Możesz ją przyznać w ustawieniach systemu (Aplikacje → Silo → Powiadomienia).",
+  pushServerDisabled: "Serwer ma wyłączone powiadomienia push.",
+  pushInvalidAccount: "Serwer nie zna jednego z wybranych kont. Odśwież listę kont.",
+  pushTokenFailed:
+    "Nie udało się uzyskać identyfikatora powiadomień tego urządzenia (wymagane usługi Google Play i internet).",
+  pushLastError: (error: string) => `Ostatni błąd doręczenia: ${error}`,
+  pushChannelName: "Nowa poczta",
+  pushChannelDescription: "Powiadomienia o nowych wiadomościach w Odebranych",
   localSettingsNote:
     "Te ustawienia dotyczą tylko tego urządzenia. Ustawienia wspólne dla wszystkich urządzeń pojawią się z nową wersją serwera.",
   generalSectionDisplay: "Wyświetlanie",
@@ -451,7 +472,7 @@ export const pl: Messages = {
   timezoneSearch: "Szukaj strefy",
   desktopNotificationsTitle: "Powiadomienia na komputerze",
   desktopNotificationsNote:
-    "Ustawienie przeglądarki; powiadomienia w telefonie wymagają obsługi push na serwerze.",
+    "Ustawienie przeglądarki dla Silo w sieci; powiadomienia na tym telefonie ustawisz w sekcji Powiadomienia.",
   invalidSetting: "Serwer odrzucił tę wartość ustawienia.",
   invalidTimezone: "Nieznana strefa czasowa.",
 

@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { Providers } from "../src/Providers";
+import { silenceForegroundNotifications } from "../src/features/push/register";
 import { setupQueryManagers } from "../src/features/sync/useEvents";
 import { useLocale } from "../src/lib/i18n";
 import { restoreAuth } from "../src/state/auth";
@@ -16,6 +17,8 @@ export default function RootLayout() {
   }, []);
   // App focus and network state for the query cache (React Native has no window events).
   useEffect(() => setupQueryManagers(), []);
+  // No system notification while the app is in the foreground: the event stream updates the lists.
+  useEffect(() => silenceForegroundNotifications(), []);
 
   return (
     <Providers>

@@ -7,6 +7,7 @@ import { SettingsSnackbar } from "../features/settings/SettingsSnackbar";
 import { useChangeLanguage } from "../features/settings/language";
 import { TextDialog } from "../features/settings/TextDialog";
 import { deviceTimeZone, TimezoneDialog } from "../features/settings/TimezoneDialog";
+import { PushSettings } from "../features/push/PushSettings";
 import { swipeLook } from "../features/threadlist/SwipeableRow";
 import { useServerFeature } from "../lib/features";
 import { LOCALE_NAMES, LOCALES, t, useLocale } from "../lib/i18n";
@@ -257,13 +258,7 @@ export function GeneralSettingsScreen() {
         <Divider />
 
         <SectionTitle>{t.pushTitle}</SectionTitle>
-        <SettingsItem
-          title={t.pushTitle}
-          description={t.pushUnavailable}
-          icon="bell-off-outline"
-          disabled
-          testID="setting-push"
-        />
+        <PushSettings />
         <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
           {synced ? t.deviceSettingsNote : t.localSettingsNote}
         </Text>

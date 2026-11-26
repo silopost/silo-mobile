@@ -1,5 +1,5 @@
 // Rasterises the brand icon assets/icon.svg (a copy of silo-web/public/icons/icon.svg, the
-// source of truth: keep the two identical) into the Expo icon PNGs referenced by app.json.
+// source of truth: keep the two identical) into the Expo icon PNGs referenced by app.config.js.
 // Uses @resvg/resvg-js (devDependency, prebuilt renderer) and writes PNGs with node:zlib, so
 // icon.png can be saved without an alpha channel (App Store rule). Run `npm run gen:icons`
 // after changing icon.svg; the output is committed.
