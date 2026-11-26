@@ -9,10 +9,12 @@ Expo app modelled on the Gmail app for Android (Material 3), talking to
 [![Expo SDK](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)](package.json)
 [![CI](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml/badge.svg)](https://github.com/silopost/silo-mobile/actions/workflows/ci.yml)
 
-> **Status: unreleased, never run on a device.** Version 0.1.0 has mail feature parity with
-> silo-web 0.3.0, but it has been verified only by type checking, lint, 405 unit and screen tests,
-> an Android JavaScript bundle and a read-only smoke test against a live API – **not on a phone or
-> an emulator**. The UI is in English and Polish. See [Status and roadmap](#status-and-roadmap).
+> **Status: unreleased, run only on an Android emulator.** Version 0.1.0 has mail feature parity
+> with silo-web 0.3.0. A debug build has run on an Android 15 emulator with Google Play services,
+> where push notifications were checked (2026-11-26); the app has not been tried on a physical
+> device, in a release build or on iOS. The rest is verified by type checking, lint, 476 unit and
+> screen tests (2026-11-26), an Android JavaScript bundle and a read-only smoke test against a live
+> API. The UI is in English and Polish. See [Status and roadmap](#status-and-roadmap).
 
 ## Contents
 
@@ -817,8 +819,8 @@ Settings:
 Platform:
 
 - The date/time picker is Android-only (`DateTimePickerAndroid`); iOS needs an inline component.
-- iOS is unverified (neither a build nor a device); Android is verified only by tests and the
-  bundle, not on a device.
+- iOS is unverified (neither a build nor a device); Android is verified by tests, the bundle and a
+  debug build on an emulator, not on a physical device or in a release build.
 - The UI has English and Polish only (see [Development](#development)); the native date and time
   dialogs follow the device language, not the app's.
 
@@ -828,9 +830,13 @@ Verified on 2026-11-06 without a device: typecheck, lint, format, 405 tests (jes
 Android Hermes bundle (`expo export`, 8.4 MB), the schema matching `v0.4.0` and the read-only smoke
 test on the dev Compose stack (14/14).
 
-Not verified yet: the app **has never run on a device or an emulator** (gestures, the editor
-keyboard, WebView, pickers), iOS at all, end-to-end tests with mutations and SSE against a live
-API.
+Verified on 2026-11-26: a debug build runs on an Android 15 emulator with Google Play services,
+and push notifications were checked there (background, killed app, foreground, taps). The test
+suite had 476 tests in 65 suites on that day.
+
+Not verified yet: a physical device, a release build and iOS at all; on the emulator only push has
+been checked by hand, so gestures, the editor keyboard, WebView and pickers still need checking, as
+do end-to-end tests with mutations and SSE against a live API.
 
 Out of scope for 0.1.0, planned:
 
