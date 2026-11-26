@@ -19,22 +19,26 @@ export type SystemView = {
   more?: boolean;
 };
 
-/** A drawer entry whose name is read from the dictionary of the current language (t.views). */
+/**
+ * A drawer entry whose name is read from the dictionary of the current language (t.views) on
+ * every access. The getter stays out of any object spread: Babel's spread helper copies a getter
+ * as the value it returns once, which would freeze the name in the language of the module load.
+ */
 function view(
   slug: keyof typeof t.views,
   labelId: string | undefined,
   icon: IconName,
   extra: Pick<SystemView, "count" | "more"> = {},
 ): SystemView {
-  return {
+  const entry = {
     slug,
     labelId,
     icon,
-    ...extra,
     get name() {
       return t.views[slug];
     },
   };
+  return Object.assign(entry, extra);
 }
 
 /**

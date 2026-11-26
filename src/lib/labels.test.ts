@@ -1,5 +1,6 @@
 import { label } from "../test/fixtures";
 import { formatCount, initial } from "./format";
+import { setLocale } from "./i18n";
 import {
   isListed,
   labelTree,
@@ -27,6 +28,16 @@ describe("labels", () => {
     expect(systemCount(view("inbox"), labels)).toBe(3);
     expect(systemCount(view("drafts"), labels)).toBe(2);
     expect(systemCount(view("starred"), labels)).toBe(0);
+  });
+
+  it("names the system views in the language set last, whatever the language at load", () => {
+    const inbox = SYSTEM_VIEWS.find((v) => v.slug === "inbox")!;
+    setLocale("en");
+    expect(inbox.name).toBe("Inbox");
+    expect(viewName("starred", [])).toBe("Starred");
+    setLocale("pl");
+    expect(inbox.name).toBe("Odebrane");
+    expect(viewName("starred", [])).toBe("Oznaczone gwiazdką");
   });
 
   it("lists labels by showInList", () => {
