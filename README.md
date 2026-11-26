@@ -90,7 +90,7 @@ Deviations from parity are listed in [Differences from the Gmail app](#differenc
 version (`dev`, empty, a commit) is treated as the newest, and until `/meta` is known no 0.4.0
 feature is available. Features the server lacks are hidden.
 
-The API schema is generated from the OpenAPI document of silo-server `v0.9.0` (`silo.serverRef` in
+The API schema is generated from the OpenAPI document of silo-server `v0.10.0` (`silo.serverRef` in
 `package.json`). Full table: [compatibility matrix](https://github.com/silopost/silo/blob/main/docs/compat-matrix.md#silo-mobile).
 
 ## Requirements
@@ -144,7 +144,7 @@ sign-in screen, and the app reads everything else from `GET /api/v1/meta`.
 | App identity                                                                                                         | `app.config.js`                                           | name `Silo`, package `dev.silopost.mobile`, scheme `silopost`                                     |
 | Push notifications on this device (on/off, accounts, device id)                                                      | AsyncStorage via zustand `persist` (`src/state/push.ts`)  | reset on every sign-out; the server is the source of truth (`GET /devices/current`)               |
 | Push build configuration                                                                                             | environment when the config is resolved (`app.config.js`) | `SILO_GOOGLE_SERVICES_JSON`, `SILO_EAS_PROJECT_ID`, see [Push notifications](#push-notifications) |
-| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                         | currently `v0.9.0`                                                                                |
+| Targeted server contract                                                                                             | `package.json` → `silo.serverRef`                         | currently `v0.10.0`                                                                               |
 
 Environment variables are used only by the tooling: `SILO_GOOGLE_SERVICES_JSON` and
 `SILO_EAS_PROJECT_ID` when the app config is resolved (`expo start`, `expo prebuild`; see
@@ -259,9 +259,11 @@ Google → phone with a generic title ("Nowa wiadomość" / "N nowych wiadomośc
 thread ids and a count; no sender, subject or text. Expo and Google see the token, those ids and
 the time.
 
-**API types.** `/devices` and `Meta.push` are not in a released server contract yet (the schema is
-generated from `v0.9.0`), so `src/features/push/api.ts` declares them, mirroring silo-server's
-`api/openapi.yaml`; they move to `src/api/types.ts` when `silo.serverRef` is bumped.
+**API types.** `/devices`, `Device`, `RegisterDevice` and `Meta.push` come from the generated schema
+(contract `v0.10.0`); `src/api/types.ts` aliases them and `src/api/devices.ts` calls the endpoints
+through the same typed client as the rest of the API. `Meta.push` is required in the contract, but
+servers before 0.10.0 do not send it, so `hasServerPush` (`src/lib/features.ts`) still treats a
+missing field as "no push".
 
 ## Architecture
 
@@ -633,18 +635,18 @@ Routes mirror silo-web's URLs; `<n>` is `Account.position`. API paths are relati
 
 `src/api/schema.d.ts` is generated from silo-server's `api/openapi.yaml` and committed. The server
 release the app is built against is declared in `package.json`: `"silo": {"serverRef": ...}`
-(currently `v0.9.0`).
+(currently `v0.10.0`).
 
 ```sh
-npm run gen:api                          # openapi.yaml at silo.serverRef (v0.9.0) from GitHub
+npm run gen:api                          # openapi.yaml at silo.serverRef (v0.10.0) from GitHub
 npm run gen:api -- --server-ref v0.3.0   # another git ref
 npm run gen:api -- --local [path]        # a local file (default ../silo-server/api/openapi.yaml)
 ```
 
 The CI job `api-contract` checks out silo-server at `silo.serverRef`, regenerates the schema and
 fails when it differs from the committed one; it passes once the silo-server repository with the
-`v0.9.0` tag is public on GitHub. The committed schema is the 0.9.0 contract
-(`../silo-server/api/openapi.yaml` at tag `v0.9.0`).
+`v0.10.0` tag is public on GitHub. The committed schema is the 0.10.0 contract
+(`../silo-server/api/openapi.yaml` at tag `v0.10.0`).
 
 ## Testing
 
