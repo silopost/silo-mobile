@@ -361,7 +361,7 @@ export interface paths {
         put?: never;
         /**
          * Register the push device of this session
-         * @description Bearer sessions only (403 bearer_session_required for the cookie session). A session has one device: registering again updates it (another token replaces it). The same token registered by another session moves to this one. Signing out (DELETE /session) or the expiry of the session removes the device. 403 push_disabled when the instance has push switched off (GET /meta push.providers is empty); 422 invalid_account when accountIds names an account the user does not have. Notifications carry no message content: a generic title and data `{v: 1, type: "mail", accountId, threadId, count}` (Android channel `mail`).
+         * @description Bearer sessions only (403 bearer_session_required for the cookie session). A session has one device: registering again updates it (another token replaces it). The same token registered by another session moves to this one. Signing out (DELETE /session) or the expiry of the session removes the device. 403 push_disabled when the instance has push switched off (GET /meta push.providers is empty); 422 invalid_account when accountIds names an account the user does not have. Notifications carry no message content: data `{v: 1, type: "mail", accountId, threadId, count, messageIds}` (messageIds, newest first, only for bursts of at most 5 messages) with a generic title, or for dataOnly devices without a title or channel (Android channel `mail` for the titled form).
          */
         post: operations["registerDevice"];
         delete?: never;
@@ -630,6 +630,26 @@ export interface paths {
          * @description Renaming a user label gives it a new IMAP keyword and moves its messages to it on the server (queued). parentId moves a user label under another user label of the account (null: top level; the label itself, a descendant or any other label answers 422 invalid_parent); the keyword stays. System labels and folders cannot be renamed or moved (400).
          */
         patch: operations["updateLabel"];
+        trace?: never;
+    };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the sender, subject and snippet of messages
+         * @description What a new-mail notification shows: a native client woken by a data-only push (POST /devices with dataOnly) asks for the messages named in its data (messageIds) and presents them. Newest first; unknown ids and messages of other users are left out (no 404).
+         */
+        get: operations["listMessageSummaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/messages/modify": {
@@ -1453,6 +1473,8 @@ export interface components {
             accountIds: string[] | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description The app presents the notifications itself (see RegisterDevice.dataOnly). */
+            dataOnly: boolean;
             /** @example dev_1 */
             id: string;
             /** @description Last delivery error reported by the push service (e.g. MessageRateExceeded), null after a successful push. A token the service reports as not registered removes the device instead. */
@@ -1830,6 +1852,23 @@ export interface components {
             name: string;
             role: string;
         } | null;
+        MessageSummaries: {
+            messages: components["schemas"]["MessageSummary"][] | null;
+        };
+        MessageSummary: {
+            /** @example acc_1 */
+            accountId: string;
+            /** Format: date-time */
+            date: string;
+            from: components["schemas"]["Address"];
+            /** @example m_1x9 */
+            id: string;
+            /** @description Plain text from the start of the body; empty while only the headers are in the mirror. */
+            snippet: string;
+            subject: string;
+            /** @example t_8f3k2 */
+            threadId: string;
+        };
         Meta: {
             /** @description Whether users may add accounts on arbitrary IMAP/SMTP hosts. */
             allowCustomServers: boolean;
@@ -1997,6 +2036,8 @@ export interface components {
         RegisterDevice: {
             /** @description Accounts of the user (acc_ ids) to push; omitted or null: every account (also accounts added later). */
             accountIds?: string[] | null;
+            /** @description true: the app presents new-mail notifications itself. The push then has no title (Expo sends a data message that wakes the app), and the app fetches sender, subject and snippet with GET /messages?ids= (data.messageIds). Omitted or false: a generic title the system shows. Re-registering without it switches back. */
+            dataOnly?: boolean;
             /**
              * @description Push provider; one of GET /meta push.providers.
              * @enum {string}
@@ -5343,6 +5384,65 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMessageSummaries: {
+        parameters: {
+            query: {
+                /** @description m_ ids, comma-separated. */
+                ids: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageSummaries"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
