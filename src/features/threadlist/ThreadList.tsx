@@ -34,6 +34,15 @@ const List = AnimatedFlashList as unknown as typeof FlashList;
 /** Scroll distance in dp that counts as a direction change for the compose FAB. */
 const SCROLL_SLOP = 8;
 
+/**
+ * Threads added above the first row (new mail on a refresh) keep the rows in view in place, but
+ * a list at the top (scrolled no further than this) stays there, so they appear under the title as in
+ * Gmail. FlashList keeps the visible content position by default and forwards the threshold to
+ * the native scroll view, which scrolls back to 0 after its correction; Android compares it with
+ * the offset in physical pixels, so it is only a small tolerance around 0.
+ */
+const MAINTAIN_POSITION = { autoscrollToTopThreshold: 16 } as const;
+
 type Props = {
   accountId: string;
   filter: ListFilter;
@@ -217,6 +226,7 @@ export function ThreadList({
       )}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
+      maintainVisibleContentPosition={MAINTAIN_POSITION}
       onScroll={scrollHandler}
       scrollEventThrottle={16}
       refreshControl={

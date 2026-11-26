@@ -100,6 +100,17 @@ describe("thread list", () => {
     expect(labelRequests).toBeGreaterThan(before.labels);
   });
 
+  it("keeps a list at the top there when new threads arrive above the first row", async () => {
+    serve({ "": page1 });
+    await renderApp("/u/0/inbox");
+    await screen.findByText("Oferta na Q4");
+
+    // FlashList forwards the threshold to its scroll view (with its own minIndexForVisible).
+    expect(screen.getByTestId("thread-list").props.maintainVisibleContentPosition).toMatchObject({
+      autoscrollToTopThreshold: expect.any(Number),
+    });
+  });
+
   it("shows the empty state of the Inbox", async () => {
     serve({});
     await renderApp("/u/0/inbox");
